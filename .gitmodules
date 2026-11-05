@@ -1,0 +1,11 @@
+[submodule "src/doosan-robot2"]
+	path = src/doosan-robot2
+	url = https://github.com/doosan-robotics/doosan-robot2.git
+	ignore = dirty
+	branch = jazzy
+[submodule "src/e0509_gripper_description"]
+	path = src/e0509_gripper_description
+	url = https://github.com/fhekwn549/e0509_gripper_description.git
+[submodule "src/RH-P12-RN-A"]
+	path = src/RH-P12-RN-A
+	url = https://github.com/ROBOTIS-GIT/RH-P12-RN-A.git

@@ -2,9 +2,9 @@
 set -eo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-REPO_DIR="$(cd "${SCRIPT_DIR}/.." && pwd)"
-WORKSPACE_DIR="${1:-${HOME}/doosan_janggi_ws}"
+WORKSPACE_DIR="$(cd "${SCRIPT_DIR}/.." && pwd)"
 SOURCE_DIR="${WORKSPACE_DIR}/src"
+PATCH_FILE="${WORKSPACE_DIR}/patches/doosan-jazzy-flange-serial.patch"
 
 if [[ "${ROS_DISTRO:-}" != "jazzy" ]]; then
   if [[ ! -f /opt/ros/jazzy/setup.bash ]]; then
@@ -15,24 +15,19 @@ if [[ "${ROS_DISTRO:-}" != "jazzy" ]]; then
 fi
 set -u
 
-command -v vcs >/dev/null || {
-  echo "vcstool이 없습니다: sudo apt install python3-vcstool" >&2
-  exit 1
-}
 command -v colcon >/dev/null || {
   echo "colcon이 없습니다: sudo apt install python3-colcon-common-extensions" >&2
   exit 1
 }
 
-mkdir -p "${SOURCE_DIR}"
-if find "${SOURCE_DIR}" -mindepth 1 -maxdepth 1 -print -quit | grep -q .; then
-  echo "${SOURCE_DIR}가 비어 있지 않습니다. 새 워크스페이스를 지정하세요." >&2
-  exit 1
-fi
+git -C "${WORKSPACE_DIR}" submodule update --init --recursive
 
-vcs import "${SOURCE_DIR}" < "${REPO_DIR}/config/janggi.repos"
-git -C "${SOURCE_DIR}/doosan-robot2" apply --check "${REPO_DIR}/patches/doosan-jazzy-flange-serial.patch"
-git -C "${SOURCE_DIR}/doosan-robot2" apply "${REPO_DIR}/patches/doosan-jazzy-flange-serial.patch"
+if git -C "${SOURCE_DIR}/doosan-robot2" apply --reverse --check "${PATCH_FILE}" 2>/dev/null; then
+  echo "Flange Serial 패치가 이미 적용되어 있습니다."
+else
+  git -C "${SOURCE_DIR}/doosan-robot2" apply --check "${PATCH_FILE}"
+  git -C "${SOURCE_DIR}/doosan-robot2" apply "${PATCH_FILE}"
+fi
 
 rosdep update
 rosdep install --from-paths "${SOURCE_DIR}" --ignore-src -r -y --rosdistro jazzy
