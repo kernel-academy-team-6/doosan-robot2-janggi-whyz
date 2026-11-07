@@ -57,4 +57,4 @@ ros2 service call /dsr01/gripper/close std_srvs/srv/Trigger
 ros2 topic pub /dsr01/gripper/position_cmd std_msgs/msg/Int32 "{data: 350}" --once
 ```
 
-실행 및 장애 대응은 [docs/RUNBOOK.md](docs/RUNBOOK.md), 통신 계층은 [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md)를 참고한다.
+장기 보정·이동 도구 실행 순서는 [docs/RUNBOOK.md 9장](docs/RUNBOOK.md#9-장기-보정이동-도구), 실행 및 장애 대응은 [docs/RUNBOOK.md](docs/RUNBOOK.md), 통신 계층은 [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md), 장기 대국 애플리케이션 설계는 [docs/JANGGI_DESIGN.md](docs/JANGGI_DESIGN.md)를 참고한다.

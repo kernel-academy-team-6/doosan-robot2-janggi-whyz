@@ -89,6 +89,49 @@ docker rm -f dsr01_emulator
 
 그 뒤 launch를 다시 실행하고 최대 1~2분 기다린다.
 
+## 9. 장기 보정·이동 도구
+
+터미널 세 개를 쓴다. 각 터미널에서 1번(환경 불러오기)을 먼저 한다. 실제 로봇 IP는 `ROBOT_IP` 자리에 넣는다.
+
+**터미널 1 — 로봇 드라이버.** 작업이 끝날 때까지 켜 둔다. 이 터미널을 Ctrl+C로 끄거나 닫으면 다른 도구도 로봇과 끊긴다.
+
+```bash
+ping -c 3 ROBOT_IP
+ros2 launch e0509_gripper_description bringup.launch.py \
+  mode:=real host:=ROBOT_IP port:=12345 name:=dsr01        # RViz가 필요 없으면 rviz:=false
+```
+
+로그에 `Connected RT control stream`과 `Successfully switched controllers!`가 나오면 연결된 것이다.
+
+**터미널 2 — 카메라-로봇 보정 / 조그.** 자세한 사용법은 [src/janggi/calibration/README.md](../src/janggi/calibration/README.md).
+
+```bash
+cd ~/doosan_janggi_ws/src/janggi/calibration
+./setup_venv.sh          # 처음 한 번
+./run.sh                 # 보정 (카메라 + 조그/그리퍼/홈 패널) → config/calibration.yaml
+./run.sh --jog-only      # 카메라 없이 로봇 패널만
+```
+
+**터미널 3 — 장기판 좌표 이동 예제.** 보정이 끝난 뒤에 쓴다. 자세한 내용은 [src/janggi/action/README.md](../src/janggi/action/README.md).
+
+```bash
+cd ~/doosan_janggi_ws/src/test
+./run_move_example.sh --dry-run      # 목표 좌표만 출력 (로봇 불필요)
+./run_move_example.sh --vel 50       # (0,0)→(1,1)→…→(8,8)→(8,9), 각 교차점 판 표면까지 (사이 이동은 30 mm 높이)
+```
+
+### 연결이 끊길 때
+
+| 증상 | 원인 확인 | 대응 |
+|---|---|---|
+| 드라이버 로그 `Disconnected.. Please check out Ethernet Cable..` 후 `RT data is stale`가 계속 늘어남 | `journalctl --since "10 min ago" \| grep -iE "wlo1\|enp"` | PC↔로봇 네트워크가 끊겼다. 와이파이로 연결했다면 유선 랜으로 바꾼다. 와이파이를 써야 하면 절전을 끈다: `nmcli con modify <로봇 와이파이> 802-11-wireless.powersave 2`. 복구 후 드라이버(터미널 1)만 다시 실행한다 |
+| `RT data is stale ... 0.1 s`가 가끔 나옴 | — | 네트워크 지연. 짧게 회복되면 동작에는 문제없지만 와이파이라면 유선을 권장한다 |
+| 보정 화면 `CAMERA LOST`, `Frame didn't arrive` | `journalctl -k \| grep -iE "usb\|uvc" \| tail` (`error -71`, `USB disconnect`) | 카메라 USB가 잠깐 빠졌다. 도구가 자동 재연결한다. 자주 끊기면 허브·연장선 없이 USB 3 포트에 직접, 짧은 케이블로 연결한다 |
+| `Package 'e0509_gripper_description' not found` | `echo $AMENT_PREFIX_PATH` | 이 워크스페이스의 `install/setup.bash`를 source하지 않았다 (`~/ros2_ws`만 source된 셸) |
+| `ModuleNotFoundError: rclpy` | `which python3` | 다른 venv의 python3이 잡혔다. `run.sh`, `run_move_example.sh`로 실행하거나 `/usr/bin/python3`를 쓴다 |
+
+같은 PC에서 에뮬레이터(`mode:=virtual`)와 실제 로봇 드라이버를 동시에 띄우지 않는다. 둘 다 `dsr01` 이름을 쓰므로 명령이 어느 쪽으로 갈지 보장되지 않는다.
+
 ## 알려진 호환성 판단
 
 - `fhekwn549/e0509_gripper_description`만 공식 Jazzy 드라이버 위에 빌드하면 `FlangeSerialOpen` 헤더가 없어 실패한다.
