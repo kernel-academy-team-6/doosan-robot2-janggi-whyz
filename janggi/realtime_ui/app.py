@@ -1,0 +1,656 @@
+#!/usr/bin/env python3
+"""장기말 실시간 인식 + 게임 UI.
+
+왼쪽: 카메라 영상 위 인식 결과 (박스·말 이름·신뢰도·장기판 격자·할당된 교차점)
+오른쪽: 장기판
+    실시간 모드 — 인식된 판 상태(최근 프레임 다수결로 안정화)를 그대로 보여준다
+    게임 모드   — 인식된 판에서 시작해 말을 클릭(또는 드래그)해서 둔다. 둘 수 있는 칸 표시,
+                  차례·장군·외통 판정, 되돌리기, 한수쉼, 실제 판에서 사람이 둔 수 읽기
+
+    ./run.sh                          # RealSense
+    ./run.sh --source 0               # 일반 웹캠 / 동영상 파일 / 이미지 파일 경로
+    ./run.sh --conf 0.4 --piece-height 15
+"""
+
+from __future__ import annotations
+
+import argparse
+import sys
+import threading
+import time
+import tkinter as tk
+from pathlib import Path
+from tkinter import messagebox
+
+import cv2
+import numpy as np
+from PIL import Image, ImageDraw, ImageFont, ImageTk
+
+HERE = Path(__file__).resolve().parent
+sys.path.insert(0, str(HERE.parent))          # janggi/ → piece_detection 패키지
+sys.path.insert(0, str(HERE))
+
+from piece_detection import BoardMapper, BoardStabilizer, piece_char  # noqa: E402
+from piece_detection.board_mapping import DEFAULT_CALIBRATION  # noqa: E402
+from piece_detection.detector import DEFAULT_MODEL  # noqa: E402
+from rules import COLS, ROWS, Game, detect_top_side, infer_move, other  # noqa: E402
+
+FONT_PATH = "/usr/share/fonts/opentype/noto/NotoSansCJK-Bold.ttc"
+FONT_FAMILY = "Noto Sans CJK KR"
+SIDE_RGB = {"blue": (30, 110, 255), "red": (230, 40, 40)}
+SIDE_HEX = {"blue": "#1e5fd9", "red": "#d62828"}
+SIDE_KO = {"blue": "초", "red": "한"}
+FULL_SET = {"king": 1, "cha": 2, "po": 2, "horse": 2, "sang": 2, "sa": 2, "soldier": 5}
+
+
+def parse_args():
+    p = argparse.ArgumentParser(description="장기말 실시간 인식 + 게임 UI")
+    p.add_argument("--source", default="realsense", help="realsense | 웹캠 번호 | 동영상/이미지 파일 경로")
+    p.add_argument("--model", type=Path, default=DEFAULT_MODEL)
+    p.add_argument("--conf", type=float, default=0.35, help="검출 신뢰도 임계값 (UI 슬라이더로 바꿀 수 있다)")
+    p.add_argument("--full-frame", action="store_true", help="판 영역만 잘라 인식하지 않고 전체 프레임을 인식")
+    p.add_argument("--roi-margin", type=int, default=60, help="판 영역 인식 때 격자 바깥 여유 [px]")
+    p.add_argument("--calibration", type=Path, default=DEFAULT_CALIBRATION,
+                   help="네 모서리 픽셀을 읽을 보정 파일 (없으면 판 매핑 없이 검출만)")
+    p.add_argument("--piece-height", type=float, default=12.0, help="말 높이 [mm] (시차 보정)")
+    p.add_argument("--max-dist", type=float, default=0.45, help="교차점 할당 최대 거리 [칸]")
+    p.add_argument("--window", type=int, default=8, help="판 상태 안정화 프레임 수")
+    p.add_argument("--width", type=int, default=1280)
+    p.add_argument("--height", type=int, default=720)
+    return p.parse_args()
+
+
+# --------------------------------------------------------------------------- 영상 입력
+
+class RealSenseSource:
+    def __init__(self, w, h, fps=30):
+        import pyrealsense2 as rs
+
+        self.rs, self.size = rs, (w, h, fps)
+        self.pipe = None
+        self._open()
+
+    def _open(self):
+        rs = self.rs
+        w, h, fps = self.size
+        pipe, cfg = rs.pipeline(), rs.config()
+        cfg.enable_stream(rs.stream.color, w, h, rs.format.bgr8, fps)   # 인식에는 color만 쓴다
+        pipe.start(cfg)
+        self.pipe = pipe
+
+    def read(self):
+        try:
+            if self.pipe is None:
+                self._open()
+            f = self.pipe.wait_for_frames(1000).get_color_frame()
+            return np.asanyarray(f.get_data()).copy() if f else None
+        except RuntimeError:
+            # USB가 잠깐 끊기면 파이프라인을 다시 연다
+            try:
+                if self.pipe is not None:
+                    self.pipe.stop()
+            except RuntimeError:
+                pass
+            self.pipe = None
+            time.sleep(0.5)
+            return None
+
+    def close(self):
+        try:
+            if self.pipe is not None:
+                self.pipe.stop()
+        except RuntimeError:
+            pass
+
+
+class CvSource:
+    """웹캠 번호, 동영상 파일, 이미지 파일."""
+
+    def __init__(self, src: str, w, h):
+        self.image = None
+        if not src.isdigit() and Path(src).suffix.lower() in (".png", ".jpg", ".jpeg", ".bmp"):
+            self.image = cv2.imread(src)
+            if self.image is None:
+                raise RuntimeError(f"이미지를 열 수 없다: {src}")
+            return
+        self.cap = cv2.VideoCapture(int(src) if src.isdigit() else src)
+        if src.isdigit():
+            self.cap.set(cv2.CAP_PROP_FRAME_WIDTH, w)
+            self.cap.set(cv2.CAP_PROP_FRAME_HEIGHT, h)
+        if not self.cap.isOpened():
+            raise RuntimeError(f"영상을 열 수 없다: {src}")
+
+    def read(self):
+        if self.image is not None:
+            time.sleep(0.03)
+            return self.image.copy()
+        ok, f = self.cap.read()
+        if not ok:  # 동영상 끝 → 처음부터
+            self.cap.set(cv2.CAP_PROP_POS_FRAMES, 0)
+            return None
+        return f
+
+    def close(self):
+        if self.image is None:
+            self.cap.release()
+
+
+# --------------------------------------------------------------------------- 인식 스레드
+
+class Worker:
+    """영상 읽기 → 검출 → 교차점 할당 → 안정화를 백그라운드에서 반복한다."""
+
+    def __init__(self, source, detector, mapper, args):
+        self.source, self.detector, self.mapper, self.args = source, detector, mapper, args
+        self.stab = BoardStabilizer(window=args.window)
+        self.lock = threading.Lock()
+        self.latest = None   # (frame, dets, raw_board, stable_board)
+        self.fps = 0.0
+        self.last_frame_t = 0.0
+        self.running = True
+        self.error = None
+        self.use_roi = mapper is not None and not args.full_frame
+        self.thread = threading.Thread(target=self._run, daemon=True)
+        self.thread.start()
+
+    def _run(self):
+        n, t0 = 0, time.time()
+        try:
+            while self.running:
+                frame = self.source.read()
+                if frame is None:
+                    continue
+                roi = None
+                if self.use_roi and self.mapper is not None:
+                    roi = board_crop_box(self.mapper, frame.shape[1], frame.shape[0], self.args.roi_margin)
+                dets = self.detector.detect(frame, conf=self.args.conf, roi=roi)
+                raw = self.mapper.assign(dets, self.args.max_dist) if self.mapper else {}
+                stable = self.stab.update(raw) if self.mapper else {}
+                with self.lock:
+                    self.latest = (frame, dets, raw, stable)
+                self.last_frame_t = time.time()
+                n += 1
+                if time.time() - t0 >= 1.0:
+                    self.fps, n, t0 = n / (time.time() - t0), 0, time.time()
+        except Exception as e:  # noqa: BLE001
+            self.error = repr(e)
+
+    def get(self):
+        with self.lock:
+            return self.latest
+
+    def stop(self):
+        self.running = False
+        self.thread.join(timeout=2.0)
+
+
+# --------------------------------------------------------------------------- 카메라 오버레이
+
+class GlyphCache:
+    """한글 라벨을 PIL로 한 번만 렌더링해 두고 OpenCV 이미지에 알파 합성한다 (PIL로 매 프레임 그리는 것보다 빠르다)."""
+
+    def __init__(self, path, size):
+        self.font = ImageFont.truetype(path, size)
+        self.cache = {}
+
+    def get(self, text, rgb):
+        key = (text, rgb)
+        if key not in self.cache:
+            l, t, r, b = self.font.getbbox(text, stroke_width=2)
+            im = Image.new("RGBA", (r - l + 2, b - t + 2), (0, 0, 0, 0))
+            ImageDraw.Draw(im).text((1 - l, 1 - t), text, font=self.font, fill=rgb + (255,), stroke_width=2,
+                                    stroke_fill=(255, 255, 255, 255))
+            a = np.asarray(im, dtype=np.float32)
+            self.cache[key] = (a[:, :, 2::-1], a[:, :, 3:4] / 255.0)   # BGR, alpha
+        return self.cache[key]
+
+    def put(self, img, text, x, y, rgb):
+        bgr, alpha = self.get(text, rgb)
+        h, w = alpha.shape[:2]
+        x, y = int(x), int(y)
+        x0, y0, x1, y1 = max(x, 0), max(y, 0), min(x + w, img.shape[1]), min(y + h, img.shape[0])
+        if x0 >= x1 or y0 >= y1:
+            return
+        sa = alpha[y0 - y:y1 - y, x0 - x:x1 - x]
+        roi = img[y0:y1, x0:x1].astype(np.float32)
+        img[y0:y1, x0:x1] = (roi * (1 - sa) + bgr[y0 - y:y1 - y, x0 - x:x1 - x] * sa).astype(np.uint8)
+
+
+def draw_overlay(frame, dets, mapper, glyphs, crop=None, detail=False):
+    """인식 결과를 그린 BGR 이미지. crop=(x0, y0, x1, y1)이면 그 영역만 잘라서 그린다."""
+    x0, y0, x1, y1 = crop or (0, 0, frame.shape[1], frame.shape[0])
+    img = frame[y0:y1, x0:x1].copy()
+    off = np.array([x0, y0], dtype=np.float64)
+
+    def P(p):
+        q = np.asarray(p, dtype=np.float64) - off
+        return int(round(q[0])), int(round(q[1]))
+
+    yellow = (0, 220, 255)
+    if mapper is not None:
+        g = mapper.grid_pixels()
+        cv2.polylines(img, [np.array([P(g[0, 0]), P(g[0, -1]), P(g[-1, -1]), P(g[-1, 0])], np.int32)], True,
+                      yellow, 2, cv2.LINE_AA)
+        for y in range(ROWS):
+            for x in range(COLS):
+                cv2.circle(img, P(g[y, x]), 2, yellow, -1, cv2.LINE_AA)
+        for (x, y), name in (((0, 0), "(0,0)"), ((8, 9), "(8,9)")):
+            u, v = P(g[y, x])
+            cv2.putText(img, name, (u + 6, v + 16), cv2.FONT_HERSHEY_SIMPLEX, 0.45, (0, 0, 0), 3, cv2.LINE_AA)
+            cv2.putText(img, name, (u + 6, v + 16), cv2.FONT_HERSHEY_SIMPLEX, 0.45, yellow, 1, cv2.LINE_AA)
+    for det in dets:
+        assigned = det.board is not None
+        rgb = SIDE_RGB[det.side] if assigned else (150, 150, 150)
+        bgr = rgb[::-1]
+        bx1, by1 = P(det.box[:2])
+        bx2, by2 = P(det.box[2:])
+        cv2.rectangle(img, (bx1, by1), (bx2, by2), bgr, 2 if assigned else 1, cv2.LINE_AA)
+        if assigned and mapper is not None:
+            cv2.line(img, P(det.center), P(mapper.grid_pixels()[det.board[1], det.board[0]]), bgr, 1, cv2.LINE_AA)
+        glyphs.put(img, piece_char(det.side, det.kind), bx1, by1 - 19, rgb)
+        tag = f"{det.conf * 100:.0f}" + (f" {det.board[0]},{det.board[1]}" if detail and assigned else "")
+        cv2.putText(img, tag, (bx1 + 19, by1 - 5), cv2.FONT_HERSHEY_SIMPLEX, 0.42, (255, 255, 255), 3, cv2.LINE_AA)
+        cv2.putText(img, tag, (bx1 + 19, by1 - 5), cv2.FONT_HERSHEY_SIMPLEX, 0.42, bgr, 1, cv2.LINE_AA)
+    return img
+
+
+def board_crop_box(mapper, w, h, margin=70):
+    """판 영역(격자 + 여유)을 감싸는 잘라낼 사각형."""
+    g = mapper.grid_pixels().reshape(-1, 2)
+    x0, y0 = np.floor(g.min(axis=0) - margin).astype(int)
+    x1, y1 = np.ceil(g.max(axis=0) + margin).astype(int)
+    return max(x0, 0), max(y0, 0), min(x1, w), min(y1, h)
+
+
+# --------------------------------------------------------------------------- 장기판 그림
+
+class BoardView(tk.Canvas):
+    CELL, MARGIN = 54, 42
+
+    def __init__(self, master, on_press, on_drag, on_release):
+        w = self.MARGIN * 2 + self.CELL * (COLS - 1)
+        h = self.MARGIN * 2 + self.CELL * (ROWS - 1)
+        super().__init__(master, width=w, height=h, bg="#e8c68d", highlightthickness=0)
+        self.bind("<ButtonPress-1>", lambda e: on_press(self.cell_at(e.x, e.y), e))
+        self.bind("<B1-Motion>", on_drag)
+        self.bind("<ButtonRelease-1>", lambda e: on_release(self.cell_at(e.x, e.y), e))
+
+    def xy(self, c):
+        return self.MARGIN + c[0] * self.CELL, self.MARGIN + c[1] * self.CELL
+
+    def cell_at(self, px, py):
+        x = round((px - self.MARGIN) / self.CELL)
+        y = round((py - self.MARGIN) / self.CELL)
+        if 0 <= x < COLS and 0 <= y < ROWS and np.hypot(*(np.subtract((px, py), self.xy((x, y))))) < self.CELL * 0.45:
+            return (x, y)
+        return None
+
+    def draw_grid(self):
+        self.delete("all")
+        for x in range(COLS):
+            self.create_line(*self.xy((x, 0)), *self.xy((x, ROWS - 1)), fill="#5a3a12", width=1)
+            self.create_text(self.xy((x, 0))[0], 16, text=str(x), fill="#5a3a12", font=("TkDefaultFont", 9))
+        for y in range(ROWS):
+            self.create_line(*self.xy((0, y)), *self.xy((COLS - 1, y)), fill="#5a3a12", width=1)
+            self.create_text(16, self.xy((0, y))[1], text=str(y), fill="#5a3a12", font=("TkDefaultFont", 9))
+        for cy in (1, 8):  # 궁성 대각선
+            self.create_line(*self.xy((3, cy - 1)), *self.xy((5, cy + 1)), fill="#5a3a12")
+            self.create_line(*self.xy((5, cy - 1)), *self.xy((3, cy + 1)), fill="#5a3a12")
+
+    def draw_piece(self, c, side, kind, at=None, ghost=False):
+        cx, cy = at if at else self.xy(c)
+        r = {"king": 25, "sa": 18, "soldier": 18}.get(kind, 22)
+        pts = []
+        for k in range(8):  # 장기말은 팔각형
+            a = np.pi / 8 + k * np.pi / 4
+            pts += [cx + r * np.cos(a), cy + r * np.sin(a)]
+        self.create_polygon(pts, fill="#f8ecd2" if not ghost else "#ddd2bb", outline=SIDE_HEX[side], width=2,
+                            tags="piece")
+        self.create_text(cx, cy, text=piece_char(side, kind), fill=SIDE_HEX[side],
+                         font=(FONT_FAMILY, int(r * 0.85), "bold"), tags="piece")
+
+    def mark(self, c, color, r=27, width=3, dash=None):
+        x, y = self.xy(c)
+        self.create_oval(x - r, y - r, x + r, y + r, outline=color, width=width, dash=dash)
+
+    def dot(self, c, color, r=7):
+        x, y = self.xy(c)
+        self.create_oval(x - r, y - r, x + r, y + r, fill=color, outline="")
+
+
+# --------------------------------------------------------------------------- 앱
+
+class App:
+    def __init__(self, args, worker, mapper):
+        self.args, self.worker, self.mapper = args, worker, mapper
+        self.root = tk.Tk()
+        self.root.title("장기 실시간 인식")
+        self.glyphs = GlyphCache(FONT_PATH, 16)
+        self._board_sig = None
+        self.zoom = tk.BooleanVar(value=mapper is not None)
+        self.detail = tk.BooleanVar(value=False)
+        self._after = None
+        self.mode = tk.StringVar(value="live")
+        self.first = tk.StringVar(value="blue")
+        self.show_diff = tk.BooleanVar(value=True)
+        self.game: Game | None = None
+        self.sel = None
+        self.drag_xy = None
+        self.last_move = None
+        self.stable = {}
+        self._photo = None
+
+        sw, sh = self.root.winfo_screenwidth(), self.root.winfo_screenheight()
+        self.scale = min(1.0, (sw - 760) / args.width, (sh - 140) / args.height)
+        self.disp = (int(args.width * self.scale), int(args.height * self.scale))
+        self._build()
+        self.root.protocol("WM_DELETE_WINDOW", self.quit)
+        self.root.bind("<Escape>", lambda e: self.cancel_select())
+        self.root.bind("<Control-z>", lambda e: self.undo())
+        self._after = self.root.after(30, self.tick)
+
+    def _build(self):
+        main = tk.Frame(self.root)
+        main.pack(fill="both", expand=True)
+        left = tk.Frame(main)
+        left.pack(side="left", fill="y")
+        # 고정 크기 캔버스: 매 프레임 이미지만 바꾼다 (Label 크기를 다시 지정하면 창 전체가 다시 배치돼 느리다)
+        self.cam = tk.Canvas(left, bg="black", width=self.disp[0], height=self.disp[1], highlightthickness=0)
+        self.cam.pack()
+        self.cam_item = self.cam.create_image(self.disp[0] // 2, self.disp[1] // 2, anchor="center")
+        row = tk.Frame(left)
+        row.pack(fill="x", padx=6, pady=4)
+        self.lbl_cam = tk.Label(row, anchor="w", font=("TkFixedFont", 10), width=56)
+        self.lbl_cam.pack(side="left")
+        tk.Checkbutton(row, text="판 확대", variable=self.zoom,
+                       state=tk.NORMAL if self.mapper else tk.DISABLED).pack(side="right")
+        tk.Checkbutton(row, text="상세(교차점 좌표)", variable=self.detail).pack(side="right")
+        row2 = tk.Frame(left)
+        row2.pack(fill="x", padx=6)
+        tk.Label(row2, text="신뢰도 기준").pack(side="left")
+        self.conf_var = tk.DoubleVar(value=self.args.conf)
+        tk.Scale(row2, from_=0.05, to=0.9, resolution=0.05, orient="horizontal", length=220, variable=self.conf_var,
+                 command=lambda v: setattr(self.args, "conf", float(v))).pack(side="left")
+        self.roi_var = tk.BooleanVar(value=self.worker.use_roi)
+        tk.Checkbutton(row2, text="판 영역만 인식 (작은 말에 유리)", variable=self.roi_var,
+                       state=tk.NORMAL if self.mapper else tk.DISABLED,
+                       command=lambda: setattr(self.worker, "use_roi", self.roi_var.get())).pack(side="left", padx=10)
+        tk.Button(row2, text="원본 프레임 저장", command=self.save_frame).pack(side="right")
+        tk.Label(left, anchor="w", justify="left", fg="#555", text=(
+            "박스 색: 파랑=초, 빨강=한, 회색=판 교차점에 할당 안 됨.  노란 점: 장기판 교차점 (보정 파일의 네 모서리 기준)"
+        )).pack(fill="x", padx=6)
+
+        right = tk.Frame(main, padx=10, pady=6)
+        right.pack(side="left", fill="both", expand=True)
+        top = tk.Frame(right)
+        top.pack(fill="x")
+        tk.Radiobutton(top, text="실시간 인식", value="live", variable=self.mode, command=self.on_mode,
+                       font=("TkDefaultFont", 11, "bold")).pack(side="left")
+        tk.Radiobutton(top, text="게임", value="game", variable=self.mode, command=self.on_mode,
+                       font=("TkDefaultFont", 11, "bold")).pack(side="left", padx=8)
+        self.lbl_status = tk.Label(right, anchor="w", font=(FONT_FAMILY, 13, "bold"), width=40)
+        self.lbl_status.pack(fill="x", pady=(4, 2))
+
+        mid = tk.Frame(right)
+        mid.pack(fill="both", expand=True)
+        self.board = BoardView(mid, self.on_press, self.on_drag, self.on_release)
+        self.board.pack(side="left", anchor="n")
+
+        side = tk.Frame(mid, padx=8)
+        side.pack(side="left", fill="y")
+        fg = tk.LabelFrame(side, text="게임", padx=6, pady=4)
+        fg.pack(fill="x")
+        fr = tk.Frame(fg)
+        fr.pack(fill="x")
+        tk.Label(fr, text="선수").pack(side="left")
+        tk.Radiobutton(fr, text="초", value="blue", variable=self.first).pack(side="left")
+        tk.Radiobutton(fr, text="한", value="red", variable=self.first).pack(side="left")
+        for text, cmd in (("인식된 판으로 새 게임", self.new_game), ("판에서 둔 수 읽기", self.read_move),
+                          ("되돌리기 (Ctrl+Z)", self.undo), ("한수쉼", self.pass_turn),
+                          ("인식된 판으로 맞추기", self.sync_to_detection)):
+            tk.Button(fg, text=text, command=cmd).pack(fill="x", pady=1)
+        tk.Checkbutton(fg, text="인식과 다른 칸 표시", variable=self.show_diff).pack(anchor="w")
+        tk.Label(side, text="기보", anchor="w").pack(fill="x", pady=(8, 0))
+        self.log = tk.Listbox(side, height=14, width=26, font=(FONT_FAMILY, 10))
+        self.log.pack(fill="both", expand=True)
+        self.lbl_count = tk.Label(side, anchor="w", justify="left", font=(FONT_FAMILY, 10))
+        self.lbl_count.pack(fill="x", pady=6)
+
+    # ------------------------------------------------------------------ 모드 / 게임 조작
+    def on_mode(self):
+        if self.mode.get() == "game" and self.game is None:
+            self.new_game()
+        self.cancel_select()
+
+    def new_game(self):
+        if not self.stable:
+            messagebox.showwarning("새 게임", "인식된 말이 없다. 카메라와 보정 파일을 확인한다.", parent=self.root)
+            self.mode.set("live")
+            return
+        board = dict(self.stable)
+        self.game = Game(board, top_side=detect_top_side(board), turn=self.first.get())
+        self.last_move = None
+        self.log.delete(0, "end")
+        self.log.insert("end", f"새 게임: 위쪽 {SIDE_KO[self.game.top_side]}, {SIDE_KO[self.game.turn]} 먼저")
+        self.mode.set("game")
+        self.cancel_select()
+
+    def sync_to_detection(self):
+        """게임 진행(차례·기보)은 두고 판만 인식 결과로 덮어쓴다 (인식 오류를 손으로 고친 뒤 등)."""
+        if self.game is None:
+            return self.new_game()
+        self.game.board = dict(self.stable)
+        self.log.insert("end", "판을 인식 결과로 맞춤")
+        self.cancel_select()
+
+    def read_move(self):
+        """실제 판에서 사람이 둔 수를 인식 결과와의 차이로 읽어 게임에 반영한다."""
+        if self.game is None:
+            return
+        mv = infer_move(self.game.board, self.stable, self.game.turn)
+        if mv is None:
+            diff = self.diff_cells()
+            messagebox.showinfo("수 읽기", f"{SIDE_KO[self.game.turn]}의 한 수로 읽을 수 없다 (다른 칸 {len(diff)}개).\n"
+                                "말이 가려졌거나 인식이 흔들리면 잠시 뒤 다시 누른다.", parent=self.root)
+            return
+        try:
+            self.play(*mv)
+        except ValueError as e:
+            messagebox.showwarning("수 읽기", f"규칙상 둘 수 없는 수다: {e}", parent=self.root)
+
+    def play(self, src, dst):
+        rec = self.game.move(src, dst)
+        self.last_move = (src, dst)
+        n = len(self.game.history)
+        cap = f" x{piece_char(*rec.captured)}" if rec.captured else ""
+        self.log.insert("end", f"{n}. {SIDE_KO[rec.side]} {piece_char(*rec.piece)} {src[0]},{src[1]}→{dst[0]},{dst[1]}{cap}")
+        st = self.game.status()
+        if st:
+            self.log.insert("end", f"   {SIDE_KO[self.game.turn]} {st}!")
+        self.log.see("end")
+
+    def undo(self):
+        if self.game and self.game.undo():
+            self.log.delete("end")
+            if self.log.size() and self.log.get("end").startswith("   "):
+                self.log.delete("end")
+            h = self.game.history
+            self.last_move = (h[-1].src, h[-1].dst) if h and not h[-1].passed else None
+            self.cancel_select()
+
+    def pass_turn(self):
+        if self.game:
+            self.game.pass_turn()
+            self.log.insert("end", f"{len(self.game.history)}. {SIDE_KO[other(self.game.turn)]} 한수쉼")
+            self.log.see("end")
+
+    # ------------------------------------------------------------------ 마우스 (클릭 또는 드래그)
+    def on_press(self, cell, e):
+        if self.mode.get() != "game" or self.game is None:
+            return
+        if self.sel and cell in self.game.legal_moves(self.sel):
+            self.play(self.sel, cell)
+            self.cancel_select()
+            return
+        if cell and cell in self.game.board and self.game.board[cell][0] == self.game.turn:
+            self.sel = cell
+            self.drag_xy = (e.x, e.y)
+        else:
+            self.cancel_select()
+
+    def on_drag(self, e):
+        if self.sel:
+            self.drag_xy = (e.x, e.y)
+
+    def on_release(self, cell, e):
+        if self.sel and cell and cell != self.sel and cell in self.game.legal_moves(self.sel):
+            self.play(self.sel, cell)
+            self.cancel_select()
+            return
+        self.drag_xy = None   # 같은 칸에서 놓으면 선택 유지 → 다음 클릭으로 둔다
+
+    def cancel_select(self):
+        self.sel, self.drag_xy = None, None
+
+    def diff_cells(self):
+        if self.game is None:
+            return set()
+        b, s = self.game.board, self.stable
+        return {c for c in set(b) | set(s) if b.get(c) != s.get(c)}
+
+    # ------------------------------------------------------------------ 그리기
+    def tick(self):
+        if self.worker.error:
+            messagebox.showerror("오류", f"인식 스레드 오류: {self.worker.error}", parent=self.root)
+            return self.quit()
+        data = self.worker.get()
+        if data is not None:
+            frame, dets, raw, self.stable = data
+            crop = None
+            if self.zoom.get() and self.mapper is not None:
+                crop = board_crop_box(self.mapper, frame.shape[1], frame.shape[0])
+            img = draw_overlay(frame, dets, self.mapper, self.glyphs, crop, self.detail.get())
+            k = min(self.disp[0] / img.shape[1], self.disp[1] / img.shape[0])
+            if abs(k - 1.0) > 1e-3:
+                img = cv2.resize(img, (int(img.shape[1] * k), int(img.shape[0] * k)),
+                                 interpolation=cv2.INTER_LINEAR if k > 1 else cv2.INTER_AREA)
+            pil = Image.fromarray(cv2.cvtColor(img, cv2.COLOR_BGR2RGB))
+            if self._photo is None or (self._photo.width(), self._photo.height()) != pil.size:
+                self._photo = ImageTk.PhotoImage(pil)   # 크기가 바뀔 때만 새로 만든다
+                self.cam.itemconfigure(self.cam_item, image=self._photo)
+            else:
+                self._photo.paste(pil)                  # 같은 이미지 객체에 내용만 덮어쓴다
+            lag = time.time() - self.worker.last_frame_t
+            stale = f"  ⚠ 영상 {lag:.0f}초 멈춤" if lag > 1.5 else ""
+            assigned = sum(1 for d in dets if d.board is not None)
+            self.lbl_cam.config(text=f"인식 {self.worker.fps:4.1f} FPS · 검출 {len(dets)} · 판 할당 {assigned}{stale}")
+        self.draw_board()
+        self._after = self.root.after(30, self.tick)
+
+    def draw_board(self):
+        bv = self.board
+        live = self.mode.get() == "live" or self.game is None
+        board = self.stable if live else self.game.board
+        # 그릴 내용이 그대로면 다시 그리지 않는다 (캔버스 전체를 다시 그리는 데 수십 ms 걸린다)
+        sig = (live, tuple(sorted(board.items())), self.sel, self.drag_xy, self.last_move,
+               None if live else (self.game.turn, len(self.game.history)),
+               tuple(sorted(self.diff_cells())) if (not live and self.show_diff.get()) else None)
+        if sig == self._board_sig:
+            return
+        self._board_sig = sig
+        bv.draw_grid()
+        if live:
+            self.lbl_status.config(text="실시간 인식 결과" if self.mapper else "보정 파일이 없어 판 매핑 없음",
+                                   fg="#333")
+        else:
+            st = self.game.status()
+            self.lbl_status.config(text=f"{SIDE_KO[self.game.turn]} 차례" + (f" — {st}!" if st else ""),
+                                   fg=SIDE_HEX[self.game.turn])
+            if self.last_move:
+                for c in self.last_move:
+                    bv.mark(c, "#2e7d32", r=29, width=2, dash=(4, 2))
+            if self.show_diff.get():
+                for c in self.diff_cells():
+                    bv.mark(c, "#ff8f00", r=30, width=3)
+        for c, (side, kind) in board.items():
+            if c == self.sel and self.drag_xy:
+                bv.draw_piece(c, side, kind, ghost=True)
+            else:
+                bv.draw_piece(c, side, kind)
+        if not live and self.sel:
+            bv.mark(self.sel, "#6a1b9a", r=28, width=3)
+            for c in self.game.legal_moves(self.sel):
+                if c in board:
+                    bv.mark(c, "#6a1b9a", r=26, width=3, dash=(3, 2))
+                else:
+                    bv.dot(c, "#6a1b9a")
+            if self.drag_xy:
+                bv.draw_piece(self.sel, *board[self.sel], at=self.drag_xy)
+        cnt = {s: {k: 0 for k in FULL_SET} for s in SIDE_KO}
+        for side, kind in board.values():
+            cnt[side][kind] += 1
+        lines = []
+        for s in ("blue", "red"):
+            total = sum(cnt[s].values())
+            missing = [f"{piece_char(s, k)}{FULL_SET[k] - n}" for k, n in cnt[s].items() if n < FULL_SET[k]]
+            lines.append(f"{SIDE_KO[s]} {total}/16" + (f"  없음: {' '.join(missing)}" if missing else ""))
+        self.lbl_count.config(text="\n".join(lines))
+
+    def save_frame(self):
+        """오버레이 없는 원본 프레임과 인식 결과를 저장한다 (인식 문제 분석·추가 학습 데이터용)."""
+        data = self.worker.get()
+        if data is None:
+            return
+        frame, dets = data[0], data[1]
+        out = HERE / "captures"
+        out.mkdir(exist_ok=True)
+        stamp = time.strftime("%Y%m%d_%H%M%S")
+        cv2.imwrite(str(out / f"{stamp}.png"), frame)
+        with open(out / f"{stamp}.txt", "w", encoding="utf-8") as f:
+            f.write(f"# conf>={self.args.conf} roi={self.worker.use_roi}  name conf x1 y1 x2 y2 board\n")
+            for d in dets:
+                f.write(f"{d.name}\t{d.conf:.3f}\t" + " ".join(f"{v:.1f}" for v in d.box) + f"\t{d.board}\n")
+        self.lbl_cam.config(text=f"저장: {out.name}/{stamp}.png (검출 {len(dets)})")
+        print(f"[저장] {out / stamp}.png")
+
+    def quit(self):
+        if self._after is not None:
+            self.root.after_cancel(self._after)
+            self._after = None
+        self.worker.stop()
+        self.root.destroy()
+
+    def run(self):
+        self.root.mainloop()
+
+
+def main():
+    args = parse_args()
+    mapper = None
+    if args.calibration and Path(args.calibration).exists():
+        mapper = BoardMapper.from_calibration(args.calibration, piece_height_mm=args.piece_height)
+    else:
+        print(f"[경고] 보정 파일 없음: {args.calibration} — 판 매핑 없이 검출만 한다")
+    print("[모델] 불러오는 중… (처음엔 수 초)")
+    from piece_detection import PieceDetector
+
+    detector = PieceDetector(args.model, conf=args.conf)
+    print(f"[모델] {args.model.name} on {detector.device}")
+    try:
+        source = RealSenseSource(args.width, args.height) if args.source == "realsense" else \
+            CvSource(args.source, args.width, args.height)
+    except RuntimeError as e:
+        sys.exit(f"[오류] 영상 입력을 열 수 없다 ({args.source}): {e}\n"
+                 "  - RealSense: USB 3 포트에 연결됐는지 `lsusb | grep -i realsense`로 확인한다\n"
+                 "  - 보정 도구·realsense-viewer 등 카메라를 쓰는 다른 프로그램을 끈다\n"
+                 "  - 카메라 없이 확인하려면 --source <이미지/동영상 경로> 또는 --source 0 (웹캠)")
+    worker = Worker(source, detector, mapper, args)
+    try:
+        App(args, worker, mapper).run()
+    finally:
+        worker.stop()
+        source.close()
+
+
+if __name__ == "__main__":
+    main()
