@@ -1,0 +1,5 @@
+# janggi/piece_detection + janggi/realtime_ui 공용 (janggi/.venv). ROS와 무관한 독립 venv.
+ultralytics==8.4.204
+pyrealsense2==2.59.1.11053
+pillow
+pyyaml
