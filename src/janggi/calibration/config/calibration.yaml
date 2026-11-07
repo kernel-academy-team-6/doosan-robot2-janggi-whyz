@@ -1,0 +1,74 @@
+# 장기판 4점 카메라-로봇 보정 결과 (calibrate_board.py가 생성)
+# 단위: m (robot_posx만 mm/deg). p_base = R * p_cam + t
+# 픽셀 → base: 정규화 광선을 T_base_camera로 돌려 board_plane_base와 교차시킨다 (depth 불필요)
+# static TF: ros2 run tf2_ros static_transform_publisher --x 0.613455 --y 0.088593 --z 0.575542 --qx -0.999965 --qy 0.008113 --qz 0.001881 --qw 0.000665 --frame-id base_link --child-frame-id camera_color_optical_frame
+created: '2026-11-07T17:39:44'
+method: 'PnP (IPPE + LM) of 4 board corners: image pixel ↔ gripper tip base position'
+T_base_camera:
+  parent_frame: base_link
+  child_frame: camera_color_optical_frame
+  translation: [0.613455, 0.088593, 0.575542]
+  rotation_xyzw: [-0.9999651, 0.00811259, 0.00188063, 0.00066529]
+  matrix:
+  - [0.9998613, -0.01622712, -0.00375033, 0.61345529]
+  - [-0.01622212, -0.99986749, 0.00136105, 0.08859302]
+  - [-0.00377192, -0.00130002, -0.99999204, 0.57554227]
+  - [0.0, 0.0, 0.0, 1.0]
+residual: {board_rms_mm: 1.968, board_max_mm: 2.726, reproj_max_px: 2.669}
+board_plane_base:
+  normal: [-0.01709784, 3.846e-05, 0.99985382]
+  d: 0.087556
+camera:
+  model: RealSense D455F
+  serial: '342622301896'
+  firmware: 5.17.3.10
+  color_intrinsics:
+    width: 1280
+    height: 720
+    fx: 647.4697875976562
+    fy: 646.7091674804688
+    ppx: 643.8978271484375
+    ppy: 366.7391357421875
+    distortion_model: inverse_brown_conrady
+    coeffs: [-0.05620548501610756, 0.06549284607172012, 0.000556170241907239, 0.0002223668561782688, -0.021974744275212288]
+  depth_preset: default
+robot:
+  namespace: dsr01
+  posx_source: /dsr01/aux_control/get_current_posx
+  ref: DR_BASE
+  tcp_name: ''
+  tcp_offset_mm: [0.0, 0.0, 222.0]
+  gripper_position_cmd: 650
+corners:
+- name: top_left
+  pixel: [675, 220]
+  robot_posx: [638.1025, 236.4365, 145.4568, 5.2182, 178.7417, -34.8021]
+  base_xyz: [0.642958, 0.23688, -0.07649]
+  error_mm: 1.948
+  reproj_px: 1.927
+  camera_depth_xyz: null
+  gripper_stroke: 700
+- name: top_right
+  pixel: [679, 572]
+  robot_posx: [638.1008, -119.8992, 145.2845, 5.2292, 178.7425, -34.7911]
+  base_xyz: [0.642952, -0.119455, -0.076662]
+  error_mm: 0.608
+  reproj_px: 0.569
+  camera_depth_xyz: null
+  gripper_stroke: 700
+- name: bottom_right
+  pixel: [333, 573]
+  robot_posx: [283.5632, -119.8983, 139.4071, 5.2205, 178.742, -34.7998]
+  base_xyz: [0.288417, -0.119455, -0.082539]
+  error_mm: 1.975
+  reproj_px: 1.927
+  camera_depth_xyz: [-0.739536, 0.490843, 1.521]
+  gripper_stroke: 700
+- name: bottom_left
+  pixel: [328, 229]
+  robot_posx: [283.5623, 239.1928, 139.2086, 5.2176, 178.7419, -34.803]
+  base_xyz: [0.288417, 0.239636, -0.082738]
+  error_mm: 2.726
+  reproj_px: 2.669
+  camera_depth_xyz: [-0.331326, -0.144727, 0.671]
+  gripper_stroke: 700
