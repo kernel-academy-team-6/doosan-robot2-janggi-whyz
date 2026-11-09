@@ -61,3 +61,13 @@ def test_load_real_calibration_if_present():
     g = BoardGeometry.from_calibration(p)
     assert g.corners_mm.shape == (4, 3)
     assert np.allclose(zyz_to_matrix(0, 180, 0) @ [0, 0, 1], [0, 0, -1])
+
+
+def test_base_to_board_inverse_and_off_board():
+    g = geom()
+    for x, y in [(0, 0), (3.3, 7.2), (8, 9), (-1.5, 4.0), (9.5, 0)]:
+        p = g.board_to_base(x, y, check=False) + g.normal() * 12.0
+        assert np.allclose(g.base_to_board(p), (x, y), atol=1e-3)   # 네 모서리가 완전한 평면은 아니다
+        assert np.isclose(g.height_above(p), 12.0, atol=0.3)
+    with pytest.raises(ValueError):
+        g.board_to_base(-1.5, 0)

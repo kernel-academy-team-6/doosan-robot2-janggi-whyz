@@ -1,6 +1,6 @@
 # piece_detection — 장기말 인식
 
-`models/best.pt`(Ultralytics YOLO detect, 입력 640, 14클래스)로 장기말을 찾고, 보정 파일의 네 모서리 픽셀로 장기판 교차점에 할당한다.
+`models/weights.pt`(Ultralytics YOLO detect, 입력 640, 14클래스)로 장기말을 찾고, 보정 파일의 네 모서리 픽셀로 장기판 교차점에 할당한다.
 
 ```python
 import sys; sys.path.insert(0, "~/doosan_janggi_ws/janggi")

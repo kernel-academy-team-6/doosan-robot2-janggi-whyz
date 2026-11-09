@@ -120,6 +120,21 @@ cd ~/doosan_janggi_ws/src/test
 ./run_move_example.sh --vel 50       # (0,0)→(1,1)→…→(8,8)→(8,9), 각 교차점 판 표면까지 (사이 이동은 30 mm 높이)
 ```
 
+**사람 ↔ 로봇 대국.** 보정이 끝난 뒤에 쓴다. 자세한 내용은 [src/janggi/robot_game/README.md](../src/janggi/robot_game/README.md).
+
+```bash
+cd ~/doosan_janggi_ws
+./src/janggi/engine/get_engine.sh    # 처음 한 번: Fairy-Stockfish
+./janggi/realtime_ui/run.sh --robot          # [대국 시작] → 사람이 두고 [착수 완료](Space) → 로봇이 둔다
+```
+
+카메라·로봇 없이 확인하려면 가상 로봇(+ Gazebo)으로:
+
+```bash
+ros2 launch src/janggi/robot_game/sim_gazebo.launch.py                 # 워크스페이스 루트에서
+./src/janggi/robot_game/run_sim_check.sh --gazebo                   # 다른 터미널
+```
+
 ### 연결이 끊길 때
 
 | 증상 | 원인 확인 | 대응 |

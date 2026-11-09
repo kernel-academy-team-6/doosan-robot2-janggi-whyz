@@ -35,8 +35,8 @@ GRIPPER_TIP_POS_CMD = 650
 GRIPPER_OPEN, GRIPPER_CLOSE = 0, 700  # gripper_service_node의 open/close 값
 GRIPPER_MIN, GRIPPER_MAX = 0, 700  # RUNBOOK: position_cmd 범위 0(열림)~700(닫힘)
 
-# 홈 자세 기본값 [deg]: 툴이 아래를 보는 준비 자세. config/robot_poses.yaml이 있으면 그 값을 쓴다.
-DEFAULT_HOME_JOINTS = [0.0, 0.0, 90.0, 0.0, 90.0, 0.0]
+# 홈 자세 기본값 [deg]: 툴이 아래를 보는 준비 자세 (J6 90°). config/robot_poses.yaml이 있으면 그 값을 쓴다.
+DEFAULT_HOME_JOINTS = [0.0, 0.0, 90.0, 0.0, 90.0, 90.0]
 DR_QSTOP = 1  # move_stop 모드: Quick stop (Stop Category 2)
 
 

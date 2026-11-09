@@ -1,4 +1,4 @@
-"""장기말 인식 (YOLO, models/best.pt) + 장기판 교차점 매핑.
+"""장기말 인식 (YOLO, models/weights.pt) + 장기판 교차점 매핑.
 
     from piece_detection import PieceDetector, BoardMapper, BoardStabilizer
     det = PieceDetector()
@@ -9,6 +9,7 @@
 
 from .board_mapping import BoardMapper, BoardStabilizer, COLS, ROWS
 from .labels import CLASS_NAMES, piece_char, parse_label
+from .world import CameraToBase
 
 
 def __getattr__(name):  # PieceDetector는 torch/ultralytics를 불러오므로 필요할 때만 import
@@ -18,5 +19,5 @@ def __getattr__(name):  # PieceDetector는 torch/ultralytics를 불러오므로 
     raise AttributeError(name)
 
 
-__all__ = ["PieceDetector", "Detection", "BoardMapper", "BoardStabilizer", "CLASS_NAMES", "COLS", "ROWS",
+__all__ = ["PieceDetector", "Detection", "BoardMapper", "BoardStabilizer", "CameraToBase", "CLASS_NAMES", "COLS", "ROWS",
            "piece_char", "parse_label"]

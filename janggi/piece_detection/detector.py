@@ -1,4 +1,4 @@
-"""YOLO 장기말 인식기 (models/best.pt).
+"""YOLO 장기말 인식기 (models/weights.pt).
 
     from piece_detection import PieceDetector
     det = PieceDetector()              # GPU가 있으면 자동으로 씀
@@ -15,7 +15,7 @@ import numpy as np
 from .labels import CLASS_NAMES, parse_label
 
 WS = Path(__file__).resolve().parents[2]
-DEFAULT_MODEL = WS / "models" / "best.pt"
+DEFAULT_MODEL = WS / "models" / "weights.pt"
 
 
 @dataclass

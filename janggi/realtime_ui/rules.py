@@ -240,9 +240,12 @@ class Game:
             return []
         return self.position.legal_moves(src)
 
-    def move(self, src: Cell, dst: Cell) -> MoveRecord:
-        if dst not in self.legal_moves(src):
+    def move(self, src: Cell, dst: Cell, check: bool = True) -> MoveRecord:
+        """check=False면 규칙 검사를 건너뛴다 (엔진이 고른 수처럼 다른 곳에서 이미 검증한 수)."""
+        if check and dst not in self.legal_moves(src):
             raise ValueError(f"둘 수 없는 수: {src} → {dst}")
+        if src not in self.board or self.board[src][0] != self.turn:
+            raise ValueError(f"{src}에 {self.turn} 말이 없다")
         rec = MoveRecord(src, dst, self.board[src], self.board.get(dst), self.turn)
         self.board[dst] = self.board.pop(src)
         self.history.append(rec)

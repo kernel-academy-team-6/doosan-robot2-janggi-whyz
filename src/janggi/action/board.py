@@ -58,9 +58,13 @@ class BoardGeometry:
         return cls(corners, abc, offset)
 
     # ------------------------------------------------------------------ 좌표 변환
-    def board_to_base(self, x: float, y: float) -> np.ndarray:
-        """장기판 좌표 (x, y) → 판 윗면 위 팁 위치 (base, mm). 이중선형 보간."""
-        check_range(x, y)
+    def board_to_base(self, x: float, y: float, check: bool = True) -> np.ndarray:
+        """장기판 좌표 (x, y) → 판 윗면 위 팁 위치 (base, mm). 이중선형 보간.
+
+        check=False면 판 밖 좌표(예: 잡은 말을 버릴 x=-1.5)도 같은 식으로 외삽한다.
+        """
+        if check:
+            check_range(x, y)
         u, v = x / MAX_X, y / MAX_Y
         tl, tr, br, bl = self.corners_mm
         top = tl + (tr - tl) * u
@@ -73,9 +77,31 @@ class BoardGeometry:
         n = np.linalg.svd(c)[2][-1]
         return n if n[2] > 0 else -n
 
-    def tip_target(self, x: float, y: float, height_mm: float) -> np.ndarray:
+    def tip_target(self, x: float, y: float, height_mm: float, check: bool = True) -> np.ndarray:
         """(x, y) 교차점에서 판 법선 방향으로 height_mm 띄운 팁 목표 (base, mm)."""
-        return self.board_to_base(x, y) + self.normal() * height_mm
+        return self.board_to_base(x, y, check) + self.normal() * height_mm
+
+    def height_above(self, p_mm) -> float:
+        """base 점(mm)이 판 윗면에서 법선 방향으로 얼마나 떠 있는지 [mm] (아래면 음수)."""
+        return float(self.normal() @ (np.asarray(p_mm, float) - self.corners_mm.mean(axis=0)))
+
+    def base_to_board(self, p_mm) -> np.ndarray:
+        """base 점(mm) → 장기판 실수 좌표 (x, y). board_to_base의 역 (판 평면에 투영, 뉴턴 반복)."""
+        p = np.asarray(p_mm, float)
+        p = p - self.normal() * self.height_above(p)
+        q = np.array([MAX_X / 2, MAX_Y / 2])
+        tl, tr, br, bl = self.corners_mm
+        for _ in range(20):
+            u, v = q[0] / MAX_X, q[1] / MAX_Y
+            f = self.board_to_base(*q, check=False) - p
+            # 이중선형 보간의 편미분 (x, y 단위)
+            dx = ((tr - tl) * (1 - v) + (br - bl) * v) / MAX_X
+            dy = ((bl - tl) * (1 - u) + (br - tr) * u) / MAX_Y
+            dq = np.linalg.lstsq(np.stack([dx, dy], axis=1), -f, rcond=None)[0]
+            q = q + dq
+            if np.abs(dq).max() < 1e-9:
+                break
+        return q
 
     def flange_pose(self, tip_mm: np.ndarray) -> list[float]:
         """팁 목표 → move_line에 줄 posx [x, y, z, A, B, C] (플랜지 기준, TCP 미설정 가정)."""

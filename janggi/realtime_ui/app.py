@@ -10,6 +10,7 @@
     ./run.sh                          # RealSense
     ./run.sh --source 0               # 일반 웹캠 / 동영상 파일 / 이미지 파일 경로
     ./run.sh --conf 0.4 --piece-height 15
+    ./run.sh --robot                  # 사람 ↔ 로봇 대국 (엔진 + 로봇 드라이버 필요, ../robot_game/README.md)
 """
 
 from __future__ import annotations
@@ -19,6 +20,7 @@ import sys
 import threading
 import time
 import tkinter as tk
+from collections import deque
 from pathlib import Path
 from tkinter import messagebox
 
@@ -29,6 +31,9 @@ from PIL import Image, ImageDraw, ImageFont, ImageTk
 HERE = Path(__file__).resolve().parent
 sys.path.insert(0, str(HERE.parent))          # janggi/ → piece_detection 패키지
 sys.path.insert(0, str(HERE))
+SRC_JANGGI = HERE.parents[1] / "src" / "janggi"
+sys.path.insert(0, str(SRC_JANGGI / "robot_game"))   # session (로봇 대국)
+sys.path.insert(0, str(SRC_JANGGI))                  # action (로봇 동작), engine (Fairy-Stockfish)
 
 from piece_detection import BoardMapper, BoardStabilizer, piece_char  # noqa: E402
 from piece_detection.board_mapping import DEFAULT_CALIBRATION  # noqa: E402
@@ -57,6 +62,13 @@ def parse_args():
     p.add_argument("--window", type=int, default=8, help="판 상태 안정화 프레임 수")
     p.add_argument("--width", type=int, default=1280)
     p.add_argument("--height", type=int, default=720)
+    g = p.add_argument_group("로봇 대국 (--robot)")
+    g.add_argument("--robot", action="store_true", help="사람 ↔ 로봇 대국 패널을 켠다")
+    g.add_argument("--human-side", choices=("blue", "red"), default="blue", help="사람 진영 (먼저 둔다)")
+    g.add_argument("--movetime", type=int, default=1500, help="엔진 생각 시간 [ms]")
+    g.add_argument("--robot-vel", type=float, default=100.0, help="로봇 직선 속도 [mm/s]")
+    g.add_argument("--ns", default="dsr01", help="로봇 네임스페이스")
+    g.add_argument("--no-motion", action="store_true", help="로봇을 움직이지 않고 엔진 수와 집을 좌표만 표시")
     return p.parse_args()
 
 
@@ -143,6 +155,8 @@ class Worker:
     def __init__(self, source, detector, mapper, args):
         self.source, self.detector, self.mapper, self.args = source, detector, mapper, args
         self.stab = BoardStabilizer(window=args.window)
+        self.center_hist = deque(maxlen=args.window)   # 프레임별 {칸: 박스 중심 픽셀}
+        self.frames = 0
         self.lock = threading.Lock()
         self.latest = None   # (frame, dets, raw_board, stable_board)
         self.fps = 0.0
@@ -165,9 +179,11 @@ class Worker:
                     roi = board_crop_box(self.mapper, frame.shape[1], frame.shape[0], self.args.roi_margin)
                 dets = self.detector.detect(frame, conf=self.args.conf, roi=roi)
                 raw = self.mapper.assign(dets, self.args.max_dist) if self.mapper else {}
-                stable = self.stab.update(raw) if self.mapper else {}
                 with self.lock:
+                    stable = self.stab.update(raw) if self.mapper else {}
+                    self.center_hist.append({d.board: d.center for d in dets if d.board is not None})
                     self.latest = (frame, dets, raw, stable)
+                    self.frames += 1
                 self.last_frame_t = time.time()
                 n += 1
                 if time.time() - t0 >= 1.0:
@@ -178,6 +194,27 @@ class Worker:
     def get(self):
         with self.lock:
             return self.latest
+
+    def fresh_state(self, timeout: float = 10.0):
+        """기록을 비우고 새로 들어온 프레임 window개로 (판 상태, 칸별 박스 중심 픽셀)을 만든다.
+
+        로봇 팔이 비킨 뒤나 사람이 손을 뗀 뒤의 판만 보도록 한다 (robot_game vision 인터페이스).
+        """
+        from session import TurnError, median_centers
+
+        with self.lock:
+            self.stab.reset()
+            self.center_hist.clear()
+            start = self.frames
+        t0 = time.time()
+        while self.frames - start < self.args.window + 1:   # 비우는 순간 처리 중이던 프레임 하나는 버린다
+            if self.error or time.time() - t0 > timeout:
+                raise TurnError("영상이 들어오지 않는다 (카메라 확인)")
+            time.sleep(0.03)
+        with self.lock:
+            board = self.stab.state()
+            hist = list(self.center_hist)
+        return board, median_centers(board, hist)
 
     def stop(self):
         self.running = False
@@ -339,6 +376,12 @@ class App:
         self.last_move = None
         self.stable = {}
         self._photo = None
+        self.rg = None                 # robot_game.RobotGame (로봇 대국 중)
+        self.robot_busy = False
+        self.robot_stop = False
+        self._mover = None
+        self._msgs = deque()           # 작업 스레드 → UI 기보 메시지
+        self.robot_phase = "대국 시작 전: 판을 놓고 [대국 시작]"
 
         sw, sh = self.root.winfo_screenwidth(), self.root.winfo_screenheight()
         self.scale = min(1.0, (sw - 760) / args.width, (sh - 140) / args.height)
@@ -347,6 +390,8 @@ class App:
         self.root.protocol("WM_DELETE_WINDOW", self.quit)
         self.root.bind("<Escape>", lambda e: self.cancel_select())
         self.root.bind("<Control-z>", lambda e: self.undo())
+        if args.robot:
+            self.root.bind("<space>", lambda e: self.robot_human_done())
         self._after = self.root.after(30, self.tick)
 
     def _build(self):
@@ -410,6 +455,15 @@ class App:
                           ("인식된 판으로 맞추기", self.sync_to_detection)):
             tk.Button(fg, text=text, command=cmd).pack(fill="x", pady=1)
         tk.Checkbutton(fg, text="인식과 다른 칸 표시", variable=self.show_diff).pack(anchor="w")
+        if self.args.robot:
+            fr = tk.LabelFrame(side, text=f"로봇 대국 (사람 {SIDE_KO[self.args.human_side]})", padx=6, pady=4)
+            fr.pack(fill="x", pady=(8, 0))
+            tk.Button(fr, text="대국 시작 (인식된 판)", command=self.robot_start).pack(fill="x", pady=1)
+            tk.Button(fr, text="착수 완료 (Space)", command=self.robot_human_done, bg="#2e7d32", fg="white",
+                      font=(FONT_FAMILY, 12, "bold")).pack(fill="x", pady=3)
+            tk.Button(fr, text="로봇 정지", command=self.robot_halt, bg="#c62828", fg="white").pack(fill="x", pady=1)
+            self.lbl_robot = tk.Label(fr, anchor="w", justify="left", wraplength=220, font=(FONT_FAMILY, 10))
+            self.lbl_robot.pack(fill="x")
         tk.Label(side, text="기보", anchor="w").pack(fill="x", pady=(8, 0))
         self.log = tk.Listbox(side, height=14, width=26, font=(FONT_FAMILY, 10))
         self.log.pack(fill="both", expand=True)
@@ -486,7 +540,7 @@ class App:
 
     # ------------------------------------------------------------------ 마우스 (클릭 또는 드래그)
     def on_press(self, cell, e):
-        if self.mode.get() != "game" or self.game is None:
+        if self.mode.get() != "game" or self.game is None or self.rg is not None:
             return
         if self.sel and cell in self.game.legal_moves(self.sel):
             self.play(self.sel, cell)
@@ -518,6 +572,100 @@ class App:
         b, s = self.game.board, self.stable
         return {c for c in set(b) | set(s) if b.get(c) != s.get(c)}
 
+    # ------------------------------------------------------------------ 로봇 대국
+    def _robot_job(self, phase, fn):
+        """fn을 작업 스레드에서 돌린다 (엔진·로봇 동작이 UI를 막지 않게)."""
+        if self.robot_busy:
+            return
+        from session import TurnError
+
+        self.robot_busy, self.robot_stop, self.robot_phase = True, False, phase
+
+        def run():
+            try:
+                fn()
+                self.robot_phase = self._human_phase()
+            except TurnError as e:
+                self._msgs.append(f"! {e}")
+                self.robot_phase = f"다시 확인: {e}"
+            except Exception as e:  # noqa: BLE001
+                self._msgs.append(f"! 오류: {e}")
+                self.robot_phase = f"오류: {e}\n판을 바로잡고 [인식된 판으로 맞추기] 후 [착수 완료]"
+            finally:
+                self.robot_busy = False
+
+        threading.Thread(target=run, daemon=True).start()
+
+    def _human_phase(self):
+        g = self.rg.game if self.rg else None
+        if g is None:
+            return "대국 시작 전"
+        if not self.rg.has_moves(g.turn):
+            return f"대국 끝: {SIDE_KO[other(g.turn)]} 승"
+        st = g.status()
+        if g.turn == self.rg.robot_side:
+            return "로봇 차례: [착수 완료]를 누르면 로봇이 둔다"
+        return "사람 차례: 판에 두고 [착수 완료]" + (f"  ({st}!)" if st else "")
+
+    def _ensure_robot(self):
+        if self.rg is not None:
+            return
+        from session import RobotGame, RobotGameConfig
+
+        from action import BoardGeometry, BoardMover, PickConfig, PiecePicker
+        from engine import JanggiEngine
+        from piece_detection import CameraToBase
+
+        self.robot_phase = "엔진 시작 중"
+        engine = JanggiEngine()
+        geom = BoardGeometry.from_calibration(self.args.calibration)
+        cam = CameraToBase.from_calibration(self.args.calibration)
+        picker = None
+        if not self.args.no_motion:
+            self.robot_phase = "로봇 드라이버 연결 중"
+            v = self.args.robot_vel
+            self._mover = BoardMover(self.args.ns, self.args.calibration, vel=(v, 30.0), acc=(v * 2, 60.0))
+            picker = PiecePicker(self._mover, PickConfig())
+        cfg = RobotGameConfig(human_side=self.args.human_side, movetime_ms=self.args.movetime,
+                              piece_height_mm=self.args.piece_height)
+        self.rg = RobotGame(engine, cam, geom, picker, cfg, log=self._msgs.append)
+
+    def robot_start(self):
+        def job():
+            self._ensure_robot()
+            self.robot_phase = "판 읽는 중"
+            board, _ = self.worker.fresh_state()
+            self.robot_phase = "관찰 자세로 이동 중"
+            self.game = self.rg.start(board)
+            self.last_move = None
+        self.log.delete(0, "end")
+        self.mode.set("game")
+        self._robot_job("대국 준비 중", job)
+
+    def robot_human_done(self):
+        """착수 완료: 판 읽기 → 사람 수 반영 → 엔진 → 로봇 → 관찰 자세 → 사람 차례."""
+        if self.rg is None or self.rg.game is None:
+            messagebox.showinfo("로봇 대국", "먼저 [대국 시작]을 누른다.", parent=self.root)
+            return
+
+        def job():
+            rg = self.rg
+            self.robot_phase = "판 읽는 중"
+            board, centers = self.worker.fresh_state()
+            if rg.game.turn != rg.robot_side:
+                rg.apply_human_move(board)
+            self.robot_phase = "엔진 생각 중 / 로봇 두는 중"
+            plan = rg.robot_turn(centers, stop_check=lambda: self.robot_stop)
+            if plan.src is not None and not plan.is_pass:
+                self.last_move = (plan.src, plan.dst)
+        self._robot_job("판 읽는 중", job)
+
+    def robot_halt(self):
+        self.robot_stop = True
+        if self._mover is not None:
+            self._mover.stop()
+        self._msgs.append("! 로봇 정지 명령")
+
     # ------------------------------------------------------------------ 그리기
     def tick(self):
         if self.worker.error:
@@ -544,7 +692,15 @@ class App:
             stale = f"  ⚠ 영상 {lag:.0f}초 멈춤" if lag > 1.5 else ""
             assigned = sum(1 for d in dets if d.board is not None)
             self.lbl_cam.config(text=f"인식 {self.worker.fps:4.1f} FPS · 검출 {len(dets)} · 판 할당 {assigned}{stale}")
-        self.draw_board()
+        while self._msgs:
+            self.log.insert("end", self._msgs.popleft())
+            self.log.see("end")
+        if self.args.robot:
+            self.lbl_robot.config(text=("⏳ " if self.robot_busy else "") + self.robot_phase)
+        try:
+            self.draw_board()
+        except RuntimeError:   # 작업 스레드가 게임 판을 바꾸는 중 (다음 tick에 다시 그린다)
+            self._board_sig = None
         self._after = self.root.after(30, self.tick)
 
     def draw_board(self):
@@ -618,6 +774,11 @@ class App:
             self.root.after_cancel(self._after)
             self._after = None
         self.worker.stop()
+        if self.rg is not None:
+            self.rg.engine.close()
+        if self._mover is not None:
+            self._mover.stop()
+            self._mover.close()
         self.root.destroy()
 
     def run(self):

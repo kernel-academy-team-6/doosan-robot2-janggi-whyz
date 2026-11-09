@@ -56,3 +56,18 @@ def test_stabilizer_majority():
     assert st[(0, 0)] == ("red", "cha")
     s.update({}); s.update({}); st = s.update({})
     assert st == {}
+
+
+def test_camera_to_base_roundtrip():
+    from piece_detection.board_mapping import DEFAULT_CALIBRATION
+    from piece_detection.world import CameraToBase
+
+    if not DEFAULT_CALIBRATION.exists():
+        import pytest
+        pytest.skip("calibration.yaml 없음")
+    cam = CameraToBase.from_calibration()
+    for uv in [(400, 300), (650, 400), (900, 600)]:
+        for h in (0.0, 12.0):
+            p = cam.pixel_to_base(*uv, height_mm=h)
+            assert abs(cam.height_above(p) - h) < 1e-6
+            assert np.allclose(cam.base_to_pixel(p), uv, atol=1e-3)
