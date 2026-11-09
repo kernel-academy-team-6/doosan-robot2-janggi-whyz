@@ -57,4 +57,41 @@ ros2 service call /dsr01/gripper/close std_srvs/srv/Trigger
 ros2 topic pub /dsr01/gripper/position_cmd std_msgs/msg/Int32 "{data: 350}" --once
 ```
 
+## 장기 대국 실행 (사람 ↔ 로봇)
+
+처음 한 번만:
+
+```bash
+cd ~/doosan_janggi_ws
+./janggi/setup_venv.sh              # 인식용 venv
+./src/janggi/engine/get_engine.sh   # Fairy-Stockfish 엔진
+```
+
+보정(`src/janggi/calibration/config/calibration.yaml`)이 끝난 상태여야 한다. 시뮬레이터(`sim_gazebo.launch.py`, `mode:=virtual`, 에뮬레이터 컨테이너)는 **켜지 않는다**. 같은 `dsr01` 이름을 쓰므로 명령이 에뮬레이터로 갈 수 있다.
+
+터미널 1 — 실제 로봇 드라이버:
+
+```bash
+source /opt/ros/jazzy/setup.bash
+source ~/doosan_janggi_ws/install/setup.bash
+ros2 launch e0509_gripper_description bringup.launch.py \
+  mode:=real host:=110.120.1.50 port:=12345 name:=dsr01
+```
+
+로그에 `Serial port opened`가 나오면 그리퍼까지 준비된 것이다.
+
+터미널 2 — 게임 UI (ROS 환경은 `run.sh`가 불러온다):
+
+```bash
+cd ~/doosan_janggi_ws/janggi
+./realtime_ui/run.sh --robot --robot-vel 30    # 사람 초(먼저 둠), 로봇 한. 처음에는 천천히
+./realtime_ui/run.sh --robot --human-side red  # 사람 한
+./realtime_ui/run.sh --robot --no-motion       # 로봇은 움직이지 않고 엔진 수만 표시
+```
+
+진행: 오른쪽 **로봇 대국** 패널에서 `대국 시작 (인식된 판)` → 사람이 두고 `착수 완료 (Space)` → 로봇이 두고 홈 자세로 복귀 → 반복. `로봇 정지`는 즉시 정지.
+인식된 판을 검증 없이 그대로 쓰므로 로봇 수가 이상하면 화면의 인식 결과를 먼저 확인한다. 자세한 내용은 [src/janggi/robot_game/README.md](src/janggi/robot_game/README.md).
+
+종료: 터미널 2에서 창을 닫고, 터미널 1에서 Ctrl+C.
+
 장기 보정·이동 도구 실행 순서는 [docs/RUNBOOK.md 9장](docs/RUNBOOK.md#9-장기-보정이동-도구), 실행 및 장애 대응은 [docs/RUNBOOK.md](docs/RUNBOOK.md), 통신 계층은 [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md), 장기 대국 애플리케이션 설계는 [docs/JANGGI_DESIGN.md](docs/JANGGI_DESIGN.md)를 참고한다.
