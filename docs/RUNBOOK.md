@@ -125,7 +125,7 @@ cd ~/doosan_janggi_ws/src/test
 ```bash
 cd ~/doosan_janggi_ws
 ./src/janggi/engine/get_engine.sh    # 처음 한 번: Fairy-Stockfish
-./janggi/realtime_ui/run.sh --robot          # [대국 시작] → 사람이 두고 [착수 완료](Space) → 로봇이 둔다
+./janggi/realtime_ui/run.sh --model models/weights_14class.pt --robot          # [대국 시작] → 사람이 두고 [착수 완료](Space) → 로봇이 둔다
 ```
 
 카메라·로봇 없이 확인하려면 가상 로봇(+ Gazebo)으로:

@@ -1,6 +1,10 @@
 # piece_detection — 장기말 인식
 
-`models/weights.pt`(Ultralytics YOLO detect, 입력 640, 14클래스)로 장기말을 찾고, 보정 파일의 네 모서리 픽셀로 장기판 교차점에 할당한다.
+기본 모델은 `models/weights.pt`(입력 640, 단일 클래스 `0: janggi_dol`)다.
+말의 박스·중심·신뢰도만 검출하며 진영과 종류는 분류하지 않는다.
+결과의 `side='unknown'`, `kind='piece'`는 미분류를 뜻한다. 보정 파일의 네 모서리 픽셀로 교차점에 할당할 수 있다.
+UI는 말 위치를 중립색의 `알`로 표시하며 게임·로봇 대국 기능은 비활성화한다.
+기존 `models/weights_14class.pt`는 보존하며, 명시적으로 선택하면 기존 14클래스 분류도 지원한다.
 
 ```python
 import sys; sys.path.insert(0, "~/doosan_janggi_ws/janggi")
@@ -11,11 +15,11 @@ mapper = BoardMapper.from_calibration()    # src/janggi/calibration/config/calib
 stab = BoardStabilizer(window=8)
 
 dets = det.detect(bgr)                     # list[Detection]: side, kind, conf, box, board
-board = mapper.assign(dets)                # {(x, y): ('blue', 'horse'), ...}
+board = mapper.assign(dets)                # {(x, y): ('unknown', 'piece'), ...}
 stable = stab.update(board)                # 최근 8프레임 다수결
 ```
 
-## 라벨
+## 기존 14클래스 모델의 라벨
 
 | id | 라벨 | 진영 | 말 | | id | 라벨 | 진영 | 말 |
 |---|---|---|---|---|---|---|---|---|
@@ -27,7 +31,7 @@ stable = stab.update(board)                # 최근 8프레임 다수결
 | 5 | blue sang | 초 | 상 | | 12 | red sang | 한 | 상 |
 | 6 | blue solder | 초 | 졸 | | 13 | red solder | 한 | 병 |
 
-`PieceDetector`는 모델의 클래스 순서가 이 표와 다르면 바로 오류를 낸다.
+`PieceDetector`는 단일 `janggi_dol` 또는 위의 기존 14클래스 목록만 허용한다.
 
 ## 장기판 좌표
 

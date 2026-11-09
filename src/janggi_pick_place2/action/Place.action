@@ -1,0 +1,14 @@
+# Required [x, y, z, yaw]: robot base, mm / degrees, absolute fingertip z.
+# Width comes from the completed pick command in this server session.
+# Current input is retained as metadata only; position_cmd does not set current.
+float64[] target
+---
+# success means sequence/transport completion, not verified physical grasp.
+# holding_state: empty_unverified / holding_unverified / unknown.
+bool success
+string message
+string holding_state
+float64[] final_flange_pose
+---
+string stage
+float64 progress

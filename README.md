@@ -59,6 +59,8 @@ ros2 topic pub /dsr01/gripper/position_cmd std_msgs/msg/Int32 "{data: 350}" --on
 
 ## 장기 대국 실행 (사람 ↔ 로봇)
 
+현재 기본 비전 모델은 `models/weights.pt`이며 말 위치만 검출한다. 이 모델에서는 게임·로봇 대국을 비활성화한다. 아래 대국 예시는 기존 14클래스 모델을 명시해서 사용한다.
+
 처음 한 번만:
 
 ```bash
@@ -84,9 +86,9 @@ ros2 launch e0509_gripper_description bringup.launch.py \
 
 ```bash
 cd ~/doosan_janggi_ws/janggi
-./realtime_ui/run.sh --robot --robot-vel 30    # 사람 초(먼저 둠), 로봇 한. 처음에는 천천히
-./realtime_ui/run.sh --robot --human-side red  # 사람 한
-./realtime_ui/run.sh --robot --no-motion       # 로봇은 움직이지 않고 엔진 수만 표시
+./realtime_ui/run.sh --model ../models/weights_14class.pt --robot --robot-vel 30    # 사람 초(먼저 둠), 로봇 한. 처음에는 천천히
+./realtime_ui/run.sh --model ../models/weights_14class.pt --robot --human-side red  # 사람 한
+./realtime_ui/run.sh --model ../models/weights_14class.pt --robot --no-motion       # 로봇은 움직이지 않고 엔진 수만 표시
 ```
 
 진행: 오른쪽 **로봇 대국** 패널에서 `대국 시작 (인식된 판)` → 사람이 두고 `착수 완료 (Space)` → 로봇이 두고 홈 자세로 복귀 → 반복. `로봇 정지`는 즉시 정지.

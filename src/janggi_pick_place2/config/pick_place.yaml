@@ -1,0 +1,34 @@
+/janggi_pick_place2:
+  ros__parameters:
+    # mock: internal simulation; virtual: emulator arm + RViz gripper; real: hardware.
+    backend: mock
+    robot_namespace: dsr01
+    # Empty means the controller must report the unnamed/default flange TCP.
+    # A named TCP is allowed only if it truly has zero flange offset.
+    expected_flange_tcp_name: ''
+    # Used only by the explicit home action; pick never homes automatically.
+    home_joint_deg: [-90.0, 8.5645, 113.1065, 0.0, 58.3289, 90.0]
+    # tcp_length_at_6mm_mm: 160.0, base플랜지가 바닥에서 30mm 위로 높게 설치되었고, 바둑판 높이가 10mm이기 때문에 20mm 더 내려가야함.
+    tcp_length_at_6mm_mm: 140.0
+    default_object_width_mm: 30.0
+    default_opening_allowance_mm: 10.0
+    # Compatibility input only: position_cmd cannot set current or speed.
+    default_grip_current_ma: 100.0
+    release_extra_width_mm: 5.0
+    grasp_overtravel_mm: 1.0
+    joint_velocity_deg_s: 60.0
+    joint_acceleration_deg_s2: 180.0
+    linear_velocity_mm_s: 120.0
+    linear_acceleration_mm_s2: 240.0
+    angular_velocity_deg_s: 60.0
+    angular_acceleration_deg_s2: 120.0
+    workspace_min_mm: [-900.0, -900.0, -300.0]
+    workspace_max_mm: [900.0, 900.0, 1000.0]
+    mock_home_flange_pose: [400.0, 0.0, 450.0, 0.0, 180.0, 0.0]
+    mock_step_delay_sec: 0.05
+    virtual_gripper_delay_sec: 0.4
+    service_timeout_sec: 5.0
+    motion_timeout_sec: 60.0
+    # Existing gripper_service_node owns serial/torque/position commands.
+    # Wait AFTER publishing position_cmd. No arrival/contact feedback available.
+    gripper_command_wait_sec: 1.0

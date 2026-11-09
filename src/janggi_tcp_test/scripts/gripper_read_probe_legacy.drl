@@ -1,0 +1,14 @@
+# Run in a standalone robot-side DRL task, NOT in the PC Python interpreter.
+# For controllers supporting the legacy flange_serial_open/close DRL API.
+# New flange hardware may require serial setup in Robot Parameters instead.
+# Stop ROS bringup and all other serial users before running this task.
+# No robot motion, torque, current, or gripper position command is sent.
+
+flange_serial_open(baudrate=57600, bytesize=DR_EIGHTBITS, parity=DR_PARITY_NONE, stopbits=DR_STOPBITS_ONE)
+wait(0.2)
+flange_serial_write(b"\x01\x03\x00\x00\x00\x01\x84\x0a")
+wait(0.25)
+res, data = flange_serial_read(timeout=1.0)
+flange_serial_close()
+tp_log("Model probe: count={0}, data={1}".format(res, data))
+tp_popup("Model probe: count={0}, data={1}".format(res, data))

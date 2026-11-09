@@ -1,4 +1,4 @@
-"""YOLO 장기말 인식기 (models/weights.pt).
+"""YOLO 장기말 위치 인식기 (models/weights.pt). 기존 14클래스 모델도 지원한다.
 
     from piece_detection import PieceDetector
     det = PieceDetector()              # GPU가 있으면 자동으로 씀
@@ -22,8 +22,8 @@ DEFAULT_MODEL = WS / "models" / "weights.pt"
 class Detection:
     cls_id: int
     name: str            # 모델 라벨 ('blue horse')
-    side: str            # 'blue' | 'red'
-    kind: str            # 'cha' 'horse' 'king' 'po' 'sa' 'sang' 'soldier'
+    side: str            # 'blue' | 'red' | 'unknown' (위치만 검출)
+    kind: str            # 말 종류 또는 'piece' (종류 미분류)
     conf: float
     box: tuple[float, float, float, float]  # x1 y1 x2 y2 (pixel)
     board: tuple[int, int] | None = field(default=None)   # 할당된 장기판 교차점 (x, y)
@@ -33,6 +33,30 @@ class Detection:
     def center(self) -> tuple[float, float]:
         x1, y1, x2, y2 = self.box
         return (x1 + x2) / 2, (y1 + y2) / 2
+
+
+def deduplicate_detections(detections: list[Detection], iou_threshold: float = 0.5) -> list[Detection]:
+    """클래스 무관 NMS. 표시/통계용이며 원본 검출/교차점 할당은 바꾸지 않는다."""
+    if not detections:
+        return []
+    boxes = np.asarray([d.box for d in detections], dtype=float)
+    areas = np.prod(np.maximum(boxes[:, 2:] - boxes[:, :2], 0), axis=1)
+    order = np.argsort(-np.asarray([d.conf for d in detections]), kind="stable")
+    kept = []
+    while len(order):
+        chosen, rest = order[0], order[1:]
+        kept.append(detections[chosen])
+        lo = np.maximum(boxes[chosen, :2], boxes[rest, :2])
+        hi = np.minimum(boxes[chosen, 2:], boxes[rest, 2:])
+        intersection = np.prod(np.maximum(hi - lo, 0), axis=1)
+        union = areas[chosen] + areas[rest] - intersection
+        iou = np.divide(intersection, union, out=np.zeros_like(intersection), where=union > 0)
+        order = rest[iou < iou_threshold]
+    return kept
+
+
+def count_unique_detections(detections: list[Detection], iou_threshold: float = 0.5) -> int:
+    return len(deduplicate_detections(detections, iou_threshold))
 
 
 class PieceDetector:
@@ -45,9 +69,10 @@ class PieceDetector:
         if not model_path.exists():
             raise FileNotFoundError(f"모델 파일이 없다: {model_path}")
         self.model = YOLO(str(model_path))
-        names = [self.model.names[i] for i in range(len(self.model.names))]
-        if names != CLASS_NAMES:
-            raise ValueError(f"모델 클래스가 labels.CLASS_NAMES와 다르다: {names}")
+        self.names = [self.model.names[i] for i in range(len(self.model.names))]
+        self.position_only = self.names == ["janggi_dol"]
+        if not self.position_only and self.names != CLASS_NAMES:
+            raise ValueError(f"지원하지 않는 모델 클래스: {self.names} (janggi_dol 1종 또는 기존 14종 필요)")
         self.device = device or ("cuda:0" if torch.cuda.is_available() else "cpu")
         self.conf, self.iou, self.imgsz = conf, iou, imgsz
         # 첫 추론은 느리므로 미리 한 번 돌린다
@@ -70,7 +95,7 @@ class PieceDetector:
         cls = r.boxes.cls.cpu().numpy().astype(int)
         cf = r.boxes.conf.cpu().numpy()
         for b, c, p in zip(xyxy, cls, cf):
-            side, kind = parse_label(CLASS_NAMES[c])
+            side, kind = ("unknown", "piece") if self.position_only else parse_label(self.names[c])
             box = (float(b[0]) + ox, float(b[1]) + oy, float(b[2]) + ox, float(b[3]) + oy)
-            out.append(Detection(int(c), CLASS_NAMES[c], side, kind, float(p), box))
+            out.append(Detection(int(c), self.names[c], side, kind, float(p), box))
         return out

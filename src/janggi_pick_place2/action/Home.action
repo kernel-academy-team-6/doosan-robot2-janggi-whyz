@@ -1,0 +1,11 @@
+# No goal arguments. Uses the server's home_joint_deg parameter.
+---
+# success means sequence/transport completion, not verified physical grasp.
+# holding_state: empty_unverified / holding_unverified / unknown.
+bool success
+string message
+string holding_state
+float64[] final_flange_pose
+---
+string stage
+float64 progress

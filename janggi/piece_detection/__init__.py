@@ -1,10 +1,10 @@
-"""장기말 인식 (YOLO, models/weights.pt) + 장기판 교차점 매핑.
+"""장기말 위치 인식 (YOLO, models/weights.pt) + 장기판 교차점 매핑.
 
     from piece_detection import PieceDetector, BoardMapper, BoardStabilizer
     det = PieceDetector()
     mapper = BoardMapper.from_calibration()
     dets = det.detect(bgr)
-    board = mapper.assign(dets)     # {(x, y): ('blue', 'horse'), ...}
+    board = mapper.assign(dets)     # {(x, y): ('unknown', 'piece'), ...}
 """
 
 from .board_mapping import BoardMapper, BoardStabilizer, COLS, ROWS

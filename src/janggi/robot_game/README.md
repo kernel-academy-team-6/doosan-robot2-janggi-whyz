@@ -28,10 +28,10 @@ cd ~/doosan_janggi_ws
 
 ```bash
 cd ~/doosan_janggi_ws/janggi
-./realtime_ui/run.sh --robot                       # 사람 초(먼저 둠), 로봇 한
-./realtime_ui/run.sh --robot --human-side red      # 사람 한
-./realtime_ui/run.sh --robot --no-motion           # 로봇을 움직이지 않고 엔진 수·집을 좌표만 기보에 표시
-./realtime_ui/run.sh --robot --robot-vel 50 --movetime 3000
+./realtime_ui/run.sh --model ../models/weights_14class.pt --robot                       # 사람 초(먼저 둠), 로봇 한
+./realtime_ui/run.sh --model ../models/weights_14class.pt --robot --human-side red      # 사람 한
+./realtime_ui/run.sh --model ../models/weights_14class.pt --robot --no-motion           # 로봇을 움직이지 않고 엔진 수·집을 좌표만 기보에 표시
+./realtime_ui/run.sh --model ../models/weights_14class.pt --robot --robot-vel 50 --movetime 3000
 ```
 
 오른쪽 **로봇 대국** 패널: `대국 시작 (인식된 판)` → 사람이 두고 `착수 완료 (Space)` → 반복. `로봇 정지`는 즉시 정지.

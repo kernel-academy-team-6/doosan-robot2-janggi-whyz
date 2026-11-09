@@ -1,4 +1,4 @@
-"""장기말 라벨. models/weights.pt의 클래스 순서와 같다 (모델 메타데이터로 확인).
+"""장기말 라벨. models/weights_14class.pt의 클래스 순서와 같다 (모델 메타데이터로 확인).
 
 blue = 초(楚), red = 한(漢).
 """
@@ -34,4 +34,6 @@ def parse_label(name: str) -> tuple[str, str]:
 
 
 def piece_char(side: str, kind: str) -> str:
+    if (side, kind) == ("unknown", "piece"):
+        return "알"
     return KOREAN.get((side, kind), KOREAN_KIND[kind])

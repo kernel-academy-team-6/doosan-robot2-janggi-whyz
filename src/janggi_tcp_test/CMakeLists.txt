@@ -1,0 +1,21 @@
+cmake_minimum_required(VERSION 3.8)
+project(janggi_tcp_test)
+find_package(ament_cmake REQUIRED)
+find_package(ament_cmake_python REQUIRED)
+find_package(rosidl_default_generators REQUIRED)
+rosidl_generate_interfaces(${PROJECT_NAME} "action/TestTcpHeight.action")
+ament_get_python_install_dir(PYTHON_INSTALL_DIR)
+install(DIRECTORY janggi_tcp_test/ DESTINATION "${PYTHON_INSTALL_DIR}/${PROJECT_NAME}"
+  FILES_MATCHING PATTERN "*.py" PATTERN "__pycache__" EXCLUDE)
+install(PROGRAMS scripts/tcp_test_node DESTINATION lib/${PROJECT_NAME})
+install(DIRECTORY launch config DESTINATION share/${PROJECT_NAME})
+install(FILES README.md LICENSE DESTINATION share/${PROJECT_NAME})
+if(BUILD_TESTING)
+  find_package(ament_cmake_pytest REQUIRED)
+  ament_add_pytest_test(profile tests/test_profile.py
+    APPEND_ENV PYTHONPATH=${CMAKE_CURRENT_SOURCE_DIR})
+  ament_add_pytest_test(command_transport tests/test_transport.py
+    APPEND_ENV PYTHONPATH=${CMAKE_CURRENT_SOURCE_DIR})
+endif()
+ament_export_dependencies(rosidl_default_runtime)
+ament_package()

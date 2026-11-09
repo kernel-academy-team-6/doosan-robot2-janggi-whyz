@@ -1,0 +1,21 @@
+# Both required: total fingertip gap, mm, in [6, 106].
+float64 initial_width_mm -1.0
+float64 target_width_mm -1.0
+---
+# Sequence completion only; actual gripper gap and tip height are unverified.
+bool success
+string message
+string report_directory
+float64 model_duration_sec
+float64 max_estimated_tip_error_mm
+# Number of arm-pose/model samples, NOT gripper feedback samples.
+uint32 feedback_samples
+string feedback_source
+---
+string stage
+float64 elapsed_sec
+float64 progress
+float64 predicted_width_mm
+float64 command_flange_z_mm
+float64 estimated_tip_z_mm
+float64 feedback_age_sec

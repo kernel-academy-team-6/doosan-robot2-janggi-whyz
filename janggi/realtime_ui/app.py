@@ -37,8 +37,10 @@ sys.path.insert(0, str(SRC_JANGGI))                  # action (로봇 동작), e
 
 from piece_detection import BoardMapper, BoardStabilizer, piece_char  # noqa: E402
 from piece_detection.board_mapping import DEFAULT_CALIBRATION  # noqa: E402
-from piece_detection.detector import DEFAULT_MODEL  # noqa: E402
+from piece_detection.detector import DEFAULT_MODEL, count_unique_detections, deduplicate_detections  # noqa: E402
 from rules import COLS, ROWS, Game, detect_top_side, infer_move, other  # noqa: E402
+from count_log import CountLog  # noqa: E402
+from video_log import BoardRenderer, EvaluationVideos  # noqa: E402
 
 FONT_PATH = "/usr/share/fonts/opentype/noto/NotoSansCJK-Bold.ttc"
 FONT_FAMILY = "Noto Sans CJK KR"
@@ -51,7 +53,12 @@ FULL_SET = {"king": 1, "cha": 2, "po": 2, "horse": 2, "sang": 2, "sa": 2, "soldi
 def parse_args():
     p = argparse.ArgumentParser(description="장기말 실시간 인식 + 게임 UI")
     p.add_argument("--source", default="realsense", help="realsense | 웹캠 번호 | 동영상/이미지 파일 경로")
-    p.add_argument("--model", type=Path, default=DEFAULT_MODEL)
+    p.add_argument("--playback-fps", type=float, default=0.0,
+                   help="동영상 재생 FPS (기본/0: 속도 제한 없음). 카메라·사진에는 적용 안 함")
+    model_options = p.add_mutually_exclusive_group()
+    model_options.add_argument("--model-mode", choices=("piece", "full"), default=None,
+                               help="piece: weights_only_piece.pt, full: weights_14class.pt (생략 시 weights.pt)")
+    model_options.add_argument("--model", type=Path, default=None, help="모델 파일 경로 직접 지정")
     p.add_argument("--conf", type=float, default=0.35, help="검출 신뢰도 임계값 (UI 슬라이더로 바꿀 수 있다)")
     p.add_argument("--full-frame", action="store_true", help="판 영역만 잘라 인식하지 않고 전체 프레임을 인식")
     p.add_argument("--roi-margin", type=int, default=60, help="판 영역 인식 때 격자 바깥 여유 [px]")
@@ -60,6 +67,8 @@ def parse_args():
     p.add_argument("--piece-height", type=float, default=12.0, help="말 높이 [mm] (시차 보정)")
     p.add_argument("--max-dist", type=float, default=0.45, help="교차점 할당 최대 거리 [칸]")
     p.add_argument("--window", type=int, default=8, help="판 상태 안정화 프레임 수")
+    p.add_argument("--log-counts", action="store_true", help="인식 개수·conf 로그와 오버레이/인식판 영상을 evaluations/에 저장")
+    p.add_argument("--expected-pieces", type=int, default=32, help="개수 비교 기준 (기본 32; 실제 말 개수가 고정된 구간에 사용)")
     p.add_argument("--width", type=int, default=1280)
     p.add_argument("--height", type=int, default=720)
     g = p.add_argument_group("로봇 대국 (--robot)")
@@ -69,7 +78,15 @@ def parse_args():
     g.add_argument("--robot-vel", type=float, default=100.0, help="로봇 직선 속도 [mm/s]")
     g.add_argument("--ns", default="dsr01", help="로봇 네임스페이스")
     g.add_argument("--no-motion", action="store_true", help="로봇을 움직이지 않고 엔진 수와 집을 좌표만 표시")
-    return p.parse_args()
+    args = p.parse_args()
+    if args.model is None:
+        model_names = {"piece": "weights_only_piece.pt", "full": "weights_14class.pt"}
+        args.model = DEFAULT_MODEL.with_name(model_names[args.model_mode]) if args.model_mode else DEFAULT_MODEL
+    if args.playback_fps is not None and (not np.isfinite(args.playback_fps) or args.playback_fps < 0):
+        p.error("--playback-fps는 0 이상의 유한한 숫자여야 한다")
+    if args.expected_pieces <= 0:
+        p.error("--expected-pieces는 양수여야 한다")
+    return args
 
 
 # --------------------------------------------------------------------------- 영상 입력
@@ -118,8 +135,15 @@ class RealSenseSource:
 class CvSource:
     """웹캠 번호, 동영상 파일, 이미지 파일."""
 
-    def __init__(self, src: str, w, h):
+    def __init__(self, src: str, w, h, playback_fps: float = 0.0):
         self.image = None
+        self.source_frame = self.source_time = None
+        self.source_loop = 0
+        self.is_video = not src.isdigit()
+        self.original_fps = 0.0
+        self._interrupted = threading.Event()
+        self.frame_interval = 0.0
+        self.next_frame_at = None
         if not src.isdigit() and Path(src).suffix.lower() in (".png", ".jpg", ".jpeg", ".bmp"):
             self.image = cv2.imread(src)
             if self.image is None:
@@ -131,16 +155,37 @@ class CvSource:
             self.cap.set(cv2.CAP_PROP_FRAME_HEIGHT, h)
         if not self.cap.isOpened():
             raise RuntimeError(f"영상을 열 수 없다: {src}")
+        if not src.isdigit():
+            self.original_fps = self.cap.get(cv2.CAP_PROP_FPS)
+            fps = playback_fps
+            self.frame_interval = 1.0 / fps if fps > 0 else 0.0
+            print(f"[영상] 재생 속도: {fps:g} FPS" if fps else "[영상] 재생 속도: 제한 없음")
 
     def read(self):
         if self.image is not None:
             time.sleep(0.03)
             return self.image.copy()
+        if self.frame_interval:
+            if self.next_frame_at is not None:
+                delay = self.next_frame_at - time.monotonic()
+                if delay > 0 and self._interrupted.wait(delay):
+                    return None
+            # 느린 추론 뒤에 밀린 프레임을 몰아서 재생하지 않는다.
+            self.next_frame_at = time.monotonic() + self.frame_interval
         ok, f = self.cap.read()
         if not ok:  # 동영상 끝 → 처음부터
             self.cap.set(cv2.CAP_PROP_POS_FRAMES, 0)
+            self.next_frame_at = None
+            self.source_loop += 1
             return None
+        if self.is_video:
+            self.source_frame = int(self.cap.get(cv2.CAP_PROP_POS_FRAMES)) - 1
+            self.source_time = (self.source_frame / self.original_fps
+                                if np.isfinite(self.original_fps) and self.original_fps > 0 else None)
         return f
+
+    def interrupt(self):
+        self._interrupted.set()
 
     def close(self):
         if self.image is None:
@@ -164,12 +209,34 @@ class Worker:
         self.running = True
         self.error = None
         self.use_roi = mapper is not None and not args.full_frame
+        self.count_log = None
+        self.video_log = None
+        self.video_zoom = mapper is not None
+        self.video_detail = False
+        if args.log_counts:
+            import hashlib
+            self.count_log = CountLog(HERE / "evaluations", args.expected_pieces, dict(
+                source=args.source, model=str(args.model.resolve()),
+                model_sha256=hashlib.sha256(args.model.read_bytes()).hexdigest(),
+                calibration=str(args.calibration) if mapper else None,
+                playback_fps=args.playback_fps, max_dist=args.max_dist, window=args.window,
+                deduplication_iou=0.5, model_iou=detector.iou, imgsz=detector.imgsz))
+            print(f"[개수 기록] 저장 시작: {self.count_log.path}")
         self.thread = threading.Thread(target=self._run, daemon=True)
         self.thread.start()
 
     def _run(self):
         n, t0 = 0, time.time()
         try:
+            if self.count_log:
+                fps = getattr(self.source, "original_fps", 0)
+                fps = fps if np.isfinite(fps) and fps > 0 else 30.0
+                if (getattr(self.source, "is_video", False) and getattr(self.source, "image", None) is None
+                        and self.args.playback_fps > 0):
+                    fps = self.args.playback_fps
+                self.video_log = EvaluationVideos(self.count_log.path, fps)
+                video_glyphs = GlyphCache(FONT_PATH, 16)
+                board_renderer = BoardRenderer(FONT_PATH)
             while self.running:
                 frame = self.source.read()
                 if frame is None:
@@ -185,11 +252,33 @@ class Worker:
                     self.latest = (frame, dets, raw, stable)
                     self.frames += 1
                 self.last_frame_t = time.time()
+                if self.count_log:
+                    crop = board_crop_box(self.mapper, frame.shape[1], frame.shape[0]) if self.video_zoom and self.mapper else None
+                    overlay = draw_overlay(frame, dets, self.mapper, video_glyphs, crop, self.video_detail)
+                    self.video_log.write(overlay, board_renderer.render(stable))
+                    unique_dets = deduplicate_detections(dets)
+                    self.count_log.record(len(dets), len(unique_dets),
+                                          len(raw) if self.mapper else None, len(stable) if self.mapper else None,
+                                          self.args.conf, roi is not None,
+                                          getattr(self.source, "source_frame", None),
+                                          getattr(self.source, "source_time", None),
+                                          getattr(self.source, "source_loop", None),
+                                          confidences=[d.conf for d in dets],
+                                          deduplicated_confidences=[d.conf for d in unique_dets])
                 n += 1
                 if time.time() - t0 >= 1.0:
                     self.fps, n, t0 = n / (time.time() - t0), 0, time.time()
         except Exception as e:  # noqa: BLE001
             self.error = repr(e)
+        finally:
+            if self.video_log:
+                try:
+                    self.video_log.close()
+                except Exception as e:  # noqa: BLE001
+                    self.error = self.error or repr(e)
+                self.count_log.metadata["videos"] = self.video_log.info()
+            if self.count_log:
+                self.count_log.close(error=self.error)
 
     def get(self):
         with self.lock:
@@ -218,6 +307,9 @@ class Worker:
 
     def stop(self):
         self.running = False
+        interrupt = getattr(self.source, "interrupt", None)
+        if interrupt is not None:
+            interrupt()
         self.thread.join(timeout=2.0)
 
 
@@ -277,7 +369,7 @@ def draw_overlay(frame, dets, mapper, glyphs, crop=None, detail=False):
             cv2.putText(img, name, (u + 6, v + 16), cv2.FONT_HERSHEY_SIMPLEX, 0.45, yellow, 1, cv2.LINE_AA)
     for det in dets:
         assigned = det.board is not None
-        rgb = SIDE_RGB[det.side] if assigned else (150, 150, 150)
+        rgb = SIDE_RGB.get(det.side, (0, 170, 145)) if assigned else (150, 150, 150)
         bgr = rgb[::-1]
         bx1, by1 = P(det.box[:2])
         bx2, by2 = P(det.box[2:])
@@ -311,6 +403,13 @@ class BoardView(tk.Canvas):
         self.bind("<ButtonPress-1>", lambda e: on_press(self.cell_at(e.x, e.y), e))
         self.bind("<B1-Motion>", on_drag)
         self.bind("<ButtonRelease-1>", lambda e: on_release(self.cell_at(e.x, e.y), e))
+        self.recognition_renderer = BoardRenderer(FONT_PATH)
+
+    def draw_recognition(self, board):
+        frame = self.recognition_renderer.render(board)
+        self.recognition_image = ImageTk.PhotoImage(Image.fromarray(cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)))
+        self.delete("all")
+        self.create_image(0, 0, image=self.recognition_image, anchor="nw")
 
     def xy(self, c):
         return self.MARGIN + c[0] * self.CELL, self.MARGIN + c[1] * self.CELL
@@ -341,9 +440,10 @@ class BoardView(tk.Canvas):
         for k in range(8):  # 장기말은 팔각형
             a = np.pi / 8 + k * np.pi / 4
             pts += [cx + r * np.cos(a), cy + r * np.sin(a)]
-        self.create_polygon(pts, fill="#f8ecd2" if not ghost else "#ddd2bb", outline=SIDE_HEX[side], width=2,
+        color = SIDE_HEX.get(side, "#00897b")
+        self.create_polygon(pts, fill="#f8ecd2" if not ghost else "#ddd2bb", outline=color, width=2,
                             tags="piece")
-        self.create_text(cx, cy, text=piece_char(side, kind), fill=SIDE_HEX[side],
+        self.create_text(cx, cy, text=piece_char(side, kind), fill=color,
                          font=(FONT_FAMILY, int(r * 0.85), "bold"), tags="piece")
 
     def mark(self, c, color, r=27, width=3, dash=None):
@@ -360,6 +460,7 @@ class BoardView(tk.Canvas):
 class App:
     def __init__(self, args, worker, mapper):
         self.args, self.worker, self.mapper = args, worker, mapper
+        self.position_only = getattr(getattr(worker, "detector", None), "position_only", False)
         self.root = tk.Tk()
         self.root.title("장기 실시간 인식")
         self.glyphs = GlyphCache(FONT_PATH, 16)
@@ -432,6 +533,7 @@ class App:
         tk.Radiobutton(top, text="실시간 인식", value="live", variable=self.mode, command=self.on_mode,
                        font=("TkDefaultFont", 11, "bold")).pack(side="left")
         tk.Radiobutton(top, text="게임", value="game", variable=self.mode, command=self.on_mode,
+                       state=tk.DISABLED if self.position_only else tk.NORMAL,
                        font=("TkDefaultFont", 11, "bold")).pack(side="left", padx=8)
         self.lbl_status = tk.Label(right, anchor="w", font=(FONT_FAMILY, 13, "bold"), width=40)
         self.lbl_status.pack(fill="x", pady=(4, 2))
@@ -453,7 +555,8 @@ class App:
         for text, cmd in (("인식된 판으로 새 게임", self.new_game), ("판에서 둔 수 읽기", self.read_move),
                           ("되돌리기 (Ctrl+Z)", self.undo), ("한수쉼", self.pass_turn),
                           ("인식된 판으로 맞추기", self.sync_to_detection)):
-            tk.Button(fg, text=text, command=cmd).pack(fill="x", pady=1)
+            tk.Button(fg, text=text, command=cmd,
+                      state=tk.DISABLED if self.position_only else tk.NORMAL).pack(fill="x", pady=1)
         tk.Checkbutton(fg, text="인식과 다른 칸 표시", variable=self.show_diff).pack(anchor="w")
         if self.args.robot:
             fr = tk.LabelFrame(side, text=f"로봇 대국 (사람 {SIDE_KO[self.args.human_side]})", padx=6, pady=4)
@@ -477,6 +580,9 @@ class App:
         self.cancel_select()
 
     def new_game(self):
+        if self.position_only:
+            self.mode.set("live")
+            return
         if not self.stable:
             messagebox.showwarning("새 게임", "인식된 말이 없다. 카메라와 보정 파일을 확인한다.", parent=self.root)
             self.mode.set("live")
@@ -608,6 +714,8 @@ class App:
         return "사람 차례: 판에 두고 [착수 완료]" + (f"  ({st}!)" if st else "")
 
     def _ensure_robot(self):
+        if self.position_only:
+            raise RuntimeError("위치 전용 모델은 진영·종류를 분류하지 않아 로봇 대국에 사용할 수 없다")
         if self.rg is not None:
             return
         from session import RobotGame, RobotGameConfig
@@ -674,6 +782,8 @@ class App:
         data = self.worker.get()
         if data is not None:
             frame, dets, raw, self.stable = data
+            self.worker.video_zoom = self.zoom.get()
+            self.worker.video_detail = self.detail.get()
             crop = None
             if self.zoom.get() and self.mapper is not None:
                 crop = board_crop_box(self.mapper, frame.shape[1], frame.shape[0])
@@ -691,7 +801,8 @@ class App:
             lag = time.time() - self.worker.last_frame_t
             stale = f"  ⚠ 영상 {lag:.0f}초 멈춤" if lag > 1.5 else ""
             assigned = sum(1 for d in dets if d.board is not None)
-            self.lbl_cam.config(text=f"인식 {self.worker.fps:4.1f} FPS · 검출 {len(dets)} · 판 할당 {assigned}{stale}")
+            unique = count_unique_detections(dets)
+            self.lbl_cam.config(text=f"인식 {self.worker.fps:4.1f} FPS · 검출 {len(dets)} · 중복 제거 {unique} · 판 할당 {assigned}{stale}")
         while self._msgs:
             self.log.insert("end", self._msgs.popleft())
             self.log.see("end")
@@ -716,7 +827,8 @@ class App:
         self._board_sig = sig
         bv.draw_grid()
         if live:
-            self.lbl_status.config(text="실시간 인식 결과" if self.mapper else "보정 파일이 없어 판 매핑 없음",
+            status = "말 위치 인식 · 진영/종류 미분류" if self.position_only else "실시간 인식 결과"
+            self.lbl_status.config(text=status if self.mapper else "보정 파일이 없어 판 매핑 없음",
                                    fg="#333")
         else:
             st = self.game.status()
@@ -728,11 +840,14 @@ class App:
             if self.show_diff.get():
                 for c in self.diff_cells():
                     bv.mark(c, "#ff8f00", r=30, width=3)
-        for c, (side, kind) in board.items():
-            if c == self.sel and self.drag_xy:
-                bv.draw_piece(c, side, kind, ghost=True)
-            else:
-                bv.draw_piece(c, side, kind)
+        if live:
+            bv.draw_recognition(board)
+        else:
+            for c, (side, kind) in board.items():
+                if c == self.sel and self.drag_xy:
+                    bv.draw_piece(c, side, kind, ghost=True)
+                else:
+                    bv.draw_piece(c, side, kind)
         if not live and self.sel:
             bv.mark(self.sel, "#6a1b9a", r=28, width=3)
             for c in self.game.legal_moves(self.sel):
@@ -742,6 +857,9 @@ class App:
                     bv.dot(c, "#6a1b9a")
             if self.drag_xy:
                 bv.draw_piece(self.sel, *board[self.sel], at=self.drag_xy)
+        if self.position_only:
+            self.lbl_count.config(text=f"판 위 말 위치 {len(board)}개\n진영·말 종류는 분류하지 않음")
+            return
         cnt = {s: {k: 0 for k in FULL_SET} for s in SIDE_KO}
         for side, kind in board.values():
             cnt[side][kind] += 1
@@ -797,9 +915,12 @@ def main():
 
     detector = PieceDetector(args.model, conf=args.conf)
     print(f"[모델] {args.model.name} on {detector.device}")
+    if detector.position_only and args.robot:
+        print("[위치 인식] 진영·종류를 분류하지 않는 모델이므로 --robot을 비활성화한다. 로봇 연결 없음.")
+        args.robot = False
     try:
         source = RealSenseSource(args.width, args.height) if args.source == "realsense" else \
-            CvSource(args.source, args.width, args.height)
+            CvSource(args.source, args.width, args.height, args.playback_fps)
     except RuntimeError as e:
         sys.exit(f"[오류] 영상 입력을 열 수 없다 ({args.source}): {e}\n"
                  "  - RealSense: USB 3 포트에 연결됐는지 `lsusb | grep -i realsense`로 확인한다\n"

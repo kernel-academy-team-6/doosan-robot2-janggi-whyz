@@ -1,0 +1,18 @@
+# Required [x, y, z, yaw]: robot base, mm / degrees.
+# z is absolute fingertip height, NOT flange height or downward distance.
+float64[] target
+# -1 selects the server parameter; 0 is not treated as omitted.
+float64 object_width_mm -1.0
+float64 opening_allowance_mm -1.0
+# Compatibility field only: current is NOT sent through position_cmd.
+float64 grip_current_ma -1.0
+---
+# success means sequence/transport completion, not verified physical grasp.
+# holding_state: empty_unverified / holding_unverified / unknown.
+bool success
+string message
+string holding_state
+float64[] final_flange_pose
+---
+string stage
+float64 progress

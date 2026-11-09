@@ -1,0 +1,5 @@
+#!/usr/bin/python3
+from janggi_pick_place2.node import main
+
+if __name__ == '__main__':
+    main()
