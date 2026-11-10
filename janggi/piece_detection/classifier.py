@@ -60,15 +60,17 @@ class MobileNetClassifier:
         self.model.to(self.device).eval()
         self.transform = input_transform(self.size)
 
-    def predict(self, images):
+    def predict_proba(self, images):
         import torch
         results = []
         with torch.inference_mode():
             for start in range(0, len(images), self.batch_size):
                 batch = torch.stack([self.transform(image) for image in images[start:start+self.batch_size]]).to(self.device)
-                confidence, index = self.model(batch).softmax(1).max(1)
-                results.extend((self.classes[i], float(p)) for i, p in zip(index.cpu().tolist(), confidence.cpu().tolist()))
+                results.extend(self.model(batch).softmax(1).cpu().tolist())
         return results
+
+    def predict(self, images):
+        return [(self.classes[int(np.argmax(p))], float(max(p))) for p in self.predict_proba(images)]
 
 
 class UltralyticsClassifier:
@@ -92,13 +94,16 @@ class UltralyticsClassifier:
         self.model.model.transforms = transforms.Compose([
             transforms.Resize((size, size), interpolation=transforms.InterpolationMode.BICUBIC), transforms.ToTensor()])
 
-    def predict(self, images):
+    def predict_proba(self, images):
         results = []
         for start in range(0, len(images), self.batch_size):
             for result in self.model.predict(images[start:start+self.batch_size], imgsz=self.size,
                                              device=self.device, verbose=False):
-                results.append((self.classes[result.probs.top1], float(result.probs.top1conf)))
+                results.append(result.probs.data.cpu().tolist())
         return results
+
+    def predict(self, images):
+        return [(self.classes[int(np.argmax(p))], float(max(p))) for p in self.predict_proba(images)]
 
 
 class TwoStageDetector:
@@ -113,6 +118,32 @@ class TwoStageDetector:
         self.position_only = False
         self.robot_compatible = set(classifier.classes) == VALID_CLASSES
         self.names = classifier.classes
+
+    def detect_positions(self, bgr, conf=None, roi=None):
+        return [replace(d, side='unknown', kind='piece', name='janggi_dol', classification_conf=None)
+                for d in deduplicate_detections(self.detector.detect(bgr, conf=conf, roi=roi))]
+
+    def classify_observations(self, bgr, detections):
+        frame = Image.fromarray(np.ascontiguousarray(bgr[:, :, ::-1]))
+        observations, crops, cells = {}, [], []
+        for detection in detections:
+            if detection.board is None:
+                continue
+            observations[detection.board] = dict(box=list(detection.box), probabilities=None)
+            try:
+                crops.append(prepare_image(frame, self.classifier.size, box=detection.box))
+                cells.append(detection.board)
+            except ValueError:
+                continue
+        probabilities = self.classifier.predict_proba(crops) if crops else []
+        if len(probabilities) != len(cells):
+            raise ValueError('분류 확률 개수가 Crop 개수와 다릅니다.')
+        for cell, distribution in zip(cells, probabilities):
+            p = np.asarray(distribution, float)
+            if p.shape != (len(self.classifier.classes),) or not np.isfinite(p).all() or (p < 0).any() or p.sum() <= 0:
+                raise ValueError('잘못된 종류별 분류 확률입니다.')
+            observations[cell]['probabilities'] = dict(zip(self.classifier.classes, (p/p.sum()).tolist()))
+        return observations
 
     def detect(self, bgr, conf=None, roi=None):
         # 검출 좌표는 전체 프레임 좌표. Crop도 ROI가 아닌 전체 RGB 프레임에서 가져온다.

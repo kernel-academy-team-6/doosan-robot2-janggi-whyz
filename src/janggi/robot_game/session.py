@@ -233,6 +233,10 @@ class RobotGame:
         t0 = time.time()
         plan = self.plan(centers)
         self.last_plan = plan
+        if plan.src is not None and not plan.is_pass:
+            callback = getattr(self, 'on_move_planned', None)
+            if callback is not None:
+                callback(plan.src, plan.dst)
         self.log(f"엔진: {plan.describe()} ({time.time() - t0:.1f}s)")
         if plan.uci is None:
             self.log(f"로봇({SIDE_KO[self.robot_side]})이 둘 수 없다 — 사람 승")

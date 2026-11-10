@@ -113,6 +113,16 @@ class BoxSizeEstimator:
 
 
 def box_label(detection, mode='confidence', estimator=None, frame_size=None):
+    if mode in ('geometric-px', 'geometric-mm'):
+        x1, y1, x2, y2 = detection.box
+        if mode == 'geometric-mm':
+            if detection.geometric_size_mm is not None:
+                return f'G{detection.geometric_size_mm:.1f}mm~'
+            if estimator is not None and frame_size is not None:
+                size = estimator.measure(tuple(detection.box), tuple(frame_size))
+                if size is not None:
+                    return f'G{math.sqrt(size[0]*size[1]):.1f}mm~'
+        return f'G{math.sqrt(max(0, (x2-x1)*(y2-y1))):.1f}px'+(' (mm N/A)' if mode == 'geometric-mm' else '')
     if mode in ('size-px', 'size-mm'):
         x1, y1, x2, y2 = detection.box
         if mode == 'size-mm' and estimator is not None and frame_size is not None:

@@ -30,6 +30,9 @@ class Detection:
     board_dist: float | None = field(default=None)        # 교차점까지 거리 (칸 단위)
     classification_conf: float | None = field(default=None)  # 2단계 분류 확률; conf는 YOLO 검출 확률 유지
 
+    piece_id: str | None = field(default=None)
+    geometric_size_mm: float | None = field(default=None)
+
     @property
     def center(self) -> tuple[float, float]:
         x1, y1, x2, y2 = self.box
