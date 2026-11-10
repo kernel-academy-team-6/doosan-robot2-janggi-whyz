@@ -42,6 +42,7 @@ from rules import COLS, ROWS, Game, detect_top_side, infer_move, other  # noqa: 
 from diagnostics import ObstructionMonitor, BoxSizeEstimator, box_label
 from classification_async import LatestClassification
 from piece_state import PieceTracker, StateStore
+from piece_motion import PieceMotionMonitor, draw_piece_regions
 from count_log import CountLog  # noqa: E402
 from video_log import BoardRenderer, EvaluationVideos  # noqa: E402
 
@@ -75,6 +76,10 @@ def parse_args():
     p.add_argument("--device", default=None, help="cpu 또는 cuda:0; 생략 시 자동 선택")
     p.add_argument("--box-label", choices=("confidence", "size-px", "size-mm", "geometric-px", "geometric-mm"), default="confidence",
                    help="박스 표시: 신뢰도 또는 가로x세로 크기")
+    p.add_argument("--show-piece-motion", action="store_true", help="말 박스 기반 국소 방해/움직임 영역 표시(실험)")
+    p.add_argument("--local-conf-drop", type=float, default=.15, help="말 센서 신뢰도 하락 기준")
+    p.add_argument("--local-size-change", type=float, default=.25, help="말 센서 기하평균 크기 변화 비율")
+    p.add_argument("--local-move-ratio", type=float, default=.2, help="최근 0.3초의 이동 거리 / 박스 크기 기준")
     p.add_argument("--obstruction-motion", type=float, default=.03, help="방해 의심 움직임 면적 비율 (기본 0.03)")
     p.add_argument("--obstruction-window", type=float, default=2., help="검출 수 진동 확인 시간(초)")
     p.add_argument("--obstruction-settle", type=float, default=.8, help="안정 표시 전 대기 시간(초)")
@@ -112,6 +117,9 @@ def parse_args():
     if (not np.isfinite(args.classification_interval) or args.classification_interval <= 0
             or not 0 < args.history_alpha <= 1 or not np.isfinite(args.size_strength) or args.size_strength < 0):
         p.error("분류 간격은 양수, 현재 관측 비중은 0~1, 크기 가중치는 0 이상이어야 한다")
+    if (not all(np.isfinite(v) for v in (args.local_conf_drop, args.local_size_change, args.local_move_ratio))
+            or not 0 < args.local_conf_drop <= 1 or args.local_size_change <= 0 or args.local_move_ratio <= 0):
+        p.error("말 센서 신뢰도 하락 기준은 0~1, 크기/이동 변화 비율은 양수여야 한다")
     if args.expected_pieces <= 0:
         p.error("--expected-pieces는 양수여야 한다")
     return args
@@ -246,6 +254,12 @@ class Worker:
                                              getattr(args, 'obstruction_settle', .8),
                                              getattr(args, 'obstruction_motion', .03))
         self.obstruction_reset = threading.Event()
+        self.show_piece_motion = getattr(args, 'show_piece_motion', False)
+        self.piece_motion = PieceMotionMonitor(getattr(args, 'local_conf_drop', .15),
+                                              getattr(args, 'local_size_change', .25),
+                                              getattr(args, 'local_move_ratio', .2))
+        self.local_regions = []
+        self._piece_motion_enabled = self.show_piece_motion
         self.view_status = dict(state='settling', reason='영상 입력 대기 중', motion=0.)
         self.size_estimator = None
         if mapper is not None and args.calibration:
@@ -349,6 +363,7 @@ class Worker:
                 context = (getattr(self.source, 'source_loop', None), self.args.conf, self.use_roi)
                 if self.obstruction_reset.is_set() or context != self.monitor_context:
                     self.obstruction.reset()
+                    self.piece_motion.reset()
                     self.obstruction_reset.clear()
                     if context != self.monitor_context and self.monitor_context is not None and self.tracker is not None:
                         self.classifier_worker.invalidate()
@@ -358,6 +373,12 @@ class Worker:
                     self.monitor_context = context
                 view_status = self.obstruction.update(frame, len(unique_dets), len(raw) if self.mapper else None,
                                                       time.monotonic(), self.board_polygon)
+                enabled = self.show_piece_motion
+                if enabled != self._piece_motion_enabled:
+                    self.piece_motion.reset()
+                    self._piece_motion_enabled = enabled
+                # 전역 방해 여부나 교차점 할당과 무관하게 원본 검출 박스를 관찰한다.
+                local_regions = self.piece_motion.update(unique_dets, time.monotonic()) if enabled else []
                 tracked_board = None
                 if self.tracker is not None:
                     with self.lock:
@@ -368,18 +389,20 @@ class Worker:
                         source_time=getattr(self.source, "source_time", None), loop=getattr(self.source, "source_loop", None),
                         detections=[dict(box=d.box, label=d.name, detection_conf=d.conf,
                                          classification_conf=d.classification_conf, piece_id=d.piece_id,
-                                         geometric_size_mm=d.geometric_size_mm) for d in dets]))+"\n")
+                                         geometric_size_mm=d.geometric_size_mm) for d in dets],
+                        piece_motion_regions=local_regions if enabled else None))+"\n")
                 with self.lock:
                     stable = tracked_board if tracked_board is not None else self.stab.update(raw) if self.mapper else {}
                     self.center_hist.append({d.board: d.center for d in dets if d.board is not None})
                     self.latest = (frame, dets, raw, stable)
                     self.view_status = view_status
+                    self.local_regions = local_regions
                     self.frames += 1
                 self.last_frame_t = time.time()
                 if self.count_log:
                     crop = board_crop_box(self.mapper, frame.shape[1], frame.shape[0]) if self.video_zoom and self.mapper else None
                     overlay = draw_overlay(frame, dets, self.mapper, video_glyphs, crop, self.video_detail,
-                                           self.box_label_mode, self.size_estimator)
+                                           self.box_label_mode, self.size_estimator, local_regions)
                     self.video_log.write(overlay, board_renderer.render(stable))
                     self.count_log.record(len(dets), len(unique_dets),
                                           len(raw) if self.mapper else None, len(stable) if self.mapper else None,
@@ -484,6 +507,11 @@ class Worker:
         with self.lock:
             return self.latest
 
+    def get_piece_regions(self, frame):
+        with self.lock:
+            # UI가 읽은 프레임과 영역 결과가 다르면 다음 프레임에 표시한다.
+            return list(self.local_regions) if self.latest is not None and self.latest[0] is frame else []
+
     def tracking_ready(self, new_game=False):
         with self.lock:
             if self.tracker is None:
@@ -572,10 +600,12 @@ class GlyphCache:
         img[y0:y1, x0:x1] = (roi * (1 - sa) + bgr[y0 - y:y1 - y, x0 - x:x1 - x] * sa).astype(np.uint8)
 
 
-def draw_overlay(frame, dets, mapper, glyphs, crop=None, detail=False, label_mode='confidence', size_estimator=None):
+def draw_overlay(frame, dets, mapper, glyphs, crop=None, detail=False, label_mode='confidence', size_estimator=None, piece_regions=None):
     """인식 결과를 그린 BGR 이미지. crop=(x0, y0, x1, y1)이면 그 영역만 잘라서 그린다."""
     x0, y0, x1, y1 = crop or (0, 0, frame.shape[1], frame.shape[0])
     img = frame[y0:y1, x0:x1].copy()
+    if piece_regions:
+        draw_piece_regions(img, piece_regions, (x0, y0))
     off = np.array([x0, y0], dtype=np.float64)
 
     def P(p):
@@ -701,6 +731,7 @@ class App:
         self._board_sig = None
         self.zoom = tk.BooleanVar(value=mapper is not None)
         self.detail = tk.BooleanVar(value=False)
+        self.piece_motion_visible = tk.BooleanVar(value=getattr(args, 'show_piece_motion', False))
         self.box_label_options = {'신뢰도': 'confidence', '크기(px)': 'size-px', '크기(mm)': 'size-mm',
                                   '기하평균(px)': 'geometric-px', '기하평균(mm)': 'geometric-mm'}
         self.box_label_choice = tk.StringVar(value=next(name for name, value in self.box_label_options.items()
@@ -768,6 +799,12 @@ class App:
         choice.bind('<<ComboboxSelected>>', lambda e: setattr(self.worker, 'box_label_mode', self.box_label_options[self.box_label_choice.get()]))
         tk.Label(row3, text="mm는 보정 기반 박스 추정 길이", fg="#666").pack(side="left", padx=4)
         tk.Button(row3, text="방해 기준 다시 잡기", command=self.worker.obstruction_reset.set).pack(side="right")
+        sensor_row = tk.Frame(left)
+        sensor_row.pack(fill='x', padx=6, pady=2)
+        tk.Checkbutton(sensor_row, text='말별 방해 영역(실험)', variable=self.piece_motion_visible,
+                       command=lambda: setattr(self.worker, 'show_piece_motion', self.piece_motion_visible.get())).pack(side='left')
+        self.lbl_piece_motion = tk.Label(sensor_row, text='노랑=MOVE · 빨강=CONF/SIZE/MISS', fg='#666')
+        self.lbl_piece_motion.pack(side='left', padx=5)
         self.lbl_obstruction = tk.Label(left, anchor="w", justify="left", width=65, fg="#a06000", text="화면 방해: 확인 중")
         self.lbl_obstruction.pack(fill="x", padx=6, pady=2)
         self.lbl_tracking = tk.Label(left, anchor='w', fg='#555', width=65)
@@ -1064,11 +1101,15 @@ class App:
             self.worker.video_zoom = self.zoom.get()
             self.worker.video_detail = self.detail.get()
             self.worker.box_label_mode = self.box_label_options[self.box_label_choice.get()]
+            self.worker.show_piece_motion = self.piece_motion_visible.get()
+            local_regions = self.worker.get_piece_regions(frame) if self.piece_motion_visible.get() else []
+            self.lbl_piece_motion.config(text=f"의심 {len(local_regions)}곳 · 노랑=이동 / 빨강=검출 이상"
+                                         if self.piece_motion_visible.get() else "표시 꺼짐 · 켜면 말별 기준을 새로 수집")
             crop = None
             if self.zoom.get() and self.mapper is not None:
                 crop = board_crop_box(self.mapper, frame.shape[1], frame.shape[0])
             img = draw_overlay(frame, dets, self.mapper, self.glyphs, crop, self.detail.get(),
-                               self.worker.box_label_mode, self.worker.size_estimator)
+                               self.worker.box_label_mode, self.worker.size_estimator, local_regions)
             k = min(self.disp[0] / img.shape[1], self.disp[1] / img.shape[0])
             if abs(k - 1.0) > 1e-3:
                 img = cv2.resize(img, (int(img.shape[1] * k), int(img.shape[0] * k)),
