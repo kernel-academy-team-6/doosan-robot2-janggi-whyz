@@ -6,3 +6,4 @@ log/
 *.pyc
 __pycache__/
 .env
+/models/piece_classifier/

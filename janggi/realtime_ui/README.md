@@ -13,13 +13,14 @@ cd ~/doosan_janggi_ws/janggi
 현재 기본 모델은 `models/weights.pt` (`janggi_dol` 1클래스)다.
 말 위치·신뢰도·교차점만 표시하고 진영·종류를 분류하지 않는다. 화면에는 중립색의 `알`로 표시한다.
 이 모델에서는 게임 조작을 비활성화하고, `--robot`을 전달해도 로봇에 연결하지 않는다.
-`--model-mode`로 두 모델을 선택한다. 옵션을 생략하면 기존 기본 경로 `models/weights.pt`를 사용한다.
+`--model-mode`로 인식 방식을 선택한다. 옵션을 생략하면 기존 기본 경로 `models/weights.pt`를 사용한다.
 
 | 옵션 | 모델 | 인식 내용 |
 |---|---|---|
 | 옵션 생략 | `models/weights.pt` | 현재는 말 위치만 |
 | `--model-mode piece` | `models/weights_only_piece.pt` | 말 위치만 |
 | `--model-mode full` | `models/weights_14class.pt` | 말 위치 + 진영·종류 (14클래스) |
+| `--model-mode hybrid` 또는 `cnn` | `weights_only_piece.pt` → `models/piece_classifier/best.pt` | 위치 YOLO → MobileNetV3-Small 별도 분류 |
 
 다른 모델 파일은 기존 `--model /경로/모델.pt`로 직접 지정할 수 있다.
 `--model-mode`와 `--model`은 동시에 지정하지 않는다. 전환은 프로그램 재실행 시 적용한다.
@@ -157,3 +158,70 @@ UI에서 영상을 반복 재생하면 기록도 이어지며 요약은 기록�
 ```bash
 /usr/bin/python3 -m pytest janggi/realtime_ui/tests
 ```
+
+
+## 위치 YOLO + 별도 CNN 분류
+
+학습 및 결과 확인은 [분류기 학습 안내](../../tools/PIECE_CLASSIFIER.md)를 참고한다.
+
+```bash
+# 워크스페이스 루트에서 실제 카메라
+./janggi/realtime_ui/run.sh --model-mode hybrid
+
+# 촬영 영상으로 확인
+./janggi/realtime_ui/run.sh --model-mode hybrid \
+  --source tools/captures/video_20261109_223623_956498/color.mp4 --playback-fps 30
+
+# 다른 학습 결과 선택
+./janggi/realtime_ui/run.sh --model-mode hybrid --classifier models/my_classifier/best.pt
+```
+
+`--classifier-conf 0.5`는 종류 확정 기준이고 `--conf`/슬라이더는 YOLO 검출 기준이다.
+오버레이의 `D90/C85`는 탐지 90%, 종류 분류 85%를 의미한다. 분류 미달/프레임 밖 Crop은 `알`로 표시하고
+그 위치를 유지한다. 종류 미확정 말이 있는 상태에서는 인식판으로 게임 시작·동기화·착수 읽기를 막는다.
+14종이 없는 부분 분류 모델에서는 로봇 옵션을 비활성화한다.
+`--log-counts`의 기존 conf 통계는 계속 **YOLO 검출 확률**이다. hybrid에는 별도
+`classifications.jsonl`을 추가해 프레임별 박스·탐지 확률·분류 확률·라벨을 저장한다.
+
+`--classifier-backend mobilenet`이 기본이다. 같은 전체 RGB Crop 전처리로 학습한 Ultralytics 분류 모델은
+`--classifier-backend ultralytics --classifier /경로/best.pt --classifier-size 224`로 교체할 수 있다.
+이는 위치 탐지 가중치가 아닌 **Classification** 가중치여야 한다. MobileNet 학습 체크포인트와 호환되는
+파일 형식은 아니며, 클래스 이름은 `blue_cha`, `red_soldier` 등의 규약이어야 한다.
+분류기는 `predict(images)` 인터페이스로 분리되어 향후 다른 모델 어댑터도 추가할 수 있다.
+
+## 화면 방해 상태와 박스 크기 표시
+
+영상 아래의 **화면 방해** 표시를 확인한다. 이 기능은 표시 전용이며, 아직 분류·게임 상태 갱신을 중단하지 않는다.
+
+- **방해 의심**: 판 영역에서 움직임을 감지하거나, 최근 검출/판 할당 수가 감소·증가를 반복하거나,
+  마지막 안정 기준보다 검출 또는 판 할당이 2개 이상 줄었을 때
+- **안정 확인 중**: 의심 신호가 사라진 뒤 기본 0.8초 동안 안정 여부를 확인 (최소 3개 관측 필요)
+- **방해 징후 없음**: 현재 휴리스틱에서 움직임·개수 진동이 보이지 않을 때
+- **판단 불가**: 검출/할당이 없거나 보정 영역이 화면 밖인 경우. 영상이 오래 지연되어도 판단 불가로 표시
+
+보정 파일이 있으면 네 모서리 안의 장기판 영역만 움직임을 확인하고, 없으면 전체 화면을 본다.
+최대 변 320px로 축소한 흑백 영상의 프레임 차이(20 이상)를 사용하며, 영역의 기본 3% 이상이 변하면 움직임이다.
+최근 기본 2초 안의 개수 변화 방향이 뒤집히면 진동으로 본다. 한 번의 32→31 감소만으로 진동으로 판단하지 않는다.
+영상 반복, 검출 신뢰도 설정 또는 ROI 사용 여부 변경 시 기준을 다시 수집한다.
+
+이는 **손/로봇팔 전용 탐지기가 아니다.** 조명 변화·카메라 흔들림·정상 착수도 의심으로 표시될 수 있으며,
+처음부터 정지한 손으로 가린 화면은 감지하지 못할 수 있다. 여러 말이 정상적으로 제거된 뒤 개수 감소 경고가
+유지되면 실제 판을 확인한 후 **방해 기준 다시 잡기**를 누른다. 고정 32개를 정상 기준으로 강제하지 않는다.
+
+**박스 표시** 콤보박스에서 다음을 선택한다. 선택한 값은 저장되는 overlay 영상에도 적용한다.
+
+- **신뢰도**: 기존 YOLO 확률. 2단계 모드는 `D90/C85` 형식으로 탐지/분류 확률 표시
+- **크기(px)**: 검출 박스의 원본 영상 기준 가로×세로 픽셀 수
+- **크기(mm)**: 박스 좌우/상하 변 중점을 말 윗면 평면으로 투영한 뒤 실제 좌표에서 구한 가로×세로 추정값 (`~` 표시)
+
+mm는 말의 정확한 지름이 아닌 **YOLO 박스의 추정 길이**다. 보정 당시와 카메라·판 배치가 같아야 하며,
+`--piece-height`(기본 12mm)를 사용한다. 입력 해상도가 보정 해상도와 다르거나 변환을 사용할 수 없으면
+`px (mm N/A)`로 대체한다. 판 확대 화면에 맞춰 늘어난 픽셀 수가 아니다.
+
+```bash
+./realtime_ui/run.sh --model-mode hybrid --box-label size-mm
+# 감지 민감도/시간 조절 예시: 움직임 면적 5%, 관측 창 2초, 안정 대기 1초
+./realtime_ui/run.sh --obstruction-motion 0.05 --obstruction-window 2 --obstruction-settle 1
+```
+
+크기 이력 누적·판단 확률 융합·말 ID/포획 추적은 아직 추가하지 않았다.

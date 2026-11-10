@@ -22,7 +22,7 @@ import time
 import tkinter as tk
 from collections import deque
 from pathlib import Path
-from tkinter import messagebox
+from tkinter import messagebox, ttk
 
 import cv2
 import numpy as np
@@ -39,6 +39,7 @@ from piece_detection import BoardMapper, BoardStabilizer, piece_char  # noqa: E4
 from piece_detection.board_mapping import DEFAULT_CALIBRATION  # noqa: E402
 from piece_detection.detector import DEFAULT_MODEL, count_unique_detections, deduplicate_detections  # noqa: E402
 from rules import COLS, ROWS, Game, detect_top_side, infer_move, other  # noqa: E402
+from diagnostics import ObstructionMonitor, BoxSizeEstimator, box_label
 from count_log import CountLog  # noqa: E402
 from video_log import BoardRenderer, EvaluationVideos  # noqa: E402
 
@@ -56,9 +57,21 @@ def parse_args():
     p.add_argument("--playback-fps", type=float, default=0.0,
                    help="동영상 재생 FPS (기본/0: 속도 제한 없음). 카메라·사진에는 적용 안 함")
     model_options = p.add_mutually_exclusive_group()
-    model_options.add_argument("--model-mode", choices=("piece", "full"), default=None,
-                               help="piece: weights_only_piece.pt, full: weights_14class.pt (생략 시 weights.pt)")
+    model_options.add_argument("--model-mode", "-model-mode", choices=("piece", "full", "hybrid", "cnn"), default=None,
+                               help="piece: 위치 전용, full: 기존 14종, hybrid/cnn: 위치 YOLO + 별도 분류 (생략 시 weights.pt)")
     model_options.add_argument("--model", type=Path, default=None, help="모델 파일 경로 직접 지정")
+    p.add_argument("--classifier", type=Path, default=HERE.parents[1]/"models/piece_classifier/best.pt",
+                   help="hybrid/cnn 모드의 분류 가중치")
+    p.add_argument("--classifier-backend", choices=("mobilenet", "ultralytics"), default="mobilenet")
+    p.add_argument("--classifier-conf", type=float, default=.5, help="종류 분류 확률 기준; 미달이면 위치만 표시")
+    p.add_argument("--classifier-batch", type=int, default=32)
+    p.add_argument("--classifier-size", type=int, default=224, help="Ultralytics 분류 입력 크기; MobileNet은 체크포인트 설정 사용")
+    p.add_argument("--device", default=None, help="cpu 또는 cuda:0; 생략 시 자동 선택")
+    p.add_argument("--box-label", choices=("confidence", "size-px", "size-mm"), default="confidence",
+                   help="박스 표시: 신뢰도 또는 가로x세로 크기")
+    p.add_argument("--obstruction-motion", type=float, default=.03, help="방해 의심 움직임 면적 비율 (기본 0.03)")
+    p.add_argument("--obstruction-window", type=float, default=2., help="검출 수 진동 확인 시간(초)")
+    p.add_argument("--obstruction-settle", type=float, default=.8, help="안정 표시 전 대기 시간(초)")
     p.add_argument("--conf", type=float, default=0.35, help="검출 신뢰도 임계값 (UI 슬라이더로 바꿀 수 있다)")
     p.add_argument("--full-frame", action="store_true", help="판 영역만 잘라 인식하지 않고 전체 프레임을 인식")
     p.add_argument("--roi-margin", type=int, default=60, help="판 영역 인식 때 격자 바깥 여유 [px]")
@@ -80,10 +93,16 @@ def parse_args():
     g.add_argument("--no-motion", action="store_true", help="로봇을 움직이지 않고 엔진 수와 집을 좌표만 표시")
     args = p.parse_args()
     if args.model is None:
-        model_names = {"piece": "weights_only_piece.pt", "full": "weights_14class.pt"}
+        model_names = {"piece": "weights_only_piece.pt", "full": "weights_14class.pt",
+                       "hybrid": "weights_only_piece.pt", "cnn": "weights_only_piece.pt"}
         args.model = DEFAULT_MODEL.with_name(model_names[args.model_mode]) if args.model_mode else DEFAULT_MODEL
     if args.playback_fps is not None and (not np.isfinite(args.playback_fps) or args.playback_fps < 0):
         p.error("--playback-fps는 0 이상의 유한한 숫자여야 한다")
+    if not 0 <= args.classifier_conf <= 1 or args.classifier_batch < 1 or not 32 <= args.classifier_size <= 1024:
+        p.error("분류 신뢰도는 0~1, 배치는 양수, 입력 크기는 32~1024여야 한다")
+    if (not all(np.isfinite(v) for v in (args.obstruction_motion, args.obstruction_window, args.obstruction_settle))
+            or not 0 < args.obstruction_motion <= 1 or args.obstruction_window <= 0 or args.obstruction_settle < 0):
+        p.error("방해 감지 비율은 0~1, 관측 창은 양수, 안정 대기는 0 이상이어야 한다")
     if args.expected_pieces <= 0:
         p.error("--expected-pieces는 양수여야 한다")
     return args
@@ -213,6 +232,23 @@ class Worker:
         self.video_log = None
         self.video_zoom = mapper is not None
         self.video_detail = False
+        self.box_label_mode = getattr(args, 'box_label', 'confidence')
+        self.obstruction = ObstructionMonitor(getattr(args, 'obstruction_window', 2.),
+                                             getattr(args, 'obstruction_settle', .8),
+                                             getattr(args, 'obstruction_motion', .03))
+        self.obstruction_reset = threading.Event()
+        self.view_status = dict(state='settling', reason='영상 입력 대기 중', motion=0.)
+        self.size_estimator = None
+        if mapper is not None and args.calibration:
+            try:
+                self.size_estimator = BoxSizeEstimator.from_calibration(args.calibration, getattr(args, 'piece_height', 12.))
+            except (KeyError, ValueError, OSError) as exc:
+                print(f"[크기 표시] mm 추정 사용 불가: {exc}")
+        self.monitor_context = None
+        self.board_polygon = None
+        if mapper is not None:
+            grid = mapper.grid_pixels()
+            self.board_polygon = np.array([grid[0, 0], grid[0, -1], grid[-1, -1], grid[-1, 0]])
         if args.log_counts:
             import hashlib
             self.count_log = CountLog(HERE / "evaluations", args.expected_pieces, dict(
@@ -221,6 +257,17 @@ class Worker:
                 calibration=str(args.calibration) if mapper else None,
                 playback_fps=args.playback_fps, max_dist=args.max_dist, window=args.window,
                 deduplication_iou=0.5, model_iou=detector.iou, imgsz=detector.imgsz))
+            classifier = getattr(detector, "classifier", None)
+            if classifier is not None:
+                self.count_log.metadata.update(classifier=str(classifier.path.resolve()),
+                    classifier_sha256=hashlib.sha256(classifier.path.read_bytes()).hexdigest(),
+                    classifier_classes=classifier.classes, classifier_size=classifier.size,
+                    classifier_backend=type(classifier).__name__,
+                    classifier_threshold=detector.classification_conf,
+                    confidence_semantics="conf=YOLO detection probability; classifier probabilities in classifications.jsonl")
+                self.classification_log = (self.count_log.path.parent/"classifications.jsonl").open("w", encoding="utf-8")
+            else:
+                self.classification_log = None
             print(f"[개수 기록] 저장 시작: {self.count_log.path}")
         self.thread = threading.Thread(target=self._run, daemon=True)
         self.thread.start()
@@ -246,17 +293,32 @@ class Worker:
                     roi = board_crop_box(self.mapper, frame.shape[1], frame.shape[0], self.args.roi_margin)
                 dets = self.detector.detect(frame, conf=self.args.conf, roi=roi)
                 raw = self.mapper.assign(dets, self.args.max_dist) if self.mapper else {}
+                unique_dets = deduplicate_detections(dets)
+                context = (getattr(self.source, 'source_loop', None), self.args.conf, self.use_roi)
+                if self.obstruction_reset.is_set() or context != self.monitor_context:
+                    self.obstruction.reset()
+                    self.obstruction_reset.clear()
+                    self.monitor_context = context
+                view_status = self.obstruction.update(frame, len(unique_dets), len(raw) if self.mapper else None,
+                                                      time.monotonic(), self.board_polygon)
+                if getattr(self, "classification_log", None) is not None:
+                    import json
+                    self.classification_log.write(json.dumps(dict(inference_frame=self.frames, frame=getattr(self.source, "source_frame", None),
+                        source_time=getattr(self.source, "source_time", None), loop=getattr(self.source, "source_loop", None),
+                        detections=[dict(box=d.box, label=d.name, detection_conf=d.conf,
+                                         classification_conf=d.classification_conf) for d in dets]))+"\n")
                 with self.lock:
                     stable = self.stab.update(raw) if self.mapper else {}
                     self.center_hist.append({d.board: d.center for d in dets if d.board is not None})
                     self.latest = (frame, dets, raw, stable)
+                    self.view_status = view_status
                     self.frames += 1
                 self.last_frame_t = time.time()
                 if self.count_log:
                     crop = board_crop_box(self.mapper, frame.shape[1], frame.shape[0]) if self.video_zoom and self.mapper else None
-                    overlay = draw_overlay(frame, dets, self.mapper, video_glyphs, crop, self.video_detail)
+                    overlay = draw_overlay(frame, dets, self.mapper, video_glyphs, crop, self.video_detail,
+                                           self.box_label_mode, self.size_estimator)
                     self.video_log.write(overlay, board_renderer.render(stable))
-                    unique_dets = deduplicate_detections(dets)
                     self.count_log.record(len(dets), len(unique_dets),
                                           len(raw) if self.mapper else None, len(stable) if self.mapper else None,
                                           self.args.conf, roi is not None,
@@ -271,6 +333,8 @@ class Worker:
         except Exception as e:  # noqa: BLE001
             self.error = repr(e)
         finally:
+            if getattr(self, "classification_log", None) is not None:
+                self.classification_log.close()
             if self.video_log:
                 try:
                     self.video_log.close()
@@ -283,6 +347,10 @@ class Worker:
     def get(self):
         with self.lock:
             return self.latest
+
+    def get_obstruction(self):
+        with self.lock:
+            return dict(self.view_status)
 
     def fresh_state(self, timeout: float = 10.0):
         """기록을 비우고 새로 들어온 프레임 window개로 (판 상태, 칸별 박스 중심 픽셀)을 만든다.
@@ -303,6 +371,8 @@ class Worker:
         with self.lock:
             board = self.stab.state()
             hist = list(self.center_hist)
+        if getattr(self.detector, "classifier", None) is not None and any(side == 'unknown' for side, kind in board.values()):
+            raise TurnError("종류를 확정하지 못한 말이 있습니다. 분류 결과를 확인하세요.")
         return board, median_centers(board, hist)
 
     def stop(self):
@@ -345,7 +415,7 @@ class GlyphCache:
         img[y0:y1, x0:x1] = (roi * (1 - sa) + bgr[y0 - y:y1 - y, x0 - x:x1 - x] * sa).astype(np.uint8)
 
 
-def draw_overlay(frame, dets, mapper, glyphs, crop=None, detail=False):
+def draw_overlay(frame, dets, mapper, glyphs, crop=None, detail=False, label_mode='confidence', size_estimator=None):
     """인식 결과를 그린 BGR 이미지. crop=(x0, y0, x1, y1)이면 그 영역만 잘라서 그린다."""
     x0, y0, x1, y1 = crop or (0, 0, frame.shape[1], frame.shape[0])
     img = frame[y0:y1, x0:x1].copy()
@@ -377,9 +447,14 @@ def draw_overlay(frame, dets, mapper, glyphs, crop=None, detail=False):
         if assigned and mapper is not None:
             cv2.line(img, P(det.center), P(mapper.grid_pixels()[det.board[1], det.board[0]]), bgr, 1, cv2.LINE_AA)
         glyphs.put(img, piece_char(det.side, det.kind), bx1, by1 - 19, rgb)
-        tag = f"{det.conf * 100:.0f}" + (f" {det.board[0]},{det.board[1]}" if detail and assigned else "")
-        cv2.putText(img, tag, (bx1 + 19, by1 - 5), cv2.FONT_HERSHEY_SIMPLEX, 0.42, (255, 255, 255), 3, cv2.LINE_AA)
-        cv2.putText(img, tag, (bx1 + 19, by1 - 5), cv2.FONT_HERSHEY_SIMPLEX, 0.42, bgr, 1, cv2.LINE_AA)
+        tag = box_label(det, label_mode, size_estimator, (frame.shape[1], frame.shape[0]))
+        tag += f" {det.board[0]},{det.board[1]}" if detail and assigned else ""
+        font_scale = .34 if label_mode.startswith('size-') else .42
+        (text_width, text_height), _ = cv2.getTextSize(tag, cv2.FONT_HERSHEY_SIMPLEX, font_scale, 1)
+        tx = min(max(2, bx1+19), max(2, img.shape[1]-text_width-2))
+        ty = min(max(text_height+2, by1-5), max(text_height+2, img.shape[0]-3))
+        cv2.putText(img, tag, (tx, ty), cv2.FONT_HERSHEY_SIMPLEX, font_scale, (255, 255, 255), 3, cv2.LINE_AA)
+        cv2.putText(img, tag, (tx, ty), cv2.FONT_HERSHEY_SIMPLEX, font_scale, bgr, 1, cv2.LINE_AA)
     return img
 
 
@@ -467,6 +542,9 @@ class App:
         self._board_sig = None
         self.zoom = tk.BooleanVar(value=mapper is not None)
         self.detail = tk.BooleanVar(value=False)
+        self.box_label_options = {'신뢰도': 'confidence', '크기(px)': 'size-px', '크기(mm)': 'size-mm'}
+        self.box_label_choice = tk.StringVar(value=next(name for name, value in self.box_label_options.items()
+                                                       if value == getattr(args, 'box_label', 'confidence')))
         self._after = None
         self.mode = tk.StringVar(value="live")
         self.first = tk.StringVar(value="blue")
@@ -522,6 +600,16 @@ class App:
                        state=tk.NORMAL if self.mapper else tk.DISABLED,
                        command=lambda: setattr(self.worker, "use_roi", self.roi_var.get())).pack(side="left", padx=10)
         tk.Button(row2, text="원본 프레임 저장", command=self.save_frame).pack(side="right")
+        row3 = tk.Frame(left)
+        row3.pack(fill="x", padx=6, pady=3)
+        tk.Label(row3, text="박스 표시").pack(side="left")
+        choice = ttk.Combobox(row3, textvariable=self.box_label_choice, values=list(self.box_label_options), state="readonly", width=10)
+        choice.pack(side="left", padx=4)
+        choice.bind('<<ComboboxSelected>>', lambda e: setattr(self.worker, 'box_label_mode', self.box_label_options[self.box_label_choice.get()]))
+        tk.Label(row3, text="mm는 보정 기반 박스 추정 길이", fg="#666").pack(side="left", padx=4)
+        tk.Button(row3, text="방해 기준 다시 잡기", command=self.worker.obstruction_reset.set).pack(side="right")
+        self.lbl_obstruction = tk.Label(left, anchor="w", justify="left", width=65, fg="#a06000", text="화면 방해: 확인 중")
+        self.lbl_obstruction.pack(fill="x", padx=6, pady=2)
         tk.Label(left, anchor="w", justify="left", fg="#555", text=(
             "박스 색: 파랑=초, 빨강=한, 회색=판 교차점에 할당 안 됨.  노란 점: 장기판 교차점 (보정 파일의 네 모서리 기준)"
         )).pack(fill="x", padx=6)
@@ -579,12 +667,21 @@ class App:
             self.new_game()
         self.cancel_select()
 
+    def classification_ready(self):
+        if any(side == 'unknown' for side, kind in self.stable.values()):
+            messagebox.showwarning("종류 미확정", "종류를 확정하지 못한 말이 있습니다. 인식 결과를 확인하세요.", parent=self.root)
+            return False
+        return True
+
     def new_game(self):
         if self.position_only:
             self.mode.set("live")
             return
         if not self.stable:
             messagebox.showwarning("새 게임", "인식된 말이 없다. 카메라와 보정 파일을 확인한다.", parent=self.root)
+            self.mode.set("live")
+            return
+        if not self.classification_ready():
             self.mode.set("live")
             return
         board = dict(self.stable)
@@ -599,6 +696,8 @@ class App:
         """게임 진행(차례·기보)은 두고 판만 인식 결과로 덮어쓴다 (인식 오류를 손으로 고친 뒤 등)."""
         if self.game is None:
             return self.new_game()
+        if not self.classification_ready():
+            return
         self.game.board = dict(self.stable)
         self.log.insert("end", "판을 인식 결과로 맞춤")
         self.cancel_select()
@@ -606,6 +705,8 @@ class App:
     def read_move(self):
         """실제 판에서 사람이 둔 수를 인식 결과와의 차이로 읽어 게임에 반영한다."""
         if self.game is None:
+            return
+        if not self.classification_ready():
             return
         mv = infer_move(self.game.board, self.stable, self.game.turn)
         if mv is None:
@@ -784,10 +885,12 @@ class App:
             frame, dets, raw, self.stable = data
             self.worker.video_zoom = self.zoom.get()
             self.worker.video_detail = self.detail.get()
+            self.worker.box_label_mode = self.box_label_options[self.box_label_choice.get()]
             crop = None
             if self.zoom.get() and self.mapper is not None:
                 crop = board_crop_box(self.mapper, frame.shape[1], frame.shape[0])
-            img = draw_overlay(frame, dets, self.mapper, self.glyphs, crop, self.detail.get())
+            img = draw_overlay(frame, dets, self.mapper, self.glyphs, crop, self.detail.get(),
+                               self.worker.box_label_mode, self.worker.size_estimator)
             k = min(self.disp[0] / img.shape[1], self.disp[1] / img.shape[0])
             if abs(k - 1.0) > 1e-3:
                 img = cv2.resize(img, (int(img.shape[1] * k), int(img.shape[0] * k)),
@@ -800,6 +903,12 @@ class App:
                 self._photo.paste(pil)                  # 같은 이미지 객체에 내용만 덮어쓴다
             lag = time.time() - self.worker.last_frame_t
             stale = f"  ⚠ 영상 {lag:.0f}초 멈춤" if lag > 1.5 else ""
+            status = self.worker.get_obstruction()
+            title, color = {'stable': ('방해 징후 없음', '#20733c'), 'settling': ('안정 확인 중', '#a06000'),
+                            'suspected': ('방해 의심', '#b42318'), 'unavailable': ('판단 불가', '#777')}.get(status['state'], ('확인 중', '#777'))
+            if lag > 1.5:
+                title, color = '판단 불가 · 영상 지연', '#b42318'
+            self.lbl_obstruction.config(text=f"화면 방해: {title} · {status['reason']} · 움직임 {status['motion']*100:.1f}%", fg=color)
             assigned = sum(1 for d in dets if d.board is not None)
             unique = count_unique_detections(dets)
             self.lbl_cam.config(text=f"인식 {self.worker.fps:4.1f} FPS · 검출 {len(dets)} · 중복 제거 {unique} · 판 할당 {assigned}{stale}")
@@ -862,12 +971,16 @@ class App:
             return
         cnt = {s: {k: 0 for k in FULL_SET} for s in SIDE_KO}
         for side, kind in board.values():
-            cnt[side][kind] += 1
+            if side in cnt and kind in cnt[side]:
+                cnt[side][kind] += 1
         lines = []
         for s in ("blue", "red"):
             total = sum(cnt[s].values())
             missing = [f"{piece_char(s, k)}{FULL_SET[k] - n}" for k, n in cnt[s].items() if n < FULL_SET[k]]
             lines.append(f"{SIDE_KO[s]} {total}/16" + (f"  없음: {' '.join(missing)}" if missing else ""))
+        unknown = sum(side == "unknown" for side, kind in board.values())
+        if unknown:
+            lines.append(f"종류 미확정 {unknown}개")
         self.lbl_count.config(text="\n".join(lines))
 
     def save_frame(self):
@@ -881,9 +994,9 @@ class App:
         stamp = time.strftime("%Y%m%d_%H%M%S")
         cv2.imwrite(str(out / f"{stamp}.png"), frame)
         with open(out / f"{stamp}.txt", "w", encoding="utf-8") as f:
-            f.write(f"# conf>={self.args.conf} roi={self.worker.use_roi}  name conf x1 y1 x2 y2 board\n")
+            f.write(f"# conf>={self.args.conf} roi={self.worker.use_roi}  name detection_conf x1 y1 x2 y2 board classification_conf\n")
             for d in dets:
-                f.write(f"{d.name}\t{d.conf:.3f}\t" + " ".join(f"{v:.1f}" for v in d.box) + f"\t{d.board}\n")
+                f.write(f"{d.name}\t{d.conf:.3f}\t" + " ".join(f"{v:.1f}" for v in d.box) + f"\t{d.board}\t{d.classification_conf}\n")
         self.lbl_cam.config(text=f"저장: {out.name}/{stamp}.png (검출 {len(dets)})")
         print(f"[저장] {out / stamp}.png")
 
@@ -913,7 +1026,17 @@ def main():
     print("[모델] 불러오는 중… (처음엔 수 초)")
     from piece_detection import PieceDetector
 
-    detector = PieceDetector(args.model, conf=args.conf)
+    detector = PieceDetector(args.model, conf=args.conf, device=args.device)
+    if args.model_mode in ("hybrid", "cnn"):
+        from piece_detection.classifier import MobileNetClassifier, UltralyticsClassifier, TwoStageDetector
+        classifier = (MobileNetClassifier(args.classifier, args.device, args.classifier_batch)
+                      if args.classifier_backend == "mobilenet" else
+                      UltralyticsClassifier(args.classifier, args.device, args.classifier_batch, args.classifier_size))
+        detector = TwoStageDetector(detector, classifier, args.classifier_conf)
+        print(f"[분류] {args.classifier_backend} · {args.classifier} · {len(classifier.classes)}종")
+        if args.robot and not detector.robot_compatible:
+            print("[분류] 전체 14종 모델이 아니므로 --robot 비활성화")
+            args.robot = False
     print(f"[모델] {args.model.name} on {detector.device}")
     if detector.position_only and args.robot:
         print("[위치 인식] 진영·종류를 분류하지 않는 모델이므로 --robot을 비활성화한다. 로봇 연결 없음.")

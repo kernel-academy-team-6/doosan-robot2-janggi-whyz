@@ -28,6 +28,7 @@ class Detection:
     box: tuple[float, float, float, float]  # x1 y1 x2 y2 (pixel)
     board: tuple[int, int] | None = field(default=None)   # 할당된 장기판 교차점 (x, y)
     board_dist: float | None = field(default=None)        # 교차점까지 거리 (칸 단위)
+    classification_conf: float | None = field(default=None)  # 2단계 분류 확률; conf는 YOLO 검출 확률 유지
 
     @property
     def center(self) -> tuple[float, float]:

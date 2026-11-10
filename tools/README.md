@@ -6,6 +6,8 @@
 ./tools/run_piece_dataset.sh
 ```
 
+내보낸 이미지로 MobileNetV3-Small을 학습하고 실시간 UI에 연결하려면 **[분류기 학습 안내](PIECE_CLASSIFIER.md)**를 참고한다.
+
 녹화 후 평가 로그의 두 영상과 그래프를 함께 보려면 **[비전 로그 분석 뷰어](EVALUATION_VIEWER.md)**를 사용한다:
 
 ```bash
