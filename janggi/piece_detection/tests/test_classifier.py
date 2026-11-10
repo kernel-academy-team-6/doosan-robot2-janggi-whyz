@@ -76,3 +76,22 @@ def test_classification_uses_object_ids_even_without_board_assignment():
     assert set(result) == {'piece_0001', 'piece_0002'}
     assert result['piece_0001']['probabilities']['blue_cha'] == .9
     assert result['piece_0002']['probabilities']['red_sang'] == .8
+
+
+def test_rgb_crop_matches_legacy_preprocessing_without_mutating_source():
+    from PIL import Image
+    from piece_detection.crops import crop_geometry, prepare_image
+    source = Image.fromarray(np.random.default_rng(12).integers(0, 256, (100, 120, 3), dtype=np.uint8))
+    before = np.asarray(source).copy()
+    for angle in (0., 17., 90., 223.):
+        box = (40., 35., 70., 60.)
+        cx, cy, side, cosine, sine, _ = crop_geometry(source, box, angle)
+        scale = side/32
+        matrix = (cosine*scale, -sine*scale, cx-cosine*side/2+sine*side/2,
+                  sine*scale, cosine*scale, cy-sine*side/2-cosine*side/2)
+        legacy = source.convert('RGB').transform((32, 32), Image.Transform.AFFINE, matrix,
+                                               resample=Image.Resampling.BICUBIC)
+        assert np.array_equal(np.asarray(legacy), np.asarray(prepare_image(source, 32, angle, box=box)))
+    assert np.array_equal(np.asarray(source), before)
+    gray = source.convert('L')
+    assert prepare_image(gray, 32, box=(40, 35, 70, 60)).mode == 'RGB'

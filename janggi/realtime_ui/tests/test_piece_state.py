@@ -129,10 +129,13 @@ def test_game_reinitialization_does_not_erase_unrelated_offboard_object():
     unrelated.update(observation('blue_horse'), 1.)
     tracker.pieces[unrelated.id] = unrelated
     before = unrelated.semantic_snapshot()
+    original = tracker.pieces['piece_0001'].semantic_snapshot()
+    epoch = tracker.pieces['piece_0001'].visual_epoch
     tracker.reset('여러 말 재배치', keep_objects=True)
     assert unrelated.semantic_snapshot() == before
-    assert tracker.pieces['piece_0001'].label is None
-    assert tracker.pieces['piece_0001'].visual_epoch > 0
+    assert tracker.pieces['piece_0001'].label is not None
+    assert tracker.pieces['piece_0001'].visual_epoch == epoch
+    assert tracker.pieces['piece_0001'].semantic_snapshot() == original
 
 
 def test_turn_rule_and_robot_expected_move():
@@ -273,3 +276,86 @@ def test_worker_tracks_move_and_capture_with_position_stream(tmp_path):
     assert move['piece_id'] == capture['piece_id']
     assert worker.tracker.pieces[capture['captured_id']].status == 'captured'
     assert len(worker.tracker.occupancy) == 1
+
+
+def test_revival_probes_are_logged_without_rewriting_full_snapshot(tmp_path, monkeypatch):
+    tracker = PieceTracker()
+    store = StateStore(tmp_path/'session')
+    snapshots = []
+    original = tracker.snapshot
+    def snapshot():
+        snapshots.append(True)
+        return original()
+    monkeypatch.setattr(tracker, 'snapshot', snapshot)
+    store.save(tracker, 0.)
+    for t in (.1, .2, .3):
+        tracker.event('revival_probe', piece_id='piece_0001', candidate='blue_cha')
+        store.save(tracker, t)
+    assert len(snapshots) == 1
+    tracker.event('revival_verified', piece_id='piece_0001')
+    store.save(tracker, .4)
+    assert len(snapshots) == 2
+    store.close(tracker, .5)
+    events = [json.loads(line) for line in (store.directory/'events.jsonl').read_text().splitlines()]
+    assert len([e for e in events if e['event'] == 'revival_probe']) == 3
+
+
+def test_cancelling_pending_classification_preserves_running_result():
+    started, release = threading.Event(), threading.Event()
+    calls = []
+    def classify(frame, detections):
+        calls.append(int(frame[0]))
+        started.set()
+        assert release.wait(2.)
+        return {'value': int(frame[0])}
+    runner = LatestClassification(classify, .01)
+    try:
+        runner.submit(np.array([1]), [], {'frame': 1})
+        assert started.wait(1.)
+        runner.submit(np.array([2]), [], {'frame': 2})
+        runner.cancel_pending()
+        release.set()
+        deadline = time.monotonic()+1
+        result = None
+        while result is None and time.monotonic() < deadline:
+            result = runner.poll()
+            time.sleep(.005)
+        assert result['observations'] == {'value': 1}
+        assert calls == [1] and runner.pending is None
+    finally:
+        release.set()
+        runner.close()
+
+
+def test_urgent_unknown_bypasses_regular_classifier_wait():
+    started = threading.Event()
+    calls = []
+    def classify(frame, detections):
+        calls.append(int(frame[0]))
+        started.set()
+        return {}
+    runner = LatestClassification(classify, interval=10.)
+    try:
+        runner.last_start = time.monotonic()
+        runner.submit(np.array([1]), [], {})
+        assert not started.wait(.03)
+        runner.submit(np.array([2]), [], {'urgent_ids': ['new']})
+        assert started.wait(.5)
+        assert calls == [2]
+    finally:
+        runner.close()
+
+
+def test_emergency_preview_threshold_does_not_change_fused_history():
+    tracker = PieceTracker()
+    piece = PieceState('new', visible=True, flags=('SIZE', 'CONF'))
+    tracker.pieces[piece.id] = piece
+    tracker.update_preview(piece.id, {'probabilities': {'blue_cha': .49, 'red_soldier': .48, 'red_king': .03}}, {'observed_at': 1.})
+    assert piece.display_label is None
+    tracker.update_preview(piece.id, {'probabilities': {'blue_cha': .5, 'red_soldier': .5}}, {'observed_at': 2.})
+    assert piece.display_label == 'blue_cha' and piece.display_confidence == .5
+    assert piece.label is None and not piece.probabilities and not piece.history and not piece.sizes
+    assert not piece.game_eligible
+    piece.label, piece.probabilities = 'red_king', {'red_king': .95}
+    tracker.update_preview(piece.id, {'probabilities': {'blue_cha': 1.}}, {'observed_at': 3.})
+    assert piece.display_label == 'red_king'

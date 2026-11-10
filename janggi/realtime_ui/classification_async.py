@@ -5,7 +5,7 @@ import time
 
 
 class LatestClassification:
-    def __init__(self, function, interval=.2):
+    def __init__(self, function, interval=.5):
         if interval <= 0:
             raise ValueError('분류 주기는 양수여야 합니다.')
         self.function, self.interval = function, interval
@@ -28,6 +28,11 @@ class LatestClassification:
             self.pending = (self.generation, frame, [replace(d) for d in detections], dict(metadata))
             self.condition.notify()
 
+    def cancel_pending(self):
+        """정상 객체가 없어진 경우 예약만 취소한다. 실행 중인 작업/완료 결과는 개별 검증한다."""
+        with self.condition:
+            self.pending = None
+
     def poll(self):
         with self.condition:
             result, self.completed = self.completed, None
@@ -37,7 +42,8 @@ class LatestClassification:
         while True:
             with self.condition:
                 while not self.closed:
-                    delay = self.interval-(time.monotonic()-self.last_start)
+                    urgent = self.pending is not None and bool(self.pending[3].get('urgent_ids'))
+                    delay = 0. if urgent else self.interval-(time.monotonic()-self.last_start)
                     if self.pending is not None and delay <= 0:
                         break
                     self.condition.wait(timeout=max(.001, delay) if self.pending is not None else None)

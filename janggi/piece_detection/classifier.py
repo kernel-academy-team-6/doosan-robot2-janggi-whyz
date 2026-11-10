@@ -108,6 +108,8 @@ class UltralyticsClassifier:
 
 
 class TwoStageDetector:
+    positions_deduplicated = True
+
     def __init__(self, detector, classifier: CropClassifier, classification_conf=.5):
         if not detector.position_only:
             raise ValueError('2단계 모드의 탐지 모델은 janggi_dol 1종 모델이어야 합니다.')
@@ -123,6 +125,10 @@ class TwoStageDetector:
     def detect_positions(self, bgr, conf=None, roi=None):
         return [replace(d, side='unknown', kind='piece', name='janggi_dol', classification_conf=None)
                 for d in deduplicate_detections(self.detector.detect(bgr, conf=conf, roi=roi))]
+
+    def detect_tracking_positions(self, bgr, conf=None, roi=None, low_conf=.1):
+        threshold = self.detector.conf if conf is None else conf
+        return self.detect_positions(bgr, conf=min(threshold, low_conf), roi=roi)
 
     def classify_observations(self, bgr, detections):
         frame = Image.fromarray(np.ascontiguousarray(bgr[:, :, ::-1]))

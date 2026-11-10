@@ -2,6 +2,8 @@
 
 Ubuntu 24.04 + ROS 2 Jazzy에서 Doosan E0509와 ROBOTIS RH-P12-RN-A 그리퍼를 재현 가능하게 설치하고 실행하기 위한 환경 저장소다.
 
+발표자를 위한 [워크스페이스 기술 설명서 (HTML)](docs/WORKSPACE_TECHNICAL_GUIDE.html): 전체 동작, 비전·추적·좌표 보정·로봇 제어, 포함된 ROS 패키지 37개와 주요 도구의 용도를 그림 10개로 정리했다. 파일을 브라우저에서 열면 인터넷 없이 읽을 수 있고 인쇄·PDF 저장도 지원한다.
+
 ## 현재 상태
 
 - 공식 Doosan Jazzy 드라이버 사용

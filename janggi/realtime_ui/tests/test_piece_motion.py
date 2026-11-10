@@ -317,39 +317,29 @@ def probe(piece, at, label='blue_cha'):
     piece.last_classified = at
 
 
-def test_known_reappearance_needs_two_fresh_probes_and_keeps_history_isolated():
+def test_partial_reappearance_attaches_original_id_before_classification():
     monitor, old = dormant_known()
-    for t in (600.1, 600.2, 600.3):
-        current = detection()
-        monitor.update([current], t)
-    provisional = monitor.pieces[current.piece_id]
-    assert provisional.id != old.id and provisional.probabilities == {} and not provisional.sizes
-    assert provisional.eligible and not provisional.game_eligible
-    probe(provisional, 600.31)
-    for t in (600.4, 600.5, 600.6):
-        current = detection()
-        monitor.update([current], t)
-    assert current.piece_id == provisional.id  # 같은 CNN 결과는 두 번 세지 않는다
-    probe(provisional, 600.61)
-    current = detection()
-    monitor.update([current], 600.7)
-    assert current.piece_id == old.id and old.sizes and old.probabilities['blue_cha'] == .95
-    assert provisional.status == 'superseded' and old.game_eligible
-    events, links = monitor.drain_lifecycle()
-    assert any(e['event'] == 'revived' for e in events)
-    assert links[0]['piece_id'] == old.id and links[0]['provisional_id'] == provisional.id
+    current = detection((42, 42, 50, 50), .5)
+    monitor.update([current], 600.1)
+    assert current.piece_id == old.id and old.visible
+    assert set(old.flags) == {'CONF', 'SIZE'}
+    assert old.revival_state == 'tentative' and not old.game_eligible
+    assert old.label == 'blue_cha' and old.probabilities['blue_cha'] == .95
+    assert list(old.sizes) == [29., 29.1, 28.9]
+    assert monitor.reference_box(old) == (31., 31., 61., 61.)
 
 
-def test_different_class_rejects_dormant_identity():
+def test_shrunken_boxes_and_motion_keep_id_and_reference_size():
     monitor, old = dormant_known()
-    for t in (600.1, 600.2, 600.3):
-        current = detection()
+    # 복귀 직후 크기가 30→8→12→30으로 바뀌어도 연결과 종류는 유지한다.
+    for t, box in [(600.1, (42, 42, 50, 50)), (600.2, (40, 40, 52, 52)),
+                   (600.3, (30, 30, 60, 60)), (600.4, (40, 30, 70, 60)),
+                   (600.5, (50, 30, 80, 60))]:
+        current = detection(box)
         monitor.update([current], t)
-    provisional = monitor.pieces[current.piece_id]
-    probe(provisional, 600.31, 'red_sang')
-    monitor.update([current], 600.4)
-    assert provisional.revival_state == 'new_identity' and not old.visible
-    assert any(e['event'] == 'revival_rejected' for e in monitor.drain_lifecycle()[0])
+        assert current.piece_id == old.id and old.label == 'blue_cha'
+        assert monitor.reference_box(old)[2]-monitor.reference_box(old)[0] == 30
+    assert 'MOVE' in old.flags
 
 
 def test_ambiguous_histories_do_not_select_an_arbitrary_old_id():
@@ -358,15 +348,9 @@ def test_ambiguous_histories_do_not_select_an_arbitrary_old_id():
     other = PieceState('piece_0099', box=old.box, good_box=old.box, label=old.label, status='dormant', misses=2)
     other.sensor_sizes.extend([30., 30., 30.])
     monitor.pieces[other.id] = other
-    for t in (600.1, 600.2, 600.3):
-        current = detection()
-        monitor.update([current], t)
-    provisional = monitor.pieces[current.piece_id]
-    for t in (600.4, 600.7):
-        probe(provisional, t-.01)
-        monitor.update([current], t)
-    assert current.piece_id == provisional.id
-    assert provisional.revival_state == 'ambiguous_new_identity'
+    current = detection()
+    monitor.update([current], 600.1)
+    assert current.piece_id not in (old.id, other.id)
     assert not old.visible and not other.visible
 
 
@@ -375,35 +359,299 @@ def test_captured_piece_is_not_a_reappearance_candidate():
     old.status = 'captured'
     current = detection()
     monitor.update([current], 600.1)
-    assert current.piece_id != old.id
-    assert monitor.pieces[current.piece_id].revival_candidates == []
-    assert old.status == 'captured'
-
-
-def test_local_obstruction_resets_reappearance_evidence():
-    monitor, old = dormant_known()
-    for t in (600.1, 600.2, 600.3):
-        current = detection()
-        monitor.update([current], t)
-    provisional = monitor.pieces[current.piece_id]
-    probe(provisional, 600.31)
-    monitor.update([current], 600.4)
-    assert provisional.revival_votes[old.id] == 1
-    monitor.update([detection(confidence=.5)], 600.5)
-    assert not provisional.revival_votes
-    monitor.update([current], 601.1)
-    monitor.update([current], 601.2)
-    probe(provisional, 601.21)
-    monitor.update([current], 601.3)
-    assert current.piece_id == provisional.id and provisional.revival_votes[old.id] == 1
+    assert current.piece_id != old.id and old.status == 'captured'
 
 
 def test_current_track_has_priority_over_nearby_dormant_history():
     monitor, old = dormant_known()
-    old.box = (25, 30, 55, 60)
-    current = detection((45, 30, 75, 60))
+    current = detection((100, 30, 130, 60))
     monitor.update([current], 600.1)
     active_id = current.piece_id
+    old.tracking_center = (115., 45.)
     for t in (600.2, 600.3, 600.4):
         monitor.update([current], t)
     assert current.piece_id == active_id and not old.visible
+
+
+def test_one_detection_cannot_revive_two_dormant_objects():
+    from piece_state import PieceState
+    monitor, old = dormant_known()
+    other = PieceState('piece_0099', box=(70, 30, 100, 60), good_box=(70, 30, 100, 60),
+                       label=old.label, status='dormant', misses=2)
+    monitor.pieces[other.id] = other
+    current = detection()
+    monitor.update([current], 600.1)
+    assert current.piece_id == old.id and not other.visible
+
+
+def test_tentative_classification_keeps_old_history_until_verified():
+    from piece_state import PieceTracker
+    monitor, old = dormant_known()
+    tracker = PieceTracker()
+    tracker.pieces = monitor.pieces
+    current = detection()
+    monitor.update([current], 600.1)
+    for t in (600.2, 600.3):
+        monitor.update([current], t)
+    old_probs = dict(old.probabilities)
+    tracker.update_visual(old.id, dict(piece_id=old.id, box=current.box, probabilities={'blue_cha': .95}),
+                          dict(observed_at=600.31))
+    assert old.probabilities == old_probs and old.revival_state == 'tentative'
+    tracker.update_visual(old.id, dict(piece_id=old.id, box=current.box, probabilities={'blue_cha': .95}),
+                          dict(observed_at=600.51))
+    assert old.revival_state == 'active' and old.game_eligible
+    assert old.label == 'blue_cha' and old.sizes
+
+
+def test_repeated_different_class_corrects_label_without_old_ema_delay():
+    from piece_state import PieceTracker
+    monitor, old = dormant_known()
+    tracker = PieceTracker()
+    tracker.pieces = monitor.pieces
+    current = detection()
+    monitor.update([current], 600.1)
+    for t in (600.2, 600.3):
+        monitor.update([current], t)
+    obs = dict(piece_id=old.id, box=current.box, size_mm=23., probabilities={'red_soldier': .95, 'blue_cha': .05})
+    tracker.update_visual(old.id, obs, dict(observed_at=600.31))
+    assert old.label == 'blue_cha'
+    tracker.update_visual(old.id, obs, dict(observed_at=600.51))
+    assert old.label == 'red_soldier' and old.revival_state == 'active'
+    assert list(old.sizes) == [23., 23.]
+    assert any(e['event'] == 'revival_reclassified' for e in tracker.events)
+
+
+def test_obstruction_clears_tentative_classification_votes():
+    from piece_state import PieceTracker
+    monitor, old = dormant_known()
+    tracker = PieceTracker()
+    tracker.pieces = monitor.pieces
+    current = detection()
+    monitor.update([current], 600.1)
+    for t in (600.2, 600.3):
+        monitor.update([current], t)
+    obs = dict(piece_id=old.id, box=current.box, probabilities={'red_soldier': .95})
+    tracker.update_visual(old.id, obs, dict(observed_at=600.31))
+    monitor.update([detection(confidence=.5)], 600.4)
+    assert not old.revival_observations and old.label == 'blue_cha'
+    monitor.update([current], 601.1)
+    tracker.update_visual(old.id, obs, dict(observed_at=601.11))
+    assert old.label == 'blue_cha' and old.revival_state == 'tentative'
+
+
+def test_slow_partial_motion_keeps_identity_across_multiple_piece_widths():
+    monitor = PieceMotionMonitor()
+    warm(monitor)
+    piece = monitor.pieces['piece_0001']
+    piece.label, piece.probabilities = 'blue_cha', {'blue_cha': .95}
+    for step in range(80):
+        current = detection((40+step, 40, 50+step, 50), .5)
+        monitor.update([current], .4+step*.1)
+        assert current.piece_id == piece.id, f'identity lost at step {step}'
+        assert piece.label == 'blue_cha'
+        assert len(piece.sensor_sizes) == 4 and piece.probabilities == {'blue_cha': .95}
+
+
+def test_intermittent_misses_during_partial_motion_use_latest_missing_region():
+    monitor, piece = dormant_known()
+    saved = None
+    for step in range(60):
+        t = 601.+step*.1
+        if step % 10 in (6, 7):
+            monitor.update([], t)
+            assert not piece.visible
+            if step % 10 == 6:
+                saved = piece.missing_box
+                anchor = (saved[0]+saved[2])/2
+                assert abs(anchor-(45+step-1)) < .01
+            else:
+                assert piece.missing_box == saved
+        else:
+            current = detection((40+step, 40, 50+step, 50), .5)
+            monitor.update([current], t)
+            assert current.piece_id == piece.id and piece.label == 'blue_cha'
+            assert piece.probabilities == {'blue_cha': .95, 'blue_sang': .05}
+    assert len(monitor.pieces) == 1
+    assert piece.revival_count >= 6
+    assert list(piece.sizes) == [29., 29.1, 28.9]
+
+
+def test_worker_keeps_last_label_and_only_classifies_normal_observations():
+    import time
+    from types import SimpleNamespace
+    from app import Worker
+    from piece_state import PieceTracker
+    worker = Worker.__new__(Worker)
+    worker.tracker = PieceTracker()
+    worker.piece_motion = PieceMotionMonitor(pieces=worker.tracker.pieces)
+    warm(worker.piece_motion)
+    piece = worker.tracker.pieces['piece_0001']
+    piece.label, piece.probabilities = 'blue_cha', {'blue_cha': .95}
+    class Runner:
+        error = None
+        calls = 0
+        def poll(self):
+            return None
+        def submit(self, frame, detections, metadata):
+            self.calls += 1
+    worker.classifier_worker = Runner()
+    worker.args = SimpleNamespace(classification_interval=.2)
+    worker.source = SimpleNamespace()
+    worker.robot_motion = False
+    worker.expected_robot_move = worker.game_turn = None
+    worker.size_estimator = None
+    worker.state_store = SimpleNamespace(save=lambda *args: None)
+    frame = np.zeros((150, 150, 3), np.uint8)
+    base = time.monotonic()
+    for step in range(70):
+        current = detection((40+step, 40, 50+step, 50), .5)
+        worker.piece_motion.update([current], base+step*.1)
+        worker._update_tracks(frame, [current], {}, {'state': 'suspected'})
+        assert current.piece_id == piece.id
+        assert (current.name, current.side, current.kind) == ('blue_cha', 'blue', 'cha')
+    assert worker.classifier_worker.calls == 0 and not piece.history
+    for step in range(12):
+        current = detection((99, 30, 129, 60))
+        worker.piece_motion.update([current], base+8+step*.1)
+        worker._update_tracks(frame, [current], {}, {'state': 'stable'})
+    assert current.piece_id == piece.id and worker.classifier_worker.calls > 0
+
+
+def test_tracking_reference_is_calculated_once_per_active_piece(monkeypatch):
+    monitor = PieceMotionMonitor()
+    detections = [detection((10+i%8*60, 10+i//8*60, 40+i%8*60, 40+i//8*60)) for i in range(32)]
+    for i in range(5):
+        monitor.update(detections, i*.1)
+    original = monitor.reference_box
+    calls = []
+    def counted(piece):
+        calls.append(piece.id)
+        return original(piece)
+    monkeypatch.setattr(monitor, 'reference_box', counted)
+    monitor.update(detections, .6)
+    assert len(calls) == 32
+    assert len({d.piece_id for d in detections}) == 32
+
+
+def test_low_confidence_detections_only_maintain_existing_identity():
+    monitor = PieceMotionMonitor()
+    warm(monitor)
+    piece = monitor.pieces['piece_0001']
+    piece.label, piece.probabilities = 'blue_cha', {'blue_cha': .95}
+    for step in range(25):
+        tracked = detection((40+step, 40, 50+step, 50), .15)
+        unrelated = detection((300, 300, 310, 310), .15)
+        monitor.update([tracked, unrelated], .4+step*.1, confidence_threshold=.35)
+        assert tracked.piece_id == piece.id and tracked.tracking_only
+        assert unrelated.piece_id is None and len(monitor.pieces) == 1
+        assert not piece.eligible and not piece.game_eligible and 'CONF' in piece.flags
+        assert piece.label == 'blue_cha' and not piece.history and len(piece.sensor_sizes) == 4
+
+
+def test_prediction_continues_recent_velocity_and_caps_long_missing_extrapolation():
+    monitor = PieceMotionMonitor()
+    warm(monitor)
+    piece = monitor.pieces['piece_0001']
+    for i in range(1, 6):
+        monitor.update([detection((30+6*i, 30, 60+6*i, 60))], .3+i*.1)
+    reference = monitor.reference_box(piece)
+    predicted = monitor.predict_center(piece, .9, reference)
+    assert predicted[0] > piece.tracking_center[0]+4
+    far = monitor.predict_center(piece, 100., reference)
+    assert np.linalg.norm(far-np.asarray(piece.tracking_center)) <= 30.0001
+    assert piece.visible and piece.tracking_velocity[0] > 40
+
+
+def test_high_confidence_observation_has_priority_over_closer_weak_box():
+    monitor = PieceMotionMonitor()
+    warm(monitor)
+    high = detection((38, 30, 68, 60), .9)
+    weak = detection((30, 30, 60, 60), .15)
+    monitor.update([weak, high], .4, confidence_threshold=.35)
+    assert high.piece_id == 'piece_0001' and weak.piece_id is None
+    assert len(monitor.pieces) == 1 and not high.tracking_only
+
+
+def test_weak_observation_cannot_create_initial_object():
+    monitor = PieceMotionMonitor()
+    weak = detection(confidence=.15)
+    monitor.update([weak], 0., confidence_threshold=.35)
+    assert not monitor.pieces and weak.piece_id is None
+
+
+def adaptive_worker():
+    from types import SimpleNamespace
+    from app import Worker
+    from piece_state import PieceTracker
+    worker = Worker.__new__(Worker)
+    worker.tracker = PieceTracker()
+    worker.piece_motion = PieceMotionMonitor(pieces=worker.tracker.pieces)
+    warm(worker.piece_motion)
+    class Runner:
+        error = None
+        result = None
+        requests = []
+        def poll(self):
+            result, self.result = self.result, None
+            return result
+        def submit(self, frame, detections, metadata):
+            self.requests.append(metadata)
+        def cancel_pending(self):
+            pass
+    worker.classifier_worker = Runner()
+    worker.args = SimpleNamespace(classification_interval=.5)
+    worker.source = SimpleNamespace()
+    worker.robot_motion = False
+    worker.expected_robot_move = worker.game_turn = None
+    worker.size_estimator = None
+    worker.state_store = SimpleNamespace(save=lambda *args: None)
+    return worker
+
+
+def test_worker_urgent_recognition_runs_under_local_obstruction_and_stops_retry_at_50_percent():
+    import time
+    worker = adaptive_worker()
+    piece = worker.tracker.pieces['piece_0001']
+    current = detection((40, 40, 50, 50), .5)
+    worker.piece_motion.update([current], 1.)
+    frame = np.zeros((100, 100, 3), np.uint8)
+    worker._update_tracks(frame, [current], {}, {'state': 'suspected'})
+    assert worker.classifier_worker.requests[-1]['urgent_ids'] == [piece.id]
+    for probabilities in ({'blue_cha': .49, 'red_soldier': .48, 'red_king': .03}, {'blue_cha': .5, 'red_soldier': .5}):
+        metadata = dict(worker.classifier_worker.requests[-1], observed_at=time.monotonic())
+        worker.classifier_worker.result = dict(metadata=metadata, observations={piece.id: dict(box=current.box, probabilities=probabilities)})
+        before = len(worker.classifier_worker.requests)
+        worker._update_tracks(frame, [current], {}, {'state': 'suspected'})
+        if max(probabilities.values()) < .5:
+            assert current.kind == 'piece' and len(worker.classifier_worker.requests) == before+1
+        else:
+            assert current.kind == 'cha' and len(worker.classifier_worker.requests) == before
+    assert piece.label is None and piece.display_label == 'blue_cha'
+    assert not piece.history and not piece.sizes and not piece.game_eligible
+
+
+def test_known_ids_are_selected_only_when_their_half_second_refresh_is_due(monkeypatch):
+    import app
+    worker = adaptive_worker()
+    piece = worker.tracker.pieces['piece_0001']
+    piece.label, piece.probabilities, piece.last_classified = 'blue_cha', {'blue_cha': .95}, 10.
+    current = detection()
+    worker.piece_motion.update([current], .4)
+    frame = np.zeros((100, 100, 3), np.uint8)
+    clock = [10.1]
+    monkeypatch.setattr(app.time, 'monotonic', lambda: clock[0])
+    worker._update_tracks(frame, [current], {}, {'state': 'stable'})
+    assert not worker.classifier_worker.requests
+    clock[0] = 10.51
+    worker._update_tracks(frame, [current], {}, {'state': 'stable'})
+    metadata = worker.classifier_worker.requests[-1]
+    assert metadata['regular_ids'] == [piece.id] and not metadata['urgent_ids']
+    worker.classifier_worker.result = dict(metadata=metadata, observations={piece.id: dict(box=current.box, probabilities={'blue_cha': .95})})
+    clock[0] = 10.52
+    worker._update_tracks(frame, [current], {}, {'state': 'stable'})
+    clock[0] = 10.7
+    worker._update_tracks(frame, [current], {}, {'state': 'stable'})
+    assert len(worker.classifier_worker.requests) == 1
+    clock[0] = 11.03
+    worker._update_tracks(frame, [current], {}, {'state': 'stable'})
+    assert len(worker.classifier_worker.requests) == 2

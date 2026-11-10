@@ -31,7 +31,9 @@ def prepare_image(image, size=224, angle=0., brightness=1., contrast=1., *, box=
     scale = side/size
     matrix = (cosine*scale, -sine*scale, cx-cosine*side/2+sine*side/2,
               sine*scale, cosine*scale, cy-sine*side/2-cosine*side/2)
-    result = image.convert('RGB').transform((size, size), Image.Transform.AFFINE, matrix,
+    # RGB 입력의 convert('RGB')도 전체 이미지를 복사한다. 프레임당 Crop 수만큼 복사하지 않는다.
+    rgb = image if image.mode == 'RGB' else image.convert('RGB')
+    result = rgb.transform((size, size), Image.Transform.AFFINE, matrix,
                                           resample=Image.Resampling.BICUBIC)
     if brightness != 1:
         result = ImageEnhance.Brightness(result).enhance(brightness)

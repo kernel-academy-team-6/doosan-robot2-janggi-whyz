@@ -32,6 +32,8 @@ class Detection:
 
     piece_id: str | None = field(default=None)
     geometric_size_mm: float | None = field(default=None)
+    tracking_only: bool = field(default=False)
+    classification_preview: bool = field(default=False)
 
     @property
     def center(self) -> tuple[float, float]:

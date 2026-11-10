@@ -67,7 +67,8 @@ def parse_args():
                    help="hybrid/cnn 모드의 분류 가중치")
     p.add_argument("--classifier-backend", choices=("mobilenet", "ultralytics"), default="mobilenet")
     p.add_argument("--classifier-conf", type=float, default=.5, help="종류 분류 확률 기준; 미달이면 위치만 표시")
-    p.add_argument("--classification-interval", type=float, default=.2, help="안정 상태의 종류 분류 간격(초), 기본 0.2")
+    p.add_argument("--classification-interval", type=float, default=.5, help="종류가 알려진 정상 객체의 갱신 간격(초), 기본 0.5; 미분류 객체는 즉시 재시도")
+    p.add_argument("--tracking-low-conf", type=float, default=.1, help="hybrid 기존 ID 추적 보조 검출 하한; 새 객체/종류 갱신에는 사용 안 함")
     p.add_argument("--history-alpha", type=float, default=.2, help="현재 관측 비중; 기본 과거 80%% + 현재 20%%")
     p.add_argument("--size-strength", type=float, default=.5, help="크기 보조 가중치 강도; 0이면 사용 안 함")
     p.add_argument("--state-dir", type=Path, default=HERE/"states", help="말별 상태·이벤트 세션의 상위 저장 폴더")
@@ -120,6 +121,8 @@ def parse_args():
     if (not all(np.isfinite(v) for v in (args.local_conf_drop, args.local_size_change, args.local_move_ratio))
             or not 0 < args.local_conf_drop <= 1 or args.local_size_change <= 0 or args.local_move_ratio <= 0):
         p.error("말 센서 신뢰도 하락 기준은 0~1, 크기/이동 변화 비율은 양수여야 한다")
+    if not np.isfinite(args.tracking_low_conf) or not 0 <= args.tracking_low_conf <= 1:
+        p.error("추적 보조 검출 하한은 0~1이어야 한다")
     if args.expected_pieces <= 0:
         p.error("--expected-pieces는 양수여야 한다")
     return args
@@ -299,17 +302,19 @@ class Worker:
             directory = getattr(args, 'state_dir', HERE/'states')/datetime.now().strftime('session_%Y%m%d_%H%M%S_%f')
             self.state_store = StateStore(directory)
             self.classifier_worker = LatestClassification(detector.classify_observations,
-                                                          getattr(args, 'classification_interval', .2))
+                                                          getattr(args, 'classification_interval', .5))
             import json, hashlib
             metadata = dict(source=args.source, detector=str(args.model),
                             detector_sha256=hashlib.sha256(args.model.read_bytes()).hexdigest(), classifier=str(detector.classifier.path),
                             classifier_sha256=hashlib.sha256(detector.classifier.path.read_bytes()).hexdigest(),
                             classes=detector.classifier.classes, calibration=str(args.calibration),
                             piece_height_mm=getattr(args, 'piece_height', 12.),
-                            classification_interval=getattr(args, 'classification_interval', .2),
+                            classification_interval=getattr(args, 'classification_interval', .5),
+                            tracking_low_conf=getattr(args, 'tracking_low_conf', .1),
+                            tracking_policy='bounded velocity prediction; global high/low assignment',
                             initial_state='fresh; no automatic state restore', object_model='unified-detection-v2',
-                            missing_retention='session lifetime; verified reappearance; MISS overlay 2 seconds',
-                            semantic_gate='per-object MOVE/MISS/CONF/SIZE; game gate=global stability')
+                            missing_retention='session lifetime; immediate spatial attachment, semantic verification; MISS overlay 2 seconds',
+                            semantic_gate='regular=healthy objects; unknown=urgent preview at 0.5; game=global stability')
             if args.calibration and Path(args.calibration).is_file():
                 import shutil
                 shutil.copyfile(args.calibration, directory/'calibration.yaml')
@@ -332,7 +337,7 @@ class Worker:
                     classifier_threshold=detector.classification_conf,
                     confidence_semantics="conf=YOLO detection probability; classification_conf=history/size-fused probability when tracking",
                     state_directory=str(self.state_store.directory) if self.state_store else None,
-                    classification_interval=getattr(args, "classification_interval", .2))
+                    classification_interval=getattr(args, "classification_interval", .5))
                 self.classification_log = (self.count_log.path.parent/"classifications.jsonl").open("w", encoding="utf-8")
             else:
                 self.classification_log = None
@@ -361,9 +366,17 @@ class Worker:
                     roi = board_crop_box(self.mapper, frame.shape[1], frame.shape[0], self.args.roi_margin)
                 positions_only = self.tracker is not None
                 detect = self.detector.detect_positions if positions_only else self.detector.detect
-                dets = detect(frame, conf=self.args.conf, roi=roi)
+                if positions_only and hasattr(self.detector, 'detect_tracking_positions'):
+                    tracking_candidates = self.detector.detect_tracking_positions(
+                        frame, conf=self.args.conf, roi=roi, low_conf=getattr(self.args, 'tracking_low_conf', .1))
+                    dets = [d for d in tracking_candidates if d.conf >= self.args.conf]
+                else:
+                    dets = detect(frame, conf=self.args.conf, roi=roi)
+                    tracking_candidates = None
+                count_dets = list(dets)
                 raw = self.mapper.assign(dets, self.args.max_dist) if self.mapper else {}
-                unique_dets = deduplicate_detections(dets)
+                unique_dets = (dets if positions_only and getattr(self.detector, 'positions_deduplicated', False)
+                               else deduplicate_detections(dets))
                 context = (getattr(self.source, 'source_loop', None), self.args.conf, self.use_roi)
                 if self.obstruction_reset.is_set() or context != self.monitor_context:
                     self.obstruction.reset()
@@ -387,7 +400,12 @@ class Worker:
                             self.piece_motion.reset()
                         self._piece_motion_enabled = enabled
                     # 통합 객체는 표시 체크박스와 독립적으로 유지한다.
-                    local_regions = self.piece_motion.update(unique_dets, time.monotonic()) if enabled else []
+                    local_regions = self.piece_motion.update(
+                        tracking_candidates if tracking_candidates is not None else unique_dets,
+                        time.monotonic(), confidence_threshold=self.args.conf) if enabled else []
+                    if tracking_candidates is not None:
+                        # 약한 관측은 위치 추적/화면 표시만 수행하고 게임판/기존 검출 통계에는 넣지 않는다.
+                        dets.extend(d for d in tracking_candidates if d.conf < self.args.conf and d.piece_id is not None)
                 if self.tracker is None:
                     # 분류기가 없는 표시 모드도 수명 이벤트 큐가 계속 쌓이지 않도록 비운다.
                     self.piece_motion.drain_lifecycle()
@@ -400,7 +418,8 @@ class Worker:
                     self.classification_log.write(json.dumps(dict(inference_frame=self.frames, frame=getattr(self.source, "source_frame", None),
                         source_time=getattr(self.source, "source_time", None), loop=getattr(self.source, "source_loop", None),
                         detections=[dict(box=d.box, label=d.name, detection_conf=d.conf,
-                                         classification_conf=d.classification_conf, piece_id=d.piece_id,
+                                         classification_conf=d.classification_conf, classification_preview=d.classification_preview,
+                                         piece_id=d.piece_id, tracking_only=d.tracking_only,
                                          geometric_size_mm=d.geometric_size_mm) for d in dets],
                         piece_motion_regions=local_regions if enabled else None))+"\n")
                 with self.lock:
@@ -416,13 +435,13 @@ class Worker:
                     overlay = draw_overlay(frame, dets, self.mapper, video_glyphs, crop, self.video_detail,
                                            self.box_label_mode, self.size_estimator, local_regions if self.show_piece_motion else None)
                     self.video_log.write(overlay, board_renderer.render(stable))
-                    self.count_log.record(len(dets), len(unique_dets),
+                    self.count_log.record(len(count_dets), len(unique_dets),
                                           len(raw) if self.mapper else None, len(stable) if self.mapper else None,
                                           self.args.conf, roi is not None,
                                           getattr(self.source, "source_frame", None),
                                           getattr(self.source, "source_time", None),
                                           getattr(self.source, "source_loop", None),
-                                          confidences=[d.conf for d in dets],
+                                          confidences=[d.conf for d in count_dets],
                                           deduplicated_confidences=[d.conf for d in unique_dets])
                 n += 1
                 if time.time() - t0 >= 1.0:
@@ -472,13 +491,29 @@ class Worker:
             for pid, observation in result['observations'].items():
                 piece = self.tracker.pieces.get(pid)
                 epoch = result['metadata'].get('epochs', {}).get(pid)
-                if piece is None or not piece.eligible or piece.visual_epoch != epoch or not observation.get('probabilities'):
+                urgent = pid in result['metadata'].get('urgent_ids', [])
+                if piece is None or not piece.visible or piece.status in ('captured', 'superseded'):
+                    continue
+                if not urgent:
+                    piece.last_regular_attempt = now
+                if not observation.get('probabilities'):
+                    continue
+                if not urgent and (not piece.eligible or piece.visual_epoch != epoch):
+                    continue
+                if urgent and now-result['metadata']['observed_at'] > .5:
                     continue
                 box = observation['box']
                 center = np.array([(box[0]+box[2])/2, (box[1]+box[3])/2])
                 actual_center = np.array([(piece.box[0]+piece.box[2])/2, (piece.box[1]+piece.box[3])/2])
-                if np.linalg.norm(center-actual_center) > max(4., .25*max(box[2]-box[0], box[3]-box[1])):
+                tolerance = .75 if urgent else .25
+                if np.linalg.norm(center-actual_center) > max(4., tolerance*max(box[2]-box[0], box[3]-box[1])):
                     continue
+                if urgent:
+                    self.tracker.update_preview(pid, observation, result['metadata'])
+                    # 방해 중에는 즉시 표시만 한다. 정상 결과만 융합/게임 증거로 사용한다.
+                    if (not piece.eligible or piece.visual_epoch != epoch
+                            or max(observation['probabilities'].values()) < .5):
+                        continue
                 width, height = box[2]-box[0], box[3]-box[1]
                 observation.update(width_px=width, height_px=height, geometric_size_px=float(np.sqrt(width*height)))
                 size = (self.size_estimator.measure(tuple(box), tuple(result['metadata']['frame_size']))
@@ -493,12 +528,15 @@ class Worker:
         board_observations = {}
         complete = bool(raw) and self._stable_gate
         for detection in dets:
+            if detection.tracking_only:
+                complete = False
+                continue
             if detection.board is None:
                 continue
             pid = self.tracker.resolve_id(detection.piece_id)
             piece = self.tracker.pieces.get(pid)
             if (piece is None or not piece.game_eligible or piece.last_raw is None
-                    or now-piece.last_classified > max(1., 3*getattr(self.args, 'classification_interval', .2))):
+                    or now-piece.last_classified > max(1., 3*getattr(self.args, 'classification_interval', .5))):
                 complete = False
                 continue
             board_observations[detection.board] = dict(piece.last_raw, piece_id=pid)
@@ -511,6 +549,8 @@ class Worker:
             self.tracker.pause()
         eligible = []
         epochs = {}
+        urgent_ids, regular_ids = [], []
+        interval = getattr(self.args, 'classification_interval', .5)
         for detection in dets:
             pid = self.tracker.resolve_id(detection.piece_id)
             piece = self.tracker.pieces.get(pid)
@@ -518,21 +558,27 @@ class Worker:
                 continue
             detection.piece_id = pid
             detection.geometric_size_mm = piece.size_mm
-            detection.classification_conf = piece.probabilities.get(piece.label, 0.)
-            if piece.label is not None:
-                detection.name = piece.label
-                detection.side, detection.kind = piece.label.split('_', 1)
-            if piece.eligible:
+            detection.classification_conf = piece.display_confidence
+            detection.classification_preview = piece.label is None and piece.preview_label is not None
+            if piece.display_label is not None:
+                detection.name = piece.display_label
+                detection.side, detection.kind = piece.display_label.split('_', 1)
+            urgent = piece.display_label is None
+            due = piece.eligible and now-max(piece.last_classified, piece.last_regular_attempt) >= interval
+            if urgent or due:
                 eligible.append(detection)
                 epochs[pid] = piece.visual_epoch
+                (urgent_ids if urgent else regular_ids).append(pid)
         if eligible:
             metadata = dict(frame=getattr(self.source, 'source_frame', None), source_time=getattr(self.source, 'source_time', None),
                             loop=getattr(self.source, 'source_loop', None), frame_size=[frame.shape[1], frame.shape[0]],
-                            observed_at=now, wall_time=time.time(), epochs=epochs)
+                            observed_at=now, wall_time=time.time(), epochs=epochs, urgent_ids=urgent_ids, regular_ids=regular_ids)
             self.classifier_worker.submit(frame, eligible, metadata)
+        elif hasattr(self.classifier_worker, 'cancel_pending'):
+            self.classifier_worker.cancel_pending()
         self.tracking_status = self.tracker.status
         visible = [p for p in self.tracker.pieces.values() if p.visible]
-        self.visual_counts = (len(visible), sum(p.label is not None for p in visible), sum(not p.eligible for p in visible))
+        self.visual_counts = (len(visible), sum(p.display_label is not None for p in visible), sum(not p.eligible for p in visible))
         self.state_store.save(self.tracker, now)
         # 실시간 보드는 현재 보이는 객체를 투영한다. 확정 게임판이나 숨은 위치를 복제해 그리지 않는다.
         return {d.board: (d.side, d.kind) for d in dets if d.board is not None}

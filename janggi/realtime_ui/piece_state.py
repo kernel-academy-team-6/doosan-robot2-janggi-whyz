@@ -21,6 +21,12 @@ class PieceState:
     association_confidence: float = 1.
     visual_epoch: int = 0
     good_box: tuple | None = None
+    tracking_center: tuple | None = None
+    tracking_velocity: tuple = (0., 0.)
+    tracking_only: bool = False
+    missing_box: tuple | None = None
+    missing_since: float | None = None
+    revival_observations: deque = field(default_factory=lambda: deque(maxlen=2))
     sensor_confidence: deque = field(default_factory=lambda: deque(maxlen=20))
     sensor_sizes: deque = field(default_factory=lambda: deque(maxlen=20))
     positions: deque = field(default_factory=lambda: deque(maxlen=20))
@@ -47,6 +53,10 @@ class PieceState:
     superseded_by: str | None = None
     probabilities: dict = field(default_factory=dict)
     label: str | None = None
+    preview_label: str | None = None
+    preview_confidence: float = 0.
+    preview_observed_at: float | None = None
+    last_regular_attempt: float = float('-inf')
     status: str = 'on_board'
     sizes: deque = field(default_factory=lambda: deque(maxlen=20))
     history: deque = field(default_factory=lambda: deque(maxlen=20))
@@ -59,22 +69,32 @@ class PieceState:
     alternative_count: int = 0
 
     @property
+    def display_label(self):
+        return self.label or self.preview_label
+
+    @property
+    def display_confidence(self):
+        return self.probabilities.get(self.label, 0.) if self.label is not None else self.preview_confidence
+
+    @property
     def board_assigned(self):
         return self.visible and self.cell is not None
 
     @property
     def eligible(self):
-        return (self.visible and not self.flags and len(self.sensor_confidence) >= 3
+        return (self.visible and not self.tracking_only and not self.flags and len(self.sensor_confidence) >= 3
                 and self.association_confidence >= .25 and self.status not in ('captured', 'superseded'))
 
     @property
     def game_eligible(self):
-        return self.eligible and self.revival_state != 'pending'
+        return self.eligible and self.revival_state not in ('pending', 'tentative')
 
     def clear_semantics(self):
         self.visual_epoch += 1
         self.probabilities.clear()
         self.label = None
+        self.preview_label, self.preview_confidence, self.preview_observed_at = None, 0., None
+        self.last_regular_attempt = float('-inf')
         self.sizes.clear()
         self.history.clear()
         self.alternative, self.alternative_count = None, 0
@@ -158,9 +178,15 @@ class PieceState:
                     last_seen=self.last_seen, last_classified=self.last_classified if math.isfinite(self.last_classified) else None,
                     detection_confidence=self.detection_confidence, flags=list(self.flags),
                     association_confidence=self.association_confidence, seen_count=self.seen_count,
+                    tracking_center=self.tracking_center, tracking_velocity=self.tracking_velocity,
+                    tracking_only=self.tracking_only, good_box=self.good_box,
+                    missing_box=self.missing_box, missing_since=self.missing_since,
                     revival_state=self.revival_state, revival_candidates=list(self.revival_candidates),
                     revival_count=self.revival_count, last_revival=self.last_revival,
-                    status=self.status, label=self.label,
+                    status=self.status, label=self.label, display_label=self.display_label,
+                    preview_label=self.preview_label, preview_confidence=self.preview_confidence,
+                    preview_observed_at=self.preview_observed_at,
+                    last_regular_attempt=self.last_regular_attempt if math.isfinite(self.last_regular_attempt) else None,
                     confidence=self.probabilities.get(self.label, 0), probabilities=self.probabilities,
                     geometric_size_mm=self.size_mm, size_samples_mm=list(self.sizes), history=list(self.history),
                     size_outlier_count=self.size_outlier_count, size_sample_count=len(self.sizes),
@@ -192,10 +218,8 @@ class PieceTracker:
         self.generation += 1
         self.event('reset', reason=reason, previous_pieces=[p.serialize() for p in self.pieces.values()])
         if keep_objects:
-            affected_cells = set(self.occupancy)
             for piece in self.pieces.values():
-                if piece.game_bound or piece.cell in affected_cells:
-                    piece.clear_semantics()
+                # 게임 규칙과 맞지 않는 배치는 시각 추적/종류 기억을 초기화하지 않는다.
                 piece.confirmed_cell, piece.game_bound = None, False
         else:
             self.pieces.clear()
@@ -234,20 +258,68 @@ class PieceTracker:
             return
         target, observed = self.pieces[pid], self.pieces[observed_id]
         for name in ('box', 'cell', 'visible', 'last_seen', 'detection_confidence', 'association_confidence',
-                     'positions', 'misses', 'flags', 'last_alert', 'recovery_sizes'):
+                     'tracking_center', 'tracking_velocity', 'tracking_only', 'missing_box', 'missing_since', 'positions', 'misses', 'flags', 'last_alert', 'recovery_sizes'):
             setattr(target, name, getattr(observed, name))
-        target.good_box = observed.box
+        target.good_box = observed.good_box or observed.box
+        target.revival_state = 'active'
+        target.revival_observations.clear()
         target.visual_epoch += 1
         observed.visible, observed.status, observed.superseded_by = False, 'superseded', pid
         self.aliases[observed_id] = pid
         self.event('identity_reconciled', observed_id=observed_id, piece_id=pid)
 
+    def update_preview(self, pid, observation, stamp):
+        """미분류 객체를 즉시 표시하되 정상 종류/크기/이동평균 이력은 변경하지 않는다."""
+        piece = self.pieces[pid]
+        raw = observation.get('probabilities') or {}
+        if piece.label is not None or not raw:
+            return
+        winner = max(raw, key=raw.get)
+        confidence = raw[winner]
+        piece.preview_label = winner if confidence >= .5 else None
+        piece.preview_confidence = confidence
+        piece.preview_observed_at = stamp['observed_at']
+        self.event('classification_preview', piece_id=pid, label=piece.preview_label,
+                   confidence=confidence, observed_at=stamp['observed_at'], flags=list(piece.flags))
+
     def update_visual(self, pid, observation, stamp):
         piece = self.pieces[pid]
+        observed_at = stamp['observed_at'] if isinstance(stamp, dict) else float(stamp)
+        if piece.revival_state == 'tentative':
+            if not piece.eligible or observed_at <= piece.revival_last_probe:
+                return
+            piece.revival_last_probe = observed_at
         piece.last_raw = observation
         if isinstance(stamp, dict):
             stamp = {k: v for k, v in stamp.items() if k != 'epochs'}
         piece.last_classified = stamp['observed_at'] if isinstance(stamp, dict) else float(stamp)
+        if piece.revival_state == 'tentative':
+            raw = observation.get('probabilities') or {}
+            winner = max(raw, key=raw.get) if raw else None
+            required = .6 if piece.label is None or winner == piece.label else .8
+            if winner is None or raw[winner] < required:
+                piece.revival_observations.clear()
+                return
+            if piece.revival_observations and piece.revival_observations[-1][0] != winner:
+                piece.revival_observations.clear()
+            piece.revival_observations.append((winner, copy.deepcopy(observation), stamp))
+            self.event('revival_probe', piece_id=pid, candidate=winner, confidence=raw[winner],
+                       observations=len(piece.revival_observations))
+            if len(piece.revival_observations) < 2:
+                return
+            evidence = list(piece.revival_observations)
+            if piece.label is not None and winner != piece.label:
+                previous = piece.semantic_snapshot()
+                piece.clear_semantics()
+                self.event('revival_reclassified', piece_id=pid, previous=previous, label=winner)
+            piece.revival_state = 'active'
+            piece.revival_observations.clear()
+            # 두 번 검증한 새 관측만 반영한다. 부분 가림 중에는 과거 이력을 오염시키지 않는다.
+            for _, confirmed, confirmed_stamp in evidence:
+                piece.last_raw, piece.last_classified = confirmed, confirmed_stamp['observed_at'] if isinstance(confirmed_stamp, dict) else float(confirmed_stamp)
+                self.event('classification', cell=piece.cell, **piece.update(confirmed, confirmed_stamp, self.threshold, self.alpha, self.size_strength))
+            self.event('revival_verified', piece_id=pid, label=piece.label)
+            return
         self.event('classification', cell=piece.cell, **piece.update(observation, stamp, self.threshold, self.alpha, self.size_strength))
 
     def _label_at(self, cell):
@@ -374,6 +446,7 @@ class PieceTracker:
                     status=self.status, expected_count=len(self.occupancy),
                     visible_count=sum(p.visible for p in self.pieces.values()),
                     classified_visible_count=sum(p.visible and p.label is not None for p in self.pieces.values()),
+                    preview_visible_count=sum(p.visible and p.label is None and p.preview_label is not None for p in self.pieces.values()),
                     local_paused_count=sum(p.visible and not p.eligible for p in self.pieces.values()),
                     fusion=dict(current_weight=self.alpha, past_weight=1-self.alpha, size_strength=self.size_strength,
                                 size_references_mm=dict(small=23, medium=29, king=35)),
@@ -391,7 +464,7 @@ class StateStore:
 
     def save(self, tracker, now, force=False):
         events, tracker.events = tracker.events, []
-        important = any(e['event'] != 'classification' for e in events)
+        important = any(e['event'] not in ('classification', 'revival_probe', 'classification_preview') for e in events)
         for event in events:
             self.events.write(json.dumps(event, ensure_ascii=False)+'\n')
         if events:

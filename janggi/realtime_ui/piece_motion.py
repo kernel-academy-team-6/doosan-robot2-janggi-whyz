@@ -4,6 +4,7 @@ import math
 
 import numpy as np
 from piece_state import PieceState
+from assignment import assign_candidates
 
 
 def geometry(box):
@@ -46,6 +47,7 @@ class PieceMotionMonitor:
             piece.sensor_confidence.clear()
             piece.sensor_sizes.clear()
             piece.positions.clear()
+            piece.tracking_velocity = (0., 0.)
             piece.recovery_sizes.clear()
             piece.recovery_since = None
             piece.flags = ()
@@ -57,111 +59,81 @@ class PieceMotionMonitor:
         return events, links
 
     @staticmethod
-    def _dormant_score(old, box):
-        if old.box is None:
-            return None
-        center, current_size = geometry(box)
-        old_center, last_size = geometry(old.box)
-        size = float(np.median(old.sensor_sizes)) if old.sensor_sizes else last_size
-        reference = old.good_box or old.box
+    def reference_box(piece):
+        """마지막 정상 크기로 만든 추적 박스. 부분 검출 크기로 기준을 축소하지 않는다."""
+        reference = piece.good_box or piece.box
+        center = np.asarray(piece.tracking_center) if piece.tracking_center is not None else geometry(reference)[0]
+        size = float(np.median(piece.sensor_sizes)) if piece.sensor_sizes else geometry(reference)[1]
         aspect = (reference[2]-reference[0])/(reference[3]-reference[1])
         width, height = size*math.sqrt(aspect), size/math.sqrt(aspect)
-        expected = (old_center[0]-width/2, old_center[1]-height/2,
-                    old_center[0]+width/2, old_center[1]+height/2)
-        distance = float(np.linalg.norm(center-old_center))/max(size, current_size)
-        overlap = iou(expected, box)
-        ratio = current_size/size
-        if distance > .5 or overlap < .3 or not .75 <= ratio <= 1.33:
-            return None
-        return 2*overlap-distance, overlap, distance, ratio
+        return (center[0]-width/2, center[1]-height/2, center[0]+width/2, center[1]+height/2)
+
+    @classmethod
+    def _remember_missing(cls, piece, now):
+        # 누락 직전 추적 중심과 정상 크기로 영역을 고정한다. 휴면 중에는 이동시키지 않는다.
+        reference = cls.reference_box(piece)
+        pad = .35*geometry(reference)[1]
+        piece.missing_box = (reference[0]-pad, reference[1]-pad, reference[2]+pad, reference[3]+pad)
+        piece.missing_since = now
+
+    @classmethod
+    def _connection_score(cls, piece, box, dormant=False, reference=None, metrics=None, prediction=None):
+        reference = cls.reference_box(piece) if reference is None else reference
+        cx, cy, size = metrics if metrics is not None else ((box[0]+box[2])/2, (box[1]+box[3])/2,
+                                                          math.sqrt((box[2]-box[0])*(box[3]-box[1])))
+        ax, ay = (reference[0]+reference[2])/2, (reference[1]+reference[3])/2
+        standard_size = math.sqrt((reference[2]-reference[0])*(reference[3]-reference[1]))
+        distance = math.hypot(cx-ax, cy-ay)/standard_size
+        ratio = size/standard_size
+        search = (piece.missing_box or reference) if dormant else reference
+        search_area = (search[2]-search[0])*(search[3]-search[1])
+        intersection = max(0., min(search[2], box[2])-max(search[0], box[0]))*max(0., min(search[3], box[3])-max(search[1], box[1]))
+        containment = intersection/min(search_area, size**2)
+        if dormant:
+            if distance > .95 or containment < .6 or not .08 <= ratio <= 1.4:
+                return None
+        else:
+            predicted_distance = distance
+            if prediction is not None:
+                px, py = prediction
+                predicted_distance = math.hypot(cx-px, cy-py)/standard_size
+                dx, dy = px-ax, py-ay
+                if dx or dy:
+                    projected = (reference[0]+dx, reference[1]+dy, reference[2]+dx, reference[3]+dy)
+                    area = max(0., min(projected[2], box[2])-max(projected[0], box[0]))*max(0., min(projected[3], box[3])-max(projected[1], box[1]))
+                    containment = max(containment, area/min(standard_size**2, size**2))
+            if (distance > 1.25 and predicted_distance > .8) or not .08 <= ratio <= 5:
+                return None
+            distance = .4*distance+.6*predicted_distance
+        return 2*containment-distance
 
     def _confirm_revivals(self, now, valid):
-        # 새 관측은 독립 ID로 분류하며 확인 전에는 과거 이력을 섞지 않는다.
-        for current in list(self.sensors.values()):
-            if not current.visible or current.revival_state != 'pending':
+        # 종류가 있는 객체는 Worker의 독립 CNN 결과로 사후 검증한다.
+        for piece in self.sensors.values():
+            if piece.revival_state != 'tentative':
                 continue
-            if not current.eligible or current.detection_confidence < .7:
-                current.revival_frames, current.revival_since = 0, None
-                current.revival_votes.clear()
-                current.revival_last_probe = current.last_classified
+            if not piece.eligible:
+                piece.revival_frames, piece.revival_since = 0, None
+                piece.revival_observations.clear()
                 continue
-            current.revival_frames += 1
-            if current.revival_since is None:
-                current.revival_since = now
-            raw = (current.last_raw or {}).get('probabilities') or {}
-            new_probe = bool(raw) and current.last_classified > current.revival_last_probe
-            if new_probe:
-                current.revival_last_probe = current.last_classified
-            matches, remaining, scores = [], [], []
-            for pid in current.revival_candidates:
-                old = self.pieces.get(pid)
-                if old is None or old.visible or old.status in ('captured', 'superseded'):
-                    continue
-                match = self._dormant_score(old, current.box)
-                if match is None:
-                    continue
-                score, overlap, distance, ratio = match
-                if old.label is not None:
-                    if new_probe:
-                        winner = max(raw, key=raw.get)
-                        if winner != old.label and raw[winner] >= .7:
-                            self.lifecycle_events.append(dict(event='revival_rejected', piece_id=current.id,
-                                dormant_id=pid, reason='class_mismatch', observed_at=now))
-                            continue
-                        current.revival_votes[pid] = current.revival_votes.get(pid, 0)+1 if winner == old.label and raw[old.label] >= .6 else 0
-                    ready = (overlap >= .5 and distance <= .35 and .8 <= ratio <= 1.25
-                             and current.revival_votes.get(pid, 0) >= 2 and current.revival_frames >= 3
-                             and now-current.revival_since >= .2)
-                else:
-                    ready = (overlap >= .7 and distance <= .2 and .85 <= ratio <= 1.18
-                             and current.detection_confidence >= .8 and current.revival_frames >= 5
-                             and now-current.revival_since >= .3)
-                remaining.append(pid)
-                scores.append((score, pid))
-                if ready:
-                    matches.append((score, pid))
-            current.revival_candidates = remaining
-            if not remaining:
-                current.revival_state = 'new_identity'
-                continue
-            matches.sort(reverse=True)
-            if len(matches) > 1 and matches[0][0]-matches[1][0] < .12:
-                current.revival_state = 'ambiguous_new_identity'
-                self.lifecycle_events.append(dict(event='revival_ambiguous', piece_id=current.id,
-                                                  candidates=[pid for _, pid in matches], observed_at=now))
-                continue
-            if not matches:
-                continue
-            # 미확인 후보도 포함하여 같은 위치의 과거 ID가 경쟁하면 연결을 보류한다.
-            best_score, best_id = matches[0]
-            if any(pid != best_id and score >= best_score-.12 for score, pid in scores):
-                continue
-            old = self.pieces[best_id]
-            absence = now-old.last_seen
-            for name in ('box', 'cell', 'visible', 'last_seen', 'detection_confidence', 'association_confidence',
-                         'good_box', 'sensor_confidence', 'sensor_sizes', 'positions', 'misses', 'flags', 'last_alert'):
-                setattr(old, name, getattr(current, name))
-            old.visual_epoch += 1
-            old.recovery_sizes.clear()
-            old.recovery_since = None
-            old.seen_count += current.seen_count
-            old.status = 'on_board' if old.cell is not None else 'visible'
-            old.revival_state = 'active'
-            old.revival_count += 1
-            old.last_revival = dict(observed_at=now, absence_seconds=absence, provisional_id=current.id)
-            current.visible, current.cell, current.status = False, None, 'superseded'
-            current.superseded_by = old.id
-            self.sensors.pop(current.id, None)
-            self.sensors[old.id] = old
-            for _, _, detection in valid:
-                if detection.piece_id == current.id:
-                    detection.piece_id = old.id
-            self.revival_links.append(dict(piece_id=old.id, provisional_id=current.id,
-                observation=current.last_raw, stamp=current.history[-1]['time'] if current.history else None))
-            self.lifecycle_events.append(dict(event='revived', piece_id=old.id, provisional_id=current.id,
-                absence_seconds=absence, observations=current.revival_frames, observed_at=now))
+            piece.revival_frames += 1
+            if piece.revival_since is None:
+                piece.revival_since = now
+            if piece.label is None and piece.revival_frames >= 5 and now-piece.revival_since >= .3:
+                piece.revival_state = 'active'
+                self.lifecycle_events.append(dict(event='revival_verified', piece_id=piece.id, reason='geometry', observed_at=now))
 
-    def update(self, detections, now):
+    @staticmethod
+    def predict_center(piece, now, reference):
+        center, size = geometry(reference)
+        elapsed = min(.3, max(0., now-piece.last_seen))
+        delta = np.asarray(piece.tracking_velocity)*elapsed
+        length = float(np.linalg.norm(delta))
+        if length > size:
+            delta *= size/length
+        return float(center[0]+delta[0]), float(center[1]+delta[1])
+
+    def update(self, detections, now, confidence_threshold=0.):
         valid = []
         for detection in detections:
             box = tuple(float(v) for v in detection.box)
@@ -178,60 +150,106 @@ class PieceMotionMonitor:
                 if piece.status not in ('captured', 'superseded'):
                     piece.status = 'unobserved'
         # 위치와 박스 겹침으로만 연결한다. 종류 예측의 흔들림은 센서 ID 연결에 사용하지 않는다.
-        candidates = []
-        for sid, sensor in self.sensors.items():
-            old_center, old_size = geometry(sensor.box)
-            for index, (box, confidence, detection) in enumerate(valid):
-                center, size = geometry(box)
-                distance = float(np.linalg.norm(center-old_center))/max(old_size, size)
-                overlap = iou(sensor.box, box)
-                if distance <= 1.25 and .2 <= size/old_size <= 5:
-                    candidates.append((2*overlap-distance, sid, index))
+        # 프레임 안에서는 같은 기준/박스 수치를 한 번만 계산한다.
+        references = {pid: self.reference_box(piece) for pid, piece in self.sensors.items()}
+        metrics = [((box[0]+box[2])/2, (box[1]+box[3])/2, math.sqrt((box[2]-box[0])*(box[3]-box[1])))
+                   for box, _, _ in valid]
+        predictions = {pid: self.predict_center(piece, now, references[pid]) for pid, piece in self.sensors.items()}
         used_sensors, used_detections, matches = set(), set(), []
-        for score, sid, index in sorted(candidates, reverse=True):
-            if sid not in used_sensors and index not in used_detections:
-                alternatives = [s for s, other, i in candidates if i == index and other != sid and other not in used_sensors]
-                if alternatives and score-max(alternatives) < .08:
-                    continue  # 가까운 말끼리 구분이 애매하면 이력을 억지로 연결하지 않는다.
+        # 높은 신뢰도부터 전체 배정하고 남은 기존 객체에만 낮은 신뢰도 관측을 사용한다.
+        for weak in (False, True):
+            candidates = []
+            for sid, sensor in self.sensors.items():
+                if sid in used_sensors:
+                    continue
+                for index, (box, confidence, detection) in enumerate(valid):
+                    if index in used_detections or (confidence < confidence_threshold) != weak:
+                        continue
+                    score = self._connection_score(sensor, box, reference=references[sid], metrics=metrics[index],
+                                                   prediction=predictions[sid])
+                    if score is not None:
+                        candidates.append((score, sid, index))
+            for score, sid, index in assign_candidates(candidates):
                 used_sensors.add(sid)
                 used_detections.add(index)
                 self.sensors[sid].association_confidence = float(np.clip((score+1.25)/3.25, 0, 1))
                 matches.append((self.sensors[sid], index))
+        # 활성 ID가 우선이다. 남은 검출만 휴면 ID에 즉시 임시 연결한다.
+        dormant_candidates = []
+        unmatched = [i for i in range(len(valid)) if i not in used_detections]
+        for pid, old in self.pieces.items() if unmatched else ():
+            if pid in used_sensors or old.status in ('captured', 'superseded') or old.box is None:
+                continue
+            if old.seen_count < 3 and old.label is None and not old.game_bound:
+                continue
+            reference = references.get(pid)
+            if reference is None:
+                reference = references[pid] = self.reference_box(old)
+            for index in unmatched:
+                score = self._connection_score(old, valid[index][0], dormant=True,
+                                               reference=reference, metrics=metrics[index])
+                if score is not None:
+                    dormant_candidates.append((score, pid, index))
+        for score, pid, index in sorted(dormant_candidates, reverse=True):
+            if pid in used_sensors or index in used_detections:
+                continue
+            alternatives = [s for s, other, i in dormant_candidates
+                            if (i == index and other != pid and other not in used_sensors)
+                            or (other == pid and i != index and i not in used_detections)]
+            if alternatives and score-max(alternatives) < .12:
+                continue
+            old = self.pieces[pid]
+            absence = now-old.last_seen
+            old.revival_state = 'tentative'
+            old.revival_last_probe = old.last_classified
+            old.revival_observations.clear()
+            old.revival_frames, old.revival_since = 0, None
+            old.visual_epoch += 1
+            old.revival_count += 1
+            old.last_revival = dict(observed_at=now, absence_seconds=absence, provisional=True)
+            old.positions.clear()
+            old.association_confidence = float(np.clip((score+1.25)/3.25, 0, 1))
+            self.lifecycle_events.append(dict(event='revival_attached', piece_id=pid,
+                                              absence_seconds=absence, missing_box=old.missing_box, observed_at=now))
+            self.sensors[pid] = old
+            used_sensors.add(pid)
+            used_detections.add(index)
+            matches.append((old, index))
         for index, (box, confidence, detection) in enumerate(valid):
-            if index not in used_detections:
+            if index not in used_detections and confidence >= confidence_threshold:
                 while f'piece_{self.next_id:04}' in self.pieces:
                     self.next_id += 1
                 sensor = PieceState(f'piece_{self.next_id:04}', box=box, last_seen=now, good_box=box, status='visible')
                 self.next_id += 1
                 self.sensors[sensor.id] = self.pieces[sensor.id] = sensor
-                sensor.revival_candidates = [pid for pid, old in self.pieces.items()
-                    if pid != sensor.id and pid not in used_sensors and old.status not in ('captured', 'superseded')
-                    and (old.seen_count >= 3 or old.label is not None or old.game_bound)
-                    and self._dormant_score(old, box) is not None]
-                if sensor.revival_candidates:
-                    sensor.revival_state = 'pending'
-                    self.lifecycle_events.append(dict(event='revival_started', piece_id=sensor.id,
-                                                      candidates=list(sensor.revival_candidates), observed_at=now))
                 matches.append((sensor, index))
                 used_sensors.add(sensor.id)
+                self.lifecycle_events.append(dict(event='created', piece_id=sensor.id, box=box,
+                                                  confidence=confidence, reason='no_existing_assignment', observed_at=now))
         regions = []
         for sensor, index in matches:
             box, confidence, detection = valid[index]
             center, size = geometry(box)
             # 최근 0.3초의 이동 누적으로 느린 움직임도 감지한다.
             previous_center, _ = geometry(sensor.box)
-            frame_movement = float(np.linalg.norm(center-previous_center))/size
+            reference = references.get(sensor.id)
+            if reference is None:
+                reference = self.reference_box(sensor)
+            tracking_size = math.sqrt((reference[2]-reference[0])*(reference[3]-reference[1]))
+            frame_movement = float(np.linalg.norm(center-previous_center))/tracking_size
             sensor.positions.append((now, center))
             while sensor.positions and now-sensor.positions[0][0] > .3:
                 sensor.positions.popleft()
-            movement = max(frame_movement, max((float(np.linalg.norm(center-point))/size for _, point in sensor.positions), default=0.))
+            movement = max(frame_movement, max((float(np.linalg.norm(center-point))/tracking_size for _, point in sensor.positions), default=0.))
             reference_conf = float(np.median(sensor.sensor_confidence)) if sensor.sensor_confidence else confidence
             reference_size = float(np.median(sensor.sensor_sizes)) if sensor.sensor_sizes else size
-            flags = []
+            sensor.tracking_only = confidence < confidence_threshold
+            flags = ['CONF'] if sensor.tracking_only else []
             if movement >= self.move_ratio:
                 flags.append('MOVE')
             if len(sensor.sensor_confidence) >= 3 and reference_conf-confidence >= self.confidence_drop:
-                flags.append('CONF')
+                if 'CONF' not in flags:
+                    flags.append('CONF')
             size_limit = min(.2, self.size_change*.8) if 'SIZE' in sensor.flags else self.size_change
             size_abnormal = len(sensor.sensor_sizes) >= 3 and abs(size/reference_size-1) >= size_limit
             if size_abnormal:
@@ -270,15 +288,33 @@ class PieceMotionMonitor:
             if flags and not sensor.flags:
                 sensor.visual_epoch += 1
             if flags:
+                sensor.revival_observations.clear()
+            if flags:
                 sensor.flags, sensor.last_alert = tuple(flags), now
             elif sensor.flags == ('MISS',) or now-sensor.last_alert >= self.hold:
                 sensor.flags = ()
+            elapsed = now-sensor.last_seen
+            if 0 < elapsed <= .5:
+                instantaneous = (center-previous_center)/elapsed
+                # 부분 박스 변형에 의한 속도 급증을 제한하고 속도는 부드럽게 추정한다.
+                speed = float(np.linalg.norm(instantaneous))
+                limit = 8*tracking_size
+                if speed > limit:
+                    instantaneous *= limit/speed
+                gain = .2 if flags else .5
+                sensor.tracking_velocity = tuple((1-gain)*np.asarray(sensor.tracking_velocity)+gain*instantaneous)
+            elif elapsed > .5:
+                sensor.tracking_velocity = (0., 0.)
             sensor.box, sensor.last_seen, sensor.misses = box, now, 0
             sensor.seen_count += 1
             sensor.visible, sensor.cell = True, detection.board
             sensor.detection_confidence = confidence
             sensor.status = 'on_board' if sensor.cell is not None else 'visible'
             detection.piece_id = sensor.id
+            detection.tracking_only = sensor.tracking_only
+            # ID의 위치 추적은 방해 플래그와 독립이다. 느린 부분 이동도 매 검출마다 따라간다.
+            # 크기/종류 필터는 아래의 정상 관측에서만 갱신한다.
+            sensor.tracking_center = tuple(center)
             if not sensor.flags:
                 sensor.sensor_confidence.append(confidence)
                 sensor.sensor_sizes.append(size)
@@ -286,8 +322,9 @@ class PieceMotionMonitor:
             if sensor.flags:
                 region_box = box
                 if any(flag in sensor.flags for flag in ('CONF', 'SIZE')):
-                    region_box = (min(box[0], sensor.good_box[0]), min(box[1], sensor.good_box[1]),
-                                  max(box[2], sensor.good_box[2]), max(box[3], sensor.good_box[3]))
+                    reference = self.reference_box(sensor)
+                    region_box = (min(box[0], reference[0]), min(box[1], reference[1]),
+                                  max(box[2], reference[2]), max(box[3], reference[3]))
                 regions.append(dict(sensor_id=sensor.id, box=list(region_box), visible=True, reasons=list(sensor.flags),
                                     confidence=confidence, baseline_confidence=reference_conf,
                                     geometric_size_px=size, baseline_size_px=reference_size))
@@ -296,7 +333,8 @@ class PieceMotionMonitor:
                 sensor.misses += 1
                 sensor.status = 'dormant'
                 if sensor.misses == 1:
-                    self.lifecycle_events.append(dict(event='dormant', piece_id=sid, last_seen=sensor.last_seen, observed_at=now))
+                    self._remember_missing(sensor, now)
+                    self.lifecycle_events.append(dict(event='dormant', piece_id=sid, last_seen=sensor.last_seen, missing_box=sensor.missing_box, observed_at=now))
                 if sensor.misses == 1:
                     sensor.visual_epoch += 1
                 if sensor.misses >= 2:
@@ -306,11 +344,12 @@ class PieceMotionMonitor:
             if not piece.visible and piece.status not in ('captured', 'superseded'):
                 piece.status = 'dormant'
                 if now-piece.last_seen > .5 and piece.misses == 0:
+                    self._remember_missing(piece, now)
                     piece.misses = 2
                     piece.flags = ('MISS',)
                     piece.visual_epoch += 1
                 if piece.misses >= 2 and now-piece.last_seen <= self.miss_display_seconds:
-                    regions.append(dict(sensor_id=pid, box=list(piece.box), visible=False, reasons=['MISS'],
+                    regions.append(dict(sensor_id=pid, box=list(piece.missing_box or piece.box), visible=False, reasons=['MISS'],
                                         confidence=None, missing_seconds=now-piece.last_seen))
         self._confirm_revivals(now, valid)
         return regions
