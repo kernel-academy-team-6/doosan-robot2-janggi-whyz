@@ -1,5 +1,11 @@
 # RealSense RGB-D 녹화 / 촬영
 
+학습용 말 이미지 추출·정답 라벨링·Train 회전 증강은 **[장기말 데이터셋 제작 도구](PIECE_DATASET.md)**를 사용한다:
+
+```bash
+./tools/run_piece_dataset.sh
+```
+
 녹화 후 평가 로그의 두 영상과 그래프를 함께 보려면 **[비전 로그 분석 뷰어](EVALUATION_VIEWER.md)**를 사용한다:
 
 ```bash
