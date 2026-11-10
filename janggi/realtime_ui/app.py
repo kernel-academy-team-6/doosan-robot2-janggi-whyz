@@ -277,13 +277,14 @@ class Worker:
         self.state_store = None
         self.tracking_status = '프레임별 인식'
         self.last_classification = None
+        self.visual_counts = (0, 0, 0)
         self.game_turn = None
         self.game_tracking_generation = None
         self.robot_motion = False
         self.expected_robot_move = None
         self._stable_gate = False
         self._visible_cells = None
-        if mapper is not None and hasattr(detector, 'detect_positions'):
+        if hasattr(detector, 'detect_positions'):
             def validate_move(board, src, dst):
                 from rules import Position
                 known = {c: p for c, p in board.items() if p[0] != 'unknown'}
@@ -293,6 +294,7 @@ class Worker:
                     return False
             self.tracker = PieceTracker(detector.classification_conf, getattr(args, 'history_alpha', .2),
                                         getattr(args, 'size_strength', .5), validate_move)
+            self.tracker.pieces = self.piece_motion.pieces
             from datetime import datetime
             directory = getattr(args, 'state_dir', HERE/'states')/datetime.now().strftime('session_%Y%m%d_%H%M%S_%f')
             self.state_store = StateStore(directory)
@@ -305,7 +307,9 @@ class Worker:
                             classes=detector.classifier.classes, calibration=str(args.calibration),
                             piece_height_mm=getattr(args, 'piece_height', 12.),
                             classification_interval=getattr(args, 'classification_interval', .2),
-                            initial_state='fresh; no automatic state restore')
+                            initial_state='fresh; no automatic state restore', object_model='unified-detection-v2',
+                            missing_retention='session lifetime; verified reappearance; MISS overlay 2 seconds',
+                            semantic_gate='per-object MOVE/MISS/CONF/SIZE; game gate=global stability')
             if args.calibration and Path(args.calibration).is_file():
                 import shutil
                 shutil.copyfile(args.calibration, directory/'calibration.yaml')
@@ -363,22 +367,30 @@ class Worker:
                 context = (getattr(self.source, 'source_loop', None), self.args.conf, self.use_roi)
                 if self.obstruction_reset.is_set() or context != self.monitor_context:
                     self.obstruction.reset()
-                    self.piece_motion.reset()
                     self.obstruction_reset.clear()
-                    if context != self.monitor_context and self.monitor_context is not None and self.tracker is not None:
-                        self.classifier_worker.invalidate()
-                        with self.lock:
-                            self.tracker.reset('영상 반복 또는 인식 설정/방해 기준 변경')
-                            self.expected_robot_move = None
+                    with self.lock:
+                        if context != self.monitor_context and self.monitor_context is not None:
+                            if self.tracker is not None:
+                                self.classifier_worker.invalidate()
+                                self.tracker.reset('영상 반복 또는 인식 설정 변경')
+                                self.expected_robot_move = None
+                            self.piece_motion.reset()
+                        else:
+                            self.piece_motion.reset_baselines()
                     self.monitor_context = context
                 view_status = self.obstruction.update(frame, len(unique_dets), len(raw) if self.mapper else None,
                                                       time.monotonic(), self.board_polygon)
-                enabled = self.show_piece_motion
-                if enabled != self._piece_motion_enabled:
-                    self.piece_motion.reset()
-                    self._piece_motion_enabled = enabled
-                # 전역 방해 여부나 교차점 할당과 무관하게 원본 검출 박스를 관찰한다.
-                local_regions = self.piece_motion.update(unique_dets, time.monotonic()) if enabled else []
+                enabled = self.show_piece_motion or self.tracker is not None
+                with self.lock:
+                    if enabled != self._piece_motion_enabled:
+                        if self.tracker is None:
+                            self.piece_motion.reset()
+                        self._piece_motion_enabled = enabled
+                    # 통합 객체는 표시 체크박스와 독립적으로 유지한다.
+                    local_regions = self.piece_motion.update(unique_dets, time.monotonic()) if enabled else []
+                if self.tracker is None:
+                    # 분류기가 없는 표시 모드도 수명 이벤트 큐가 계속 쌓이지 않도록 비운다.
+                    self.piece_motion.drain_lifecycle()
                 tracked_board = None
                 if self.tracker is not None:
                     with self.lock:
@@ -402,7 +414,7 @@ class Worker:
                 if self.count_log:
                     crop = board_crop_box(self.mapper, frame.shape[1], frame.shape[0]) if self.video_zoom and self.mapper else None
                     overlay = draw_overlay(frame, dets, self.mapper, video_glyphs, crop, self.video_detail,
-                                           self.box_label_mode, self.size_estimator, local_regions)
+                                           self.box_label_mode, self.size_estimator, local_regions if self.show_piece_motion else None)
                     self.video_log.write(overlay, board_renderer.render(stable))
                     self.count_log.record(len(dets), len(unique_dets),
                                           len(raw) if self.mapper else None, len(stable) if self.mapper else None,
@@ -435,66 +447,95 @@ class Worker:
 
     def _update_tracks(self, frame, dets, raw, view_status):
         now = time.monotonic()
-        cells = frozenset(raw)
-        ready = view_status['state'] == 'stable' and not self.robot_motion
-        if cells != self._visible_cells or ready != self._stable_gate:
-            self.classifier_worker.invalidate()
-            if not ready:
-                self.tracker.pause()
-            self._visible_cells, self._stable_gate = cells, ready
+        self._visible_cells = frozenset(raw)
+        self._stable_gate = view_status['state'] == 'stable' and not self.robot_motion
         if self.classifier_worker.error:
             raise RuntimeError('비동기 분류 오류: '+self.classifier_worker.error)
-        if ready:
-            result = self.classifier_worker.poll()
-            if result is not None:
-                observations = result['observations']
-                current = {d.board: d for d in dets if d.board is not None}
-                compatible = frozenset(observations) == cells
-                for cell, observation in observations.items():
-                    if cell not in current:
-                        compatible = False
-                        break
-                    box = observation['box']
-                    center = np.array([(box[0]+box[2])/2, (box[1]+box[3])/2])
-                    if np.linalg.norm(center-np.asarray(current[cell].center)) > max(4., .25*max(box[2]-box[0], box[3]-box[1])):
-                        compatible = False
-                        break
-                if compatible:
-                    for observation in observations.values():
-                        box = observation['box']
-                        width, height = box[2]-box[0], box[3]-box[1]
-                        observation.update(width_px=width, height_px=height, geometric_size_px=float(np.sqrt(width*height)))
-                        size = (self.size_estimator.measure(tuple(box), tuple(result['metadata']['frame_size']))
-                                if self.size_estimator is not None and observation['probabilities'] else None)
-                        observation['size_mm'] = float(np.sqrt(size[0]*size[1])) if size is not None else None
-                        observation['width_mm'], observation['height_mm'] = size if size is not None else (None, None)
-                    self.tracker.turn = self.game_turn
-                    if self.expected_robot_move is not None:
-                        self.tracker.expected_move = self.expected_robot_move
-                    if self.tracker.apply(observations, result['metadata']):
-                        self.last_classification = now
-                        self.expected_robot_move = self.tracker.expected_move
+        for piece in self.tracker.pieces.values():
+            if piece.reference_reset_evidence is not None:
+                self.tracker.event('size_reference_rebuilt', piece_id=piece.id, previous=piece.reference_reset_evidence,
+                                   reference_px=float(np.median(piece.sensor_sizes)) if piece.sensor_sizes else None)
+                piece.reference_reset_evidence = None
+        events, links = self.piece_motion.drain_lifecycle()
+        updated = set()
+        for link in links:
+            pid, provisional = link['piece_id'], link['provisional_id']
+            self.tracker.aliases[provisional] = pid
+            if link['observation'] is not None:
+                self.tracker.update_visual(pid, dict(link['observation'], piece_id=pid),
+                                           link['stamp'] or dict(observed_at=now))
+                updated.add(pid)
+        for event in events:
+            self.tracker.event(event['event'], **{k: v for k, v in event.items() if k != 'event'})
+        result = self.classifier_worker.poll()
+        if result is not None:
+            for pid, observation in result['observations'].items():
+                piece = self.tracker.pieces.get(pid)
+                epoch = result['metadata'].get('epochs', {}).get(pid)
+                if piece is None or not piece.eligible or piece.visual_epoch != epoch or not observation.get('probabilities'):
+                    continue
+                box = observation['box']
+                center = np.array([(box[0]+box[2])/2, (box[1]+box[3])/2])
+                actual_center = np.array([(piece.box[0]+piece.box[2])/2, (piece.box[1]+piece.box[3])/2])
+                if np.linalg.norm(center-actual_center) > max(4., .25*max(box[2]-box[0], box[3]-box[1])):
+                    continue
+                width, height = box[2]-box[0], box[3]-box[1]
+                observation.update(width_px=width, height_px=height, geometric_size_px=float(np.sqrt(width*height)))
+                size = (self.size_estimator.measure(tuple(box), tuple(result['metadata']['frame_size']))
+                        if self.size_estimator is not None else None)
+                observation['size_mm'] = float(np.sqrt(size[0]*size[1])) if size is not None else None
+                observation['width_mm'], observation['height_mm'] = size if size is not None else (None, None)
+                self.tracker.update_visual(pid, observation, result['metadata'])
+                updated.add(pid)
+            if updated:
+                self.last_classification = now
+        # 게임은 전역 안정 뒤에만 완전한 판을 확인한다. 의미 분류는 위에서 객체별로 이미 갱신한다.
+        board_observations = {}
+        complete = bool(raw) and self._stable_gate
+        for detection in dets:
+            if detection.board is None:
+                continue
+            pid = self.tracker.resolve_id(detection.piece_id)
+            piece = self.tracker.pieces.get(pid)
+            if (piece is None or not piece.game_eligible or piece.last_raw is None
+                    or now-piece.last_classified > max(1., 3*getattr(self.args, 'classification_interval', .2))):
+                complete = False
+                continue
+            board_observations[detection.board] = dict(piece.last_raw, piece_id=pid)
+        if complete and updated and len(board_observations) == len(raw):
+            self.tracker.turn = self.game_turn
+            self.tracker.expected_move = self.expected_robot_move
+            if self.tracker.apply(board_observations, result['metadata'] if result is not None else dict(observed_at=now), update_semantics=False):
+                self.expected_robot_move = self.tracker.expected_move
+        elif not complete:
+            self.tracker.pause()
+        eligible = []
+        epochs = {}
+        for detection in dets:
+            pid = self.tracker.resolve_id(detection.piece_id)
+            piece = self.tracker.pieces.get(pid)
+            if piece is None or not piece.visible:
+                continue
+            detection.piece_id = pid
+            detection.geometric_size_mm = piece.size_mm
+            detection.classification_conf = piece.probabilities.get(piece.label, 0.)
+            if piece.label is not None:
+                detection.name = piece.label
+                detection.side, detection.kind = piece.label.split('_', 1)
+            if piece.eligible:
+                eligible.append(detection)
+                epochs[pid] = piece.visual_epoch
+        if eligible:
             metadata = dict(frame=getattr(self.source, 'source_frame', None), source_time=getattr(self.source, 'source_time', None),
                             loop=getattr(self.source, 'source_loop', None), frame_size=[frame.shape[1], frame.shape[0]],
-                            observed_at=now, wall_time=time.time())
-            self.classifier_worker.submit(frame, dets, metadata)
-        else:
-            self.tracker.pause()
+                            observed_at=now, wall_time=time.time(), epochs=epochs)
+            self.classifier_worker.submit(frame, eligible, metadata)
         self.tracking_status = self.tracker.status
+        visible = [p for p in self.tracker.pieces.values() if p.visible]
+        self.visual_counts = (len(visible), sum(p.label is not None for p in visible), sum(not p.eligible for p in visible))
         self.state_store.save(self.tracker, now)
-        # 현재 보이는 위치에만 ID/종류를 표시한다. 가려진 말의 기억 위치를 그리지 않는다.
-        for detection in dets:
-            pid = self.tracker.occupancy.get(detection.board)
-            if pid is not None:
-                piece = self.tracker.pieces[pid]
-                detection.piece_id = pid
-                detection.geometric_size_mm = piece.size_mm
-                detection.classification_conf = piece.probabilities.get(piece.label, 0.)
-                if piece.label is not None:
-                    detection.name = piece.label
-                    detection.side, detection.kind = piece.label.split('_', 1)
-        known = self.tracker.board(cells)
-        return {cell: known.get(cell, ('unknown', 'piece')) for cell in cells}
+        # 실시간 보드는 현재 보이는 객체를 투영한다. 확정 게임판이나 숨은 위치를 복제해 그리지 않는다.
+        return {d.board: (d.side, d.kind) for d in dets if d.board is not None}
 
     def expect_robot_move(self, src, dst):
         with self.lock:
@@ -1104,7 +1145,7 @@ class App:
             self.worker.show_piece_motion = self.piece_motion_visible.get()
             local_regions = self.worker.get_piece_regions(frame) if self.piece_motion_visible.get() else []
             self.lbl_piece_motion.config(text=f"의심 {len(local_regions)}곳 · 노랑=이동 / 빨강=검출 이상"
-                                         if self.piece_motion_visible.get() else "표시 꺼짐 · 켜면 말별 기준을 새로 수집")
+                                         if self.piece_motion_visible.get() else "영역 표시 꺼짐 · 말별 판단은 계속")
             crop = None
             if self.zoom.get() and self.mapper is not None:
                 crop = board_crop_box(self.mapper, frame.shape[1], frame.shape[0])
@@ -1128,7 +1169,7 @@ class App:
             if lag > 1.5:
                 title, color = '판단 불가 · 영상 지연', '#b42318'
             self.worker.game_turn = self.game.turn if self.game is not None and self.mode.get() == 'game' else None
-            self.lbl_tracking.config(text=('분류 주기 '+str(getattr(self.args, 'classification_interval', .2))+'초 · '
+            self.lbl_tracking.config(text=(f'종류 {self.worker.visual_counts[1]}/{self.worker.visual_counts[0]} · 개별 보류 {self.worker.visual_counts[2]} · '
                                            +self.worker.tracking_status) if self.worker.tracker is not None else '')
             self.lbl_obstruction.config(text=f"화면 방해: {title} · {status['reason']} · 움직임 {status['motion']*100:.1f}%", fg=color)
             assigned = sum(1 for d in dets if d.board is not None)
@@ -1244,7 +1285,7 @@ def main():
     if args.calibration and Path(args.calibration).exists():
         mapper = BoardMapper.from_calibration(args.calibration, piece_height_mm=args.piece_height)
     else:
-        print(f"[경고] 보정 파일 없음: {args.calibration} — 판 매핑 없이 검출만 한다")
+        print(f"[경고] 보정 파일 없음: {args.calibration} — 판 매핑 없이 영상 좌표에서 인식한다")
     print("[모델] 불러오는 중… (처음엔 수 초)")
     from piece_detection import PieceDetector
 

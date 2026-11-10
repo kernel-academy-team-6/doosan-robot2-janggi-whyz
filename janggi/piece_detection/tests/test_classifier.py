@@ -62,3 +62,17 @@ def test_two_stage_invalid_predictions_are_rejected():
     classifier.predict = lambda images: []
     with pytest.raises(ValueError, match='개수'):
         TwoStageDetector(detector, classifier).detect(np.zeros((100, 100, 3), np.uint8))
+
+
+def test_classification_uses_object_ids_even_without_board_assignment():
+    detector, classifier = Detector(), Classifier()
+    classifier.predict_proba = lambda images: [[.9, .1], [.2, .8]][:len(images)]
+    pipeline = TwoStageDetector(detector, classifier)
+    positions = pipeline.detect_positions(np.zeros((100, 100, 3), np.uint8))
+    for i, detection in enumerate(positions):
+        detection.piece_id = f'piece_{i+1:04}'
+        assert detection.board is None
+    result = pipeline.classify_observations(np.zeros((100, 100, 3), np.uint8), positions)
+    assert set(result) == {'piece_0001', 'piece_0002'}
+    assert result['piece_0001']['probabilities']['blue_cha'] == .9
+    assert result['piece_0002']['probabilities']['red_sang'] == .8

@@ -1,8 +1,9 @@
-"""안정된 관측에서만 말 ID·분류 확률·크기를 갱신하고 한 수의 변화를 확정한다."""
+"""검출 기반 통합 말 객체와 별도의 안정된 게임판 스냅샷·이벤트 저장."""
 from collections import deque
 from dataclasses import dataclass, field
 from datetime import datetime
 import json
+import copy
 import math
 from pathlib import Path
 
@@ -12,7 +13,38 @@ import numpy as np
 @dataclass
 class PieceState:
     id: str
-    cell: tuple
+    cell: tuple | None = None
+    box: tuple | None = None
+    visible: bool = False
+    last_seen: float = 0.
+    detection_confidence: float = 0.
+    association_confidence: float = 1.
+    visual_epoch: int = 0
+    good_box: tuple | None = None
+    sensor_confidence: deque = field(default_factory=lambda: deque(maxlen=20))
+    sensor_sizes: deque = field(default_factory=lambda: deque(maxlen=20))
+    positions: deque = field(default_factory=lambda: deque(maxlen=20))
+    misses: int = 0
+    seen_count: int = 0
+    revival_state: str = 'active'
+    revival_candidates: list = field(default_factory=list)
+    revival_votes: dict = field(default_factory=dict)
+    revival_frames: int = 0
+    revival_since: float | None = None
+    revival_last_probe: float = float('-inf')
+    revival_count: int = 0
+    last_revival: dict | None = None
+    flags: tuple = ()
+    last_alert: float = float("-inf")
+    recovery_sizes: deque = field(default_factory=lambda: deque(maxlen=20))
+    recovery_since: float | None = None
+    size_reference_rebuilds: int = 0
+    reference_reset_evidence: dict | None = None
+    last_raw: dict | None = None
+    last_classified: float = float("-inf")
+    confirmed_cell: tuple | None = None
+    game_bound: bool = False
+    superseded_by: str | None = None
     probabilities: dict = field(default_factory=dict)
     label: str | None = None
     status: str = 'on_board'
@@ -25,6 +57,40 @@ class PieceState:
     moves: deque = field(default_factory=lambda: deque(maxlen=50))
     alternative: str | None = None
     alternative_count: int = 0
+
+    @property
+    def board_assigned(self):
+        return self.visible and self.cell is not None
+
+    @property
+    def eligible(self):
+        return (self.visible and not self.flags and len(self.sensor_confidence) >= 3
+                and self.association_confidence >= .25 and self.status not in ('captured', 'superseded'))
+
+    @property
+    def game_eligible(self):
+        return self.eligible and self.revival_state != 'pending'
+
+    def clear_semantics(self):
+        self.visual_epoch += 1
+        self.probabilities.clear()
+        self.label = None
+        self.sizes.clear()
+        self.history.clear()
+        self.alternative, self.alternative_count = None, 0
+        self.last_raw, self.last_classified = None, float('-inf')
+
+    def semantic_snapshot(self):
+        return dict(probabilities=dict(self.probabilities), label=self.label, sizes=list(self.sizes), history=list(self.history),
+                    last_raw=copy.deepcopy(self.last_raw), last_classified=self.last_classified)
+
+    def restore_semantics(self, saved):
+        self.probabilities = dict(saved['probabilities'])
+        self.label = saved['label']
+        self.sizes = deque(saved['sizes'], maxlen=20)
+        self.history = deque(saved['history'], maxlen=20)
+        self.last_raw, self.last_classified = copy.deepcopy(saved.get('last_raw')), saved.get('last_classified', float('-inf'))
+        self.alternative, self.alternative_count = None, 0
 
     @property
     def size_mm(self):
@@ -87,11 +153,21 @@ class PieceState:
         return dict(id=self.id, **record)
 
     def serialize(self):
-        return dict(id=self.id, cell=list(self.cell), status=self.status, label=self.label,
+        return dict(id=self.id, cell=list(self.cell) if self.cell is not None else None,
+                    board_assigned=self.board_assigned, confirmed_cell=self.confirmed_cell, box=self.box, visible=self.visible,
+                    last_seen=self.last_seen, last_classified=self.last_classified if math.isfinite(self.last_classified) else None,
+                    detection_confidence=self.detection_confidence, flags=list(self.flags),
+                    association_confidence=self.association_confidence, seen_count=self.seen_count,
+                    revival_state=self.revival_state, revival_candidates=list(self.revival_candidates),
+                    revival_count=self.revival_count, last_revival=self.last_revival,
+                    status=self.status, label=self.label,
                     confidence=self.probabilities.get(self.label, 0), probabilities=self.probabilities,
                     geometric_size_mm=self.size_mm, size_samples_mm=list(self.sizes), history=list(self.history),
                     size_outlier_count=self.size_outlier_count, size_sample_count=len(self.sizes),
                     size_mad_mm=float(np.median(np.abs(np.asarray(self.sizes)-self.size_mm))) if self.sizes else None,
+                    size_reference_rebuilds=self.size_reference_rebuilds,
+                    sensor_baseline_size_px=float(np.median(self.sensor_sizes)) if self.sensor_sizes else None,
+                    sensor_baseline_confidence=float(np.median(self.sensor_confidence)) if self.sensor_confidence else None,
                     previous_cell=self.previous_cell, captured_by=self.captured_by, captured_at=self.captured_at, moves=list(self.moves))
 
 
@@ -100,6 +176,8 @@ class PieceTracker:
         self.threshold, self.alpha, self.size_strength = threshold, alpha, size_strength
         self.validator = validator
         self.pieces, self.occupancy = {}, {}
+        self.confirmed_labels, self.confirmed_semantics = {}, {}
+        self.aliases = {}
         self.next_id, self.revision, self.generation = 1, 0, 0
         self.candidate, self.candidate_count, self.bad_count = None, 0, 0
         self.status = '안정된 초기 배치 확인 중'
@@ -110,41 +188,84 @@ class PieceTracker:
     def event(self, event, **values):
         self.events.append(dict(event=event, **values))
 
-    def reset(self, reason):
+    def reset(self, reason, keep_objects=False):
         self.generation += 1
         self.event('reset', reason=reason, previous_pieces=[p.serialize() for p in self.pieces.values()])
-        self.pieces = {}
+        if keep_objects:
+            affected_cells = set(self.occupancy)
+            for piece in self.pieces.values():
+                if piece.game_bound or piece.cell in affected_cells:
+                    piece.clear_semantics()
+                piece.confirmed_cell, piece.game_bound = None, False
+        else:
+            self.pieces.clear()
         self.occupancy = {}
+        self.confirmed_labels, self.confirmed_semantics, self.aliases = {}, {}, {}
         self.candidate, self.candidate_count, self.bad_count = None, 0, 0
         self.expected_move = None
         self.status = '재인식 중: '+reason
 
     def pause(self):
         self.candidate, self.candidate_count, self.bad_count = None, 0, 0
-        self.status = '화면 방해/안정 대기 · 이력 갱신 보류'
+        self.status = '게임 배치 확정 보류 · 말별 관측은 별도 갱신'
 
     def board(self, visible=None):
-        return {cell: tuple(self.pieces[pid].label.split('_', 1)) if self.pieces[pid].label else ('unknown', 'piece')
-                for cell, pid in self.occupancy.items() if visible is None or cell in visible}
+        return {cell: label for cell, label in self.confirmed_labels.items() if visible is None or cell in visible}
 
-    def _new(self, cell):
-        piece = PieceState(f'piece_{self.next_id:04}', cell)
-        self.next_id += 1
-        self.pieces[piece.id] = piece
+    def _new(self, cell, observation=None):
+        pid = (observation or {}).get('piece_id')
+        if pid is not None and pid in self.pieces:
+            piece = self.pieces[pid]
+        else:
+            piece = PieceState(f'piece_{self.next_id:04}', cell)
+            self.next_id += 1
+            self.pieces[piece.id] = piece
+        piece.game_bound, piece.confirmed_cell = True, cell
         self.occupancy[cell] = piece.id
 
-    def _compatible(self, piece, observation):
+    def resolve_id(self, pid):
+        while pid in self.aliases:
+            pid = self.aliases[pid]
+        return pid
+
+    def _bind_visual(self, pid, observed_id):
+        observed_id = self.resolve_id(observed_id)
+        if observed_id == pid or observed_id not in self.pieces:
+            return
+        target, observed = self.pieces[pid], self.pieces[observed_id]
+        for name in ('box', 'cell', 'visible', 'last_seen', 'detection_confidence', 'association_confidence',
+                     'positions', 'misses', 'flags', 'last_alert', 'recovery_sizes'):
+            setattr(target, name, getattr(observed, name))
+        target.good_box = observed.box
+        target.visual_epoch += 1
+        observed.visible, observed.status, observed.superseded_by = False, 'superseded', pid
+        self.aliases[observed_id] = pid
+        self.event('identity_reconciled', observed_id=observed_id, piece_id=pid)
+
+    def update_visual(self, pid, observation, stamp):
+        piece = self.pieces[pid]
+        piece.last_raw = observation
+        if isinstance(stamp, dict):
+            stamp = {k: v for k, v in stamp.items() if k != 'epochs'}
+        piece.last_classified = stamp['observed_at'] if isinstance(stamp, dict) else float(stamp)
+        self.event('classification', cell=piece.cell, **piece.update(observation, stamp, self.threshold, self.alpha, self.size_strength))
+
+    def _label_at(self, cell):
+        value = self.confirmed_labels.get(cell)
+        return '_'.join(value) if value and value[0] != 'unknown' else None
+
+    def _compatible(self, label, observation):
         p = observation.get('probabilities') or {}
-        return piece.label is not None and p.get(piece.label, 0) >= self.threshold
+        return label is not None and p.get(label, 0) >= self.threshold
 
     def _legal(self, src, dst):
-        piece = self.pieces[self.occupancy[src]]
-        if piece.label is None:
+        label = self._label_at(src)
+        if label is None:
             return False
         if self.expected_move is not None:
             if (src, dst) != self.expected_move:
                 return False
-        elif self.turn is not None and piece.label.split('_')[0] != self.turn:
+        elif self.turn is not None and label.split('_')[0] != self.turn:
             return False
         return self.validator(self.board(), src, dst) if self.validator else True
 
@@ -153,26 +274,26 @@ class PieceTracker:
         removed, added = old-new, new-old
         if len(old) == len(new) and len(removed) == len(added) == 1:
             src, dst = next(iter(removed)), next(iter(added))
-            piece = self.pieces[self.occupancy[src]]
-            if self._compatible(piece, observations[dst]) and self._legal(src, dst):
+            label = self._label_at(src)
+            if self._compatible(label, observations[dst]) and self._legal(src, dst):
                 return src, dst, None
         if len(old)-len(new) == 1 and len(removed) == 1 and not added:
             src = next(iter(removed))
-            piece = self.pieces[self.occupancy[src]]
+            label = self._label_at(src)
             destinations = []
             for dst in old & new:
-                victim = self.pieces[self.occupancy[dst]]
+                victim_label = self._label_at(dst)
                 p = observations[dst].get('probabilities') or {}
-                if (victim.label and piece.label and victim.label.split('_')[0] != piece.label.split('_')[0]
-                        and self._compatible(piece, observations[dst])
-                        and p.get(piece.label, 0)-p.get(victim.label, 0) >= .15 and self._legal(src, dst)):
+                if (victim_label and label and victim_label.split('_')[0] != label.split('_')[0]
+                        and self._compatible(label, observations[dst])
+                        and p.get(label, 0)-p.get(victim_label, 0) >= .15 and self._legal(src, dst)):
                     destinations.append(dst)
             if len(destinations) == 1:
                 dst = destinations[0]
                 return src, dst, self.occupancy[dst]
         return None
 
-    def apply(self, observations, stamp):
+    def apply(self, observations, stamp, update_semantics=True):
         # 점유 배치뿐 아니라 목적지의 현재 분류가 두 관측에서 같은 이동을 가리켜야 한다.
         if not observations:
             self.pause()
@@ -197,21 +318,32 @@ class PieceTracker:
                 self.status = '한 수로 설명되지 않는 배치 · 재확인 중'
                 if self.bad_count < 3:
                     return False
-                self.reset('안정된 배치가 이동/포획 한 수와 일치하지 않음')
+                self.reset('안정된 배치가 이동/포획 한 수와 일치하지 않음', keep_objects=not update_semantics)
             if not self.occupancy:
                 for cell in sorted(observations):
-                    self._new(cell)
+                    self._new(cell, observations[cell])
                 self.event('initialized', time=stamp, count=len(self.occupancy))
             elif transition:
                 src, dst, captured_id = transition
                 pid = self.occupancy.pop(src)
+                # 목적지에 잘못 이어진 시각 추적 이력이 포획 전 상대 말에 섞이지 않도록 복원한다.
+                if not update_semantics:
+                    for identity in (pid, captured_id):
+                        if identity in self.confirmed_semantics:
+                            self.pieces[identity].restore_semantics(self.confirmed_semantics[identity])
+                    self._bind_visual(pid, observations[dst].get('piece_id', pid))
+                    self.update_visual(pid, observations[dst], stamp)
                 if captured_id:
                     self.pieces[captured_id].status = 'captured'
+                    self.pieces[captured_id].visible = False
+                    self.pieces[captured_id].cell = None
                     self.pieces[captured_id].captured_by = pid
                     self.pieces[captured_id].captured_at = stamp
                 self.occupancy[dst] = pid
                 self.pieces[pid].previous_cell = src
                 self.pieces[pid].cell = dst
+                self.pieces[pid].confirmed_cell = dst
+                self.pieces[pid].status = "on_board"
                 self.pieces[pid].moves.append(dict(src=src, dst=dst, time=stamp, captured_id=captured_id))
                 self.event('capture' if captured_id else 'move', time=stamp, piece_id=pid, src=src, dst=dst,
                            captured_id=captured_id, captured_label=self.pieces[captured_id].label if captured_id else None,
@@ -219,18 +351,34 @@ class PieceTracker:
                 self.expected_move = None
         self.bad_count = 0
         for cell, observation in observations.items():
-            self.event('classification', cell=cell, **self.pieces[self.occupancy[cell]].update(
-                observation, stamp, self.threshold, self.alpha, self.size_strength))
+            pid = self.occupancy[cell]
+            if not update_semantics:
+                observed_id = observation.get('piece_id', pid)
+                if (observed_id != pid and observed_id in self.pieces
+                        and self._compatible(self._label_at(cell), observation)):
+                    self._bind_visual(pid, observed_id)
+                    self.update_visual(pid, observation, stamp)
+            if update_semantics:
+                self.event('classification', cell=cell, **self.pieces[pid].update(
+                    observation, stamp, self.threshold, self.alpha, self.size_strength))
+            piece = self.pieces[pid]
+            self.confirmed_labels[cell] = tuple(piece.label.split('_', 1)) if piece.label else ('unknown', 'piece')
+            self.confirmed_semantics[pid] = piece.semantic_snapshot()
+        self.confirmed_labels = {c: p for c, p in self.confirmed_labels.items() if c in self.occupancy}
         self.revision += 1
         self.status = '확정 배치 갱신됨'
         return True
 
     def snapshot(self):
-        return dict(schema_version=1, generation=self.generation, updated_at=datetime.now().astimezone().isoformat(), revision=self.revision,
+        return dict(schema_version=2, generation=self.generation, updated_at=datetime.now().astimezone().isoformat(), revision=self.revision,
                     status=self.status, expected_count=len(self.occupancy),
+                    visible_count=sum(p.visible for p in self.pieces.values()),
+                    classified_visible_count=sum(p.visible and p.label is not None for p in self.pieces.values()),
+                    local_paused_count=sum(p.visible and not p.eligible for p in self.pieces.values()),
                     fusion=dict(current_weight=self.alpha, past_weight=1-self.alpha, size_strength=self.size_strength,
                                 size_references_mm=dict(small=23, medium=29, king=35)),
-                    board=[dict(cell=list(cell), piece_id=pid) for cell, pid in sorted(self.occupancy.items())],
+                    board=[dict(cell=list(cell), piece_id=pid, piece=self.confirmed_labels.get(cell, ('unknown', 'piece')))
+                           for cell, pid in sorted(self.occupancy.items())],
                     pieces=[p.serialize() for p in self.pieces.values()])
 
 

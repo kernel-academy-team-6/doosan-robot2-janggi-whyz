@@ -71,6 +71,32 @@ def test_capture_requires_destination_replacement_and_preserves_attacker_prior()
     assert event['captured_id'] == victim and event['count'] == 1
 
 
+def test_capture_reconciles_same_visual_objects_and_restores_victim_history():
+    tracker = PieceTracker()
+    a = PieceState('piece_0001', (0, 0), box=(0, 0, 20, 20), visible=True)
+    b = PieceState('piece_0002', (0, 3), box=(0, 30, 20, 50), visible=True)
+    tracker.pieces.update({a.id: a, b.id: b})
+    tracker.update_visual(a.id, observation(), 1.)
+    tracker.update_visual(b.id, observation('red_soldier', 23.), 1.)
+    initial = {(0, 0): dict(observation(), piece_id=a.id), (0, 3): dict(observation('red_soldier', 23.), piece_id=b.id)}
+    tracker.apply(initial, 2., update_semantics=False)
+    tracker.apply(initial, 3., update_semantics=False)
+    # 가림 뒤 목적지의 현재 박스가 잠시 상대 ID로 연결된 상황을 재현한다.
+    for _ in range(20):
+        tracker.update_visual(b.id, observation(), 4.)
+    assert b.label == 'blue_cha'
+    assert tracker.board()[(0, 3)] == ('red', 'soldier')
+    current = {(0, 3): dict(observation(), piece_id=b.id)}
+    tracker.apply(current, 5., update_semantics=False)
+    assert tracker.apply(current, 6., update_semantics=False)
+    assert tracker.pieces[a.id] is a and tracker.pieces[b.id] is b
+    assert tracker.occupancy == {(0, 3): a.id}
+    assert a.label == 'blue_cha' and a.visible
+    assert b.status == 'captured' and b.label == 'red_soldier' and not b.visible
+    assert tracker.resolve_id(b.id) == a.id
+    assert tracker.board() == {(0, 3): ('blue', 'cha')}
+
+
 def test_persistent_miss_does_not_create_capture_and_reinitializes():
     tracker = PieceTracker()
     initialize(tracker, {(0, 0): observation(), (0, 3): observation('red_soldier', 23.)})
@@ -94,6 +120,19 @@ def test_pause_preserves_all_evidence_and_resets_confirmation():
     assert tracker.pieces[tracker.occupancy[(0, 0)]].serialize() == previous
     assert not tracker.apply({(0, 1): observation()}, 4.)
     assert tracker.apply({(0, 1): observation()}, 5.)
+
+
+def test_game_reinitialization_does_not_erase_unrelated_offboard_object():
+    tracker = PieceTracker()
+    initialize(tracker, {(0, 0): observation()})
+    unrelated = PieceState('offboard', None, visible=True)
+    unrelated.update(observation('blue_horse'), 1.)
+    tracker.pieces[unrelated.id] = unrelated
+    before = unrelated.semantic_snapshot()
+    tracker.reset('여러 말 재배치', keep_objects=True)
+    assert unrelated.semantic_snapshot() == before
+    assert tracker.pieces['piece_0001'].label is None
+    assert tracker.pieces['piece_0001'].visual_epoch > 0
 
 
 def test_turn_rule_and_robot_expected_move():
@@ -193,8 +232,8 @@ def test_worker_tracks_move_and_capture_with_position_stream(tmp_path):
             return result
         def classify_observations(self, frame, detections):
             stage = int(frame[0, 0, 0])
-            return {d.board: {**observation('red_soldier' if d.board == (0, 3) and stage < 2 else 'blue_cha'),
-                              'box': list(d.box)} for d in detections}
+            return {d.piece_id: {**observation('red_soldier' if d.board == (0, 3) and stage < 2 else 'blue_cha'),
+                              'box': list(d.box), 'piece_id': d.piece_id} for d in detections}
 
     class Source:
         source_loop = 0

@@ -19,6 +19,7 @@ class CropClassifier(Protocol):
     classes: list[str]
     size: int
     def predict(self, images: list[Image.Image]) -> list[tuple[str, float]]: ...
+    def predict_proba(self, images: list[Image.Image]) -> list[list[float]]: ...
 
 
 def input_transform(size=224):
@@ -125,24 +126,25 @@ class TwoStageDetector:
 
     def classify_observations(self, bgr, detections):
         frame = Image.fromarray(np.ascontiguousarray(bgr[:, :, ::-1]))
-        observations, crops, cells = {}, [], []
+        observations, crops, identities = {}, [], []
         for detection in detections:
-            if detection.board is None:
+            if detection.piece_id is None:
                 continue
-            observations[detection.board] = dict(box=list(detection.box), probabilities=None)
+            pid = detection.piece_id
+            observations[pid] = dict(box=list(detection.box), probabilities=None, piece_id=pid)
             try:
                 crops.append(prepare_image(frame, self.classifier.size, box=detection.box))
-                cells.append(detection.board)
+                identities.append(pid)
             except ValueError:
                 continue
         probabilities = self.classifier.predict_proba(crops) if crops else []
-        if len(probabilities) != len(cells):
+        if len(probabilities) != len(identities):
             raise ValueError('분류 확률 개수가 Crop 개수와 다릅니다.')
-        for cell, distribution in zip(cells, probabilities):
+        for pid, distribution in zip(identities, probabilities):
             p = np.asarray(distribution, float)
             if p.shape != (len(self.classifier.classes),) or not np.isfinite(p).all() or (p < 0).any() or p.sum() <= 0:
                 raise ValueError('잘못된 종류별 분류 확률입니다.')
-            observations[cell]['probabilities'] = dict(zip(self.classifier.classes, (p/p.sum()).tolist()))
+            observations[pid]['probabilities'] = dict(zip(self.classifier.classes, (p/p.sum()).tolist()))
         return observations
 
     def detect(self, bgr, conf=None, roi=None):
