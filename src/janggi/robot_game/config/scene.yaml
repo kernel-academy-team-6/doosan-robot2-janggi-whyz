@@ -1,0 +1,18 @@
+# Geometry is in metres internally. These presentation dimensions are in mm.
+# The 90 black intersections always come directly from calibration.yaml.
+board:
+  outer_size_mm: [400.0, 400.0]
+  outer_size_source: user_estimate_square_not_measured
+  # Thickness is a display assumption; the calibrated TOP surface stays fixed.
+  thickness_mm: 8.0
+camera:
+  model: Intel RealSense D455f
+  # Official D455f outline: width x height x depth, including front filter.
+  housing_size_mm: [124.0, 29.0, 26.8]
+  update_rate_hz: 30.0
+  topic: /janggi_sim/d455f
+  optical_frame: sim_d455f_color_optical_frame
+  near_clip_m: 0.02
+  far_clip_m: 10.0
+  depth_near_m: 0.52
+  depth_far_m: 6.0

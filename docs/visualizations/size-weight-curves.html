@@ -1,17 +1,17 @@
 <div id="janggi-size-weight-curves">
   <h2>크기 적합도 → CNN 확률 보정</h2>
   <div class="viz-controls sw-controls">
-    <label class="form-label">관측 크기 <output data-size class="tabular-nums">29.0 mm</output><input data-input="size" class="form-range" type="range" min="18" max="40" step="0.1" value="29" aria-label="관측 대표 크기 mm"></label>
+    <label class="form-label">관측 크기 <output data-size class="tabular-nums">28.8 mm</output><input data-input="size" class="form-range" type="range" min="18" max="40" step="0.1" value="28.8" aria-label="관측 대표 크기 mm"></label>
     <label class="form-label">size_strength <output data-strength class="tabular-nums">0.50</output><input data-input="strength" class="form-range" type="range" min="0" max="1" step="0.05" value="0.5" aria-label="크기 가중치 강도"></label>
     <label class="form-label">크기 퍼짐 MAD <output data-spread class="tabular-nums">0.00 mm</output><input data-input="spread" class="form-range" type="range" min="0" max="3" step="0.1" value="0" aria-label="크기 관측 중앙값 절대편차 mm"></label>
   </div>
   <div class="sw-legend" aria-label="종류별 크기 곡선">
-    <button type="button" data-group="small" aria-pressed="true"><span class="sw-swatch" style="background:var(--viz-series-1)"></span>사·졸·병 · 23 mm</button>
-    <button type="button" data-group="medium" aria-pressed="true"><span class="sw-swatch" style="background:var(--viz-series-2)"></span>차·포·마·상 · 29 mm</button>
-    <button type="button" data-group="king" aria-pressed="true"><span class="sw-swatch" style="background:var(--viz-series-3)"></span>궁 · 35 mm</button>
+    <button type="button" data-group="small" aria-pressed="true"><span class="sw-swatch" style="background:var(--viz-series-1)"></span>사·졸·병 · 22.729 mm</button>
+    <button type="button" data-group="medium" aria-pressed="true"><span class="sw-swatch" style="background:var(--viz-series-2)"></span>차·포·마·상 · 28.767 mm</button>
+    <button type="button" data-group="king" aria-pressed="true"><span class="sw-swatch" style="background:var(--viz-series-3)"></span>궁 · 35.448 mm</button>
   </div>
-  <div class="sw-panel"><h3>① 원래 가우시안 모양 · 폭 1.8 mm, 최댓값 1</h3><svg data-plot="gaussian" class="sw-plot" role="img" aria-label="23, 29, 35 mm를 중심으로 한 가우시안 모양의 곡선"></svg></div>
-  <div class="sw-panel"><h3>② 바닥값·강도를 반영한 실제 곱셈 가중치</h3><svg data-plot="weight" class="sw-plot" role="img" aria-label="CNN 확률에 실제 곱하는 완화된 크기 가중치 곡선"></svg></div>
+  <div class="sw-panel"><h3>① 설계한 가우시안 모양 · 폭 1.2 mm, 최댓값 1</h3><svg data-plot="gaussian" class="sw-plot" role="img" aria-label="정상 관측의 그룹 평균을 중심으로 하는 폭 1.2mm의 가우시안 곡선"></svg></div>
+  <div class="sw-panel"><h3>② 바닥값 없이 강도·MAD를 반영한 실제 곱셈 가중치</h3><svg data-plot="weight" class="sw-plot" role="img" aria-label="CNN 확률에 실제 곱하는 바닥값 없는 크기 가중치 곡선"></svg></div>
   <div class="sw-detail tabular-nums" data-detail aria-live="polite"></div>
   <div class="sw-panel"><h3>③ CNN 예시 → 곱셈 → 재정규화 · 과거 이력 결합 전</h3>
     <div class="text-small">예시 입력 · 진영 생략 · 클래스별 입력값 수정 가능</div>
@@ -47,20 +47,20 @@
 <script>
 (()=>{
  const root=document.getElementById('janggi-size-weight-curves');
- const groups=[{id:'small',label:'사·졸·병',mu:23,color:'var(--viz-series-1)'},{id:'medium',label:'차·포·마·상',mu:29,color:'var(--viz-series-2)'},{id:'king',label:'궁',mu:35,color:'var(--viz-series-3)'}];
+ const groups=[{id:'small',label:'사·졸·병',mu:22.728967273502516,color:'var(--viz-series-1)'},{id:'medium',label:'차·포·마·상',mu:28.767328979182714,color:'var(--viz-series-2)'},{id:'king',label:'궁',mu:35.44792306470889,color:'var(--viz-series-3)'}];
  const kinds=[{label:'궁',group:'king',value:55},{label:'차',group:'medium',value:45},{label:'포',group:'medium',value:0},{label:'마',group:'medium',value:0},{label:'상',group:'medium',value:0},{label:'사',group:'small',value:0},{label:'졸·병',group:'small',value:0}];
- let state={size:29,strength:.5,spread:0,values:kinds.map(k=>k.value),hidden:[]};
+ let state={version:2,size:28.8,strength:.5,spread:0,values:kinds.map(k=>k.value),hidden:[]};
  const plots=[{key:'gaussian',node:root.querySelector('[data-plot="gaussian"]'),label:'가우시안 값'},{key:'weight',node:root.querySelector('[data-plot="weight"]'),label:'실제 곱하는 값'}];
  const tooltip=root.querySelector('.sw-tooltip');
  let first=true;
- const normal=(x,mu)=>Math.exp(-.5*((x-mu)/1.8)**2);
+ const sigma=1.2;
+ const normal=(x,mu)=>Math.exp(-.5*((x-mu)/sigma)**2);
  const exponent=()=>state.strength/(1+state.spread);
- const likelihood=(x,mu)=>.25+.75*normal(x,mu);
- const weight=(x,mu)=>likelihood(x,mu)**exponent();
+ const weight=(x,mu)=>Math.exp(-.5*((x-mu)/sigma)**2*exponent());
  const val=(key,x,g)=>key==='gaussian'?normal(x,g.mu):weight(x,g.mu);
  const pct=n=>(n*100).toFixed(1);
  function applySaved(saved){
-  const s=saved?.privateContent;if(!s)return;
+  const s=saved?.privateContent;if(!s||s.version!==2)return;
   for(const [key,min,max] of [['size',18,40],['strength',0,1],['spread',0,3]])if(Number.isFinite(s[key]))state[key]=Math.max(min,Math.min(max,s[key]));
   if(Array.isArray(s.values)&&s.values.length===7&&s.values.every(n=>Number.isFinite(n)&&n>=0&&n<=100))state.values=s.values;
   if(Array.isArray(s.hidden))state.hidden=s.hidden.filter(id=>groups.some(g=>g.id===id));
@@ -83,7 +83,7 @@
   const products=state.values.map((v,i)=>sum?v/sum*ws[i]:0);
   const total=products.reduce((a,b)=>a+b,0);
   [...rows.children].forEach((row,i)=>{
-   row.querySelector('[data-w]').textContent=ws[i].toFixed(3);
+   row.querySelector('[data-w]').textContent=ws[i]>0&&ws[i]<.001?ws[i].toExponential(2):ws[i].toFixed(3);
    row.querySelector('[data-product]').textContent=total?pct(products[i]):'—';
    row.querySelector('[data-result]').textContent=total?pct(products[i]/total):'—';
    row.querySelector('.sw-bar').style.width=(total?products[i]/total*100:0)+'%';
@@ -109,7 +109,7 @@
  }
  function drawPlots(){
   const animate=!first&&!matchMedia('(prefers-reduced-motion: reduce)').matches;
-  const samples=d3.range(d3.min(groups,g=>g.mu)-3*1.8,d3.max(groups,g=>g.mu)+3*1.8+.025,.05);
+  const samples=d3.range(Math.min(18,d3.min(groups,g=>g.mu)-3*sigma),Math.max(40,d3.max(groups,g=>g.mu)+3*sigma)+.025,.05);
   const ext=d3.extent(samples),pad=(ext[1]-ext[0])*.015,domain=[ext[0]-pad,ext[1]+pad];
   for(const p of plots){
    const width=Math.max(280,Math.round(p.node.parentElement.getBoundingClientRect().width)),height=235,m={left:64,right:18,top:27,bottom:50};
@@ -138,7 +138,7 @@
   root.querySelector('[data-size]').textContent=state.size.toFixed(1)+' mm';
   root.querySelector('[data-strength]').textContent=state.strength.toFixed(2);
   root.querySelector('[data-spread]').textContent=state.spread.toFixed(2)+' mm';
-  root.querySelector('[data-detail]').textContent=`유효 강도 ${exponent().toFixed(3)} · 중심 가중치 1.000 · 먼 크기의 가중치 하한 ${(Math.pow(.25,exponent())).toFixed(3)}`;
+  root.querySelector('[data-detail]').textContent=`유효 강도 ${exponent().toFixed(3)} · 중심 가중치 1.000 · ${exponent()>0?'바닥값 없음 · 실효 폭 '+(sigma/Math.sqrt(exponent())).toFixed(3)+' mm':'크기 보정 꺼짐'}`;
   drawPlots();drawTable();root.dataset.ready='true';
  }
  for(const key of ['size','strength','spread']){const el=root.querySelector(`[data-input="${key}"]`);el.addEventListener('input',()=>{state[key]=Number(el.value);hideHover();draw();});el.addEventListener('change',save);}

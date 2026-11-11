@@ -10,6 +10,54 @@ from pathlib import Path
 import numpy as np
 
 
+# Pooled means of the normal observations in docs/analysis/normal_piece_sizes.
+# This is a deliberately broad compatibility kernel, not a fitted size PDF.
+SIZE_REFERENCES_MM = dict(small=22.728967273502516,
+                          medium=28.767328979182714,
+                          king=35.44792306470889)
+SIZE_PRIOR_SIGMA_MM = 1.2
+
+
+def size_prior_metadata():
+    return dict(size_references_mm=dict(SIZE_REFERENCES_MM),
+                size_sigma_mm=SIZE_PRIOR_SIGMA_MM, size_likelihood_floor=0.,
+                size_weighting='gaussian_no_floor',
+                size_reference_source='normal_piece_sizes/size_group_summary.csv')
+
+
+def size_reference_mm(label):
+    kind = label.split('_', 1)[1]
+    group = 'king' if kind == 'king' else 'small' if kind in ('sa', 'soldier') else 'medium'
+    return SIZE_REFERENCES_MM[group]
+
+
+def size_weighted_probabilities(raw, size_mm, spread_mm, size_strength):
+    """Multiply by exp(-0.5*((size-mean)/sigma)**2)**strength, then normalize.
+
+    Work relative to the closest supported group in log space. Removing the
+    floor must not turn all products into zero for distant sizes or tiny CNN
+    probabilities. Subtracting squared distances algebraically also avoids
+    cancellation of two very large, nearly equal log weights.
+    """
+    supported = {label: p for label, p in raw.items() if p > 0 and math.isfinite(p)}
+    if not supported:
+        return dict(raw)
+    references = {label: size_reference_mm(label) for label in supported}
+    bounded = min(max(size_mm, min(references.values())), max(references.values()))
+    anchor = min(references.values(), key=lambda ref: abs(bounded-ref))
+    strength = size_strength/(1+spread_mm)
+    distance = (size_mm-anchor)/SIZE_PRIOR_SIGMA_MM
+    logs = {}
+    for label, p in supported.items():
+        delta = (anchor-references[label])/SIZE_PRIOR_SIGMA_MM
+        penalty = -strength*delta*(distance+.5*delta) if delta else 0.
+        logs[label] = math.log(p)+penalty
+    peak = max(logs.values())
+    weighted = {label: math.exp(logs[label]-peak) if label in logs else 0. for label in raw}
+    total = sum(weighted.values())
+    return {label: p/total for label, p in weighted.items()}
+
+
 @dataclass
 class PieceState:
     id: str
@@ -137,14 +185,7 @@ class PieceState:
         if self.size_mm is not None and size_strength > 0:
             median = self.size_mm
             spread = float(np.median(np.abs(np.asarray(self.sizes)-median)))
-            strength = size_strength/(1+spread)
-            for label in current:
-                kind = label.split('_', 1)[1]
-                reference = 35. if kind == 'king' else 23. if kind in ('sa', 'soldier') else 29.
-                likelihood = .25+.75*math.exp(-.5*((median-reference)/1.8)**2)
-                current[label] *= likelihood**strength
-            total = sum(current.values())
-            current = {k: v/total for k, v in current.items()}
+            current = size_weighted_probabilities(current, median, spread, size_strength)
         if not self.probabilities:
             self.probabilities = current
         else:
@@ -449,7 +490,7 @@ class PieceTracker:
                     preview_visible_count=sum(p.visible and p.label is None and p.preview_label is not None for p in self.pieces.values()),
                     local_paused_count=sum(p.visible and not p.eligible for p in self.pieces.values()),
                     fusion=dict(current_weight=self.alpha, past_weight=1-self.alpha, size_strength=self.size_strength,
-                                size_references_mm=dict(small=23, medium=29, king=35)),
+                                **size_prior_metadata()),
                     board=[dict(cell=list(cell), piece_id=pid, piece=self.confirmed_labels.get(cell, ('unknown', 'piece')))
                            for cell, pid in sorted(self.occupancy.items())],
                     pieces=[p.serialize() for p in self.pieces.values()])

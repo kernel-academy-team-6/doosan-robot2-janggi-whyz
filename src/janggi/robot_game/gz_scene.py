@@ -25,11 +25,16 @@ except ImportError:   # janggi/.venv에서: 시스템 패키지(gz, protobuf)를
     sys.path.append("/usr/lib/python3/dist-packages")
 
 from gz.msgs10.boolean_pb2 import Boolean
+from gz.msgs10.empty_pb2 import Empty
+from gz.msgs10.scene_pb2 import Scene
 from gz.msgs10.entity_factory_pb2 import EntityFactory
 from gz.msgs10.entity_pb2 import Entity
 from gz.msgs10.pose_pb2 import Pose
 from gz.msgs10.pose_v_pb2 import Pose_V
 from gz.transport13 import Node
+
+from action.board import DEFAULT_CALIBRATION
+from scene_models import CalibratedLayout, DEFAULT_SCENE_CONFIG
 
 COLOR = {"blue": "0.1 0.35 0.95 1", "red": "0.9 0.12 0.12 1"}
 RADIUS = {"king": 0.024, "sa": 0.015, "soldier": 0.015}   # 그 외 0.019 m
@@ -79,17 +84,13 @@ def rot_to_rpy(r):
 
 
 class GzScene:
-    def __init__(self, world, gz_world: str = "empty"):
+    def __init__(self, world, gz_world: str = "empty", calibration=DEFAULT_CALIBRATION,
+                 scene_config=DEFAULT_SCENE_CONFIG):
         self.w, self.gz_world = world, gz_world
         self.node = Node()
-        g = world.geom
-        tl, tr, br, bl = g.corners_mm / 1000.0
-        self.n = g.normal()
-        ex = tr - tl
-        ex -= self.n * (self.n @ ex)
-        ex /= np.linalg.norm(ex)
-        self.R = np.stack([ex, np.cross(self.n, ex), self.n], axis=1)   # 판 좌표축 (열) → base
-        self.center = (tl + tr + br + bl) / 4
+        self.layout = CalibratedLayout.from_world(world, calibration, scene_config)
+        self.n, self.R, self.center = self.layout.normal, self.layout.rotation, self.layout.center
+        self._existing_models = set()
         self._last = {}
         self._stop = threading.Event()
 
@@ -98,17 +99,33 @@ class GzScene:
         ok, rep = self.node.request(f"/world/{self.gz_world}/{name}", req, req_t, rep_t, timeout)
         return ok and getattr(rep, "data", True)
 
+    def _refresh_existing_models(self):
+        ok, scene = self.node.request(f"/world/{self.gz_world}/scene/info", Empty(), Empty, Scene, 3000)
+        if not ok:
+            raise RuntimeError(f"Gazebo world '{self.gz_world}' is not ready (scene/info unavailable)")
+        self._existing_models = {model.name for model in scene.model}
+
     def _create(self, sdf: str):
         req = EntityFactory()
         req.sdf = sdf
         req.allow_renaming = False
-        return self._svc("create/blocking", req, EntityFactory)
+        name = ET.fromstring(sdf).find('model').get('name')
+        if not self._svc("create/blocking", req, EntityFactory, timeout=10000):
+            raise RuntimeError(f"Gazebo model creation failed: {name}")
+        self._existing_models.add(name)
+        return True
 
     def _remove(self, name: str):
+        # Avoid asking Gazebo to remove absent entities on the first startup.
+        if name not in self._existing_models:
+            return True
         req = Entity()
         req.name = name
         req.type = Entity.MODEL
-        return self._svc("remove/blocking", req, Entity)
+        result = self._svc("remove/blocking", req, Entity)
+        if result:
+            self._existing_models.discard(name)
+        return result
 
     def set_camera(self, eye, target):
         """Gazebo GUI 카메라를 eye(m)에서 target을 보게 둔다 (GUI 카메라는 +x로 본다). GUI가 없으면 무시."""
@@ -130,40 +147,18 @@ class GzScene:
 
     # ------------------------------------------------------------------ 장면 만들기
     def build(self):
-        for name in ["ground_plane", "janggi_table", "janggi_board"] + [f"piece_{i}" for i in range(40)]:
+        self._refresh_existing_models()
+        for name in ["ground_plane", "janggi_table", "janggi_board", "intel_realsense_d455f"] + [f"piece_{i}" for i in range(40)]:
             self._remove(name)
-        time.sleep(0.3)
-        g = self.w.geom
-        R, c = self.R, self.center
-        # 테이블: 윗면 = 판 평면 (버린 말도 판 평면 높이에 놓는다)
-        tc = c - self.n * 0.01
+        g, R, c = self.w.geom, self.R, self.center
+        # The calibrated surface is the TOP of the board, not its bottom.
+        tc = c-self.n*(self.layout.thickness_m+.01)
         self._create(f"""<sdf version="1.9"><model name="janggi_table"><static>true</static>
           <pose>{self._pose_sdf(tc + R[:, 0] * -0.02, R)}</pose><link name="l"><visual name="v">
           <geometry><box><size>0.75 0.9 0.02</size></box></geometry>
           <material><diffuse>0.45 0.45 0.48 1</diffuse><ambient>0.45 0.45 0.48 1</ambient></material>
           </visual></link></model></sdf>""")
-        # 장기판: 나무색 판 + 격자선 + 궁성 대각선
-        w = np.linalg.norm(g.corners_mm[1] - g.corners_mm[0]) / 1000 + 0.06
-        h = np.linalg.norm(g.corners_mm[3] - g.corners_mm[0]) / 1000 + 0.06
-        vis = [f"""<visual name="wood"><pose>0 0 0.001 0 0 0</pose><geometry><box><size>{w:.4f} {h:.4f} 0.002</size>
-               </box></geometry><material><diffuse>0.85 0.67 0.4 1</diffuse><ambient>0.85 0.67 0.4 1</ambient>
-               </material></visual>"""]
-
-        def local(bx, by):
-            return R.T @ (g.board_to_base(bx, by, check=False) / 1000 - c)
-
-        lines = [((0, y), (8, y)) for y in range(10)] + [((x, 0), (x, 9)) for x in range(9)]
-        lines += [((3, 0), (5, 2)), ((5, 0), (3, 2)), ((3, 7), (5, 9)), ((5, 7), (3, 9))]
-        for i, (a, b) in enumerate(lines):
-            pa, pb = local(*a), local(*b)
-            mid, d = (pa + pb) / 2, pb - pa
-            yaw = np.arctan2(d[1], d[0])
-            vis.append(f"""<visual name="line{i}"><pose>{mid[0]:.5f} {mid[1]:.5f} 0.0022 0 0 {yaw:.5f}</pose>
-              <geometry><box><size>{np.linalg.norm(d[:2]):.5f} 0.0015 0.0004</size></box></geometry>
-              <material><diffuse>0.2 0.12 0.05 1</diffuse><ambient>0.2 0.12 0.05 1</ambient></material></visual>""")
-        self._create(f"""<sdf version="1.9"><model name="janggi_board"><static>true</static>
-          <pose>{self._pose_sdf(c, R)}</pose><link name="l">{''.join(vis)}</link></model></sdf>""")
-        # 말: 원기둥 + 윗면 흰 원 (진영 색 테두리)
+        self._create(self.layout.board_sdf())
         for i, p in enumerate(self.w.pieces):
             r = RADIUS.get(p["kind"], 0.019)
             col = COLOR[p["side"]]
@@ -175,8 +170,9 @@ class GzScene:
               <length>0.0008</length></cylinder></geometry><material><diffuse>0.95 0.92 0.82 1</diffuse>
               <ambient>0.95 0.92 0.82 1</ambient></material></visual></link></model></sdf>""")
         self._last = {}
-        # 옆에서 비스듬히: 로봇과 판·버리는 자리가 함께 보이게
-        self.set_camera(c + np.array([0.25, -0.62, 0.42]), c + np.array([-0.12, 0.02, 0.06]))
+        self.set_camera(c + np.array([0.65, -1.0, 0.95]), c + np.array([-0.15, 0., 0.28]))
+        import json
+        print('[gz] calibrated layout: '+json.dumps(self.layout.summary(), ensure_ascii=False), flush=True)
 
     def _piece_pos(self, p, tip_mm=None):
         """말 중심 위치 (m). 잡힌 말은 팁 위치(= 말 높이 가운데)를 따라간다."""
@@ -206,6 +202,9 @@ class GzScene:
         if robot_ns:
             self.robot = GzRobotMirror(self, robot_ns)
             self.robot.build()
+        # Load rendering sensors last: first-time render-engine initialization
+        # must not hold up the board/robot entity creation requests.
+        self._create(self.layout.camera_sdf())
 
         def loop():
             k = 0
@@ -364,7 +363,12 @@ class GzRobotMirror:
             if len(rest) == len(pending):
                 break
             pending = rest
-        return T
+        # DR_BASE calibration is based on base_link, even when the URDF root
+        # has a non-identity fixed transform to that link.
+        if 'base_link' not in T:
+            raise RuntimeError('Robot URDF does not contain the calibrated base_link frame')
+        base_inverse = np.linalg.inv(T['base_link'])
+        return {name: base_inverse @ pose for name, pose in T.items()}
 
     def sync(self):
         req = Pose_V()

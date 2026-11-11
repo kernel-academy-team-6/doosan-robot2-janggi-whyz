@@ -132,8 +132,19 @@ cd ~/doosan_janggi_ws
 
 ```bash
 ros2 launch src/janggi/robot_game/sim_gazebo.launch.py                 # 워크스페이스 루트에서
+./src/janggi/robot_game/run_sim_app.sh --gazebo --setup-only          # 다른 터미널: 배치만 생성, 팔 이동 없이 대기
 ./src/janggi/robot_game/run_sim_check.sh --gazebo                   # 다른 터미널
 ```
+
+배치 전용과 자동 대국 프로그램은 하나씩 실행한다. `--setup-only`는 홈 이동·엔진 시작·자동 착수를
+하지 않으며 현재 로봇 자세를 표시한다. 자동 대국으로 전환할 때는 배치 전용 창을 닫고
+`./src/janggi/robot_game/run_sim_app.sh --gazebo --turns 3`을 실행한다.
+
+Gazebo의 판·D455f는 저장된 보정 좌표를 사용한다. 판 외곽은 400×400mm 추정값이며 격자는 실측 보정값을 유지한다.
+카메라 영상은 `/janggi_sim/d455f/color/image_raw`, 깊이는
+`/janggi_sim/d455f/aligned_depth_to_color/image_raw`에서 확인한다.
+새 Sensors world를 읽도록 기존 Gazebo와 드라이버를 종료하고 첫 터미널부터 재시작한다.
+[보정 장면 문서와 실제 렌더링 캡처](GAZEBO_CALIBRATED_SCENE.md)에 치수 검증 및 한계를 정리했다.
 
 ### 연결이 끊길 때
 

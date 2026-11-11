@@ -5,6 +5,7 @@
 사람 수는 자동으로 둔다(무작위 합법 수): '대국 시작' → (사람 수 → '착수 완료') × N 을 UI 버튼과 같은 함수로 누른다.
 
     ./run_sim_app.sh --turns 3
+    ./run_sim_app.sh --gazebo --setup-only  # 배치만 표시, 자동 대국·팔 명령 없음
 """
 
 from __future__ import annotations
@@ -97,11 +98,13 @@ def main():
     ap.add_argument("--seed", type=int, default=1)
     ap.add_argument("--robot-vel", type=float, default=300.0)
     ap.add_argument("--no-motion", action="store_true")
+    ap.add_argument("--setup-only", action="store_true", help="초기 판·말과 현재 로봇 자세만 표시하고 대기 (대국·팔 이동 없음)")
     ap.add_argument("--gazebo", action="store_true", help="장기판·말을 Gazebo에 띄워 보여준다 (sim_gazebo.launch.py)")
     ap.add_argument("--screenshot", type=Path, help="마지막 화면을 이 경로에 PNG로 저장")
     a = ap.parse_args()
-    sys.argv = [sys.argv[0], "--robot", "--movetime", "300", "--robot-vel", str(a.robot_vel), "--source", "sim"] + \
-        (["--no-motion"] if a.no_motion else [])
+    sys.argv = [sys.argv[0], "--movetime", "300", "--robot-vel", str(a.robot_vel), "--source", "sim"] + \
+        ([] if a.setup_only else ["--robot"]) + \
+        (["--no-motion"] if a.no_motion or a.setup_only else [])
     args = ui.parse_args()
 
     rng = np.random.default_rng(a.seed)
@@ -154,6 +157,26 @@ def main():
             app.robot_human_done()
             step["phase"] = "robot_done"
         app.root.after(300, drive)
+
+    if a.setup_only:
+        # Create the scene without _ensure_robot(): starting a RobotGame would
+        # initialize the engine/picker and move the arm to its observation pose.
+        # GzScene's mirror only subscribes to the existing robot state.
+        scene = None
+        app.root.title("장기 시뮬레이션 · 배치 전용 (로봇 명령 없음)")
+        app.root.protocol("WM_DELETE_WINDOW", finish)
+        try:
+            if a.gazebo:
+                from gz_scene import GzScene
+                print("[배치] Gazebo 장면 생성 중 · 팔 이동 명령 없음", flush=True)
+                scene = GzScene(world)
+                scene.start()
+            print("[배치 완료] 자동 대국 없이 대기합니다. 창을 닫으면 종료합니다.", flush=True)
+            app.run()
+        finally:
+            if scene is not None:
+                scene.stop()
+        return
 
     if not a.no_motion:
         world_grip = world.on_grip

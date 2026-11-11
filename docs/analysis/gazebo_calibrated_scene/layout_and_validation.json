@@ -1,0 +1,54 @@
+{
+  "world_frame": "base_link",
+  "board_center_m": [
+    0.465686,
+    0.05940149999999999,
+    -0.07960724999999999
+  ],
+  "board_rpy_deg": [
+    0.9796378879983281,
+    -0.0022766861872975473,
+    -90.00048247291707
+  ],
+  "board_outer_size_mm": [
+    400.0,
+    400.0
+  ],
+  "board_outer_size_source": "user_estimate_square_not_measured",
+  "grid_top_bottom_mm": [
+    356.3350415620109,
+    359.09105514061474
+  ],
+  "grid_left_right_mm": [
+    354.60675927144996,
+    354.5837071186436
+  ],
+  "camera_optical_position_m": [
+    0.61345529,
+    0.08859302,
+    0.57554227
+  ],
+  "camera_sensor_rpy_deg": [
+    70.98311104160992,
+    89.7713904060912,
+    160.0534196962355
+  ],
+  "camera_topic": "/janggi_sim/d455f",
+  "distortion": "ideal pinhole; recorded inverse-Brown distortion is not applied",
+  "depth": "ideal RGB-aligned rendering; hardware stereo/noise/filter/IMU not simulated",
+  "validation": {
+    "related_tests_passed": 24,
+    "rgb_size": [
+      1280,
+      720
+    ],
+    "depth_size": [
+      1280,
+      720
+    ],
+    "principal_pixel_depth_m": 0.6526575088500977,
+    "ros_bridge_topics_received": 3,
+    "ros_optical_frame": "sim_d455f_color_optical_frame",
+    "robot_driver_started_for_validation": false
+  }
+}

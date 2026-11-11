@@ -5,9 +5,10 @@ import threading
 import time
 
 import numpy as np
+import pytest
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
-from piece_state import PieceState, PieceTracker, StateStore
+from piece_state import PieceState, PieceTracker, StateStore, SIZE_REFERENCES_MM, SIZE_PRIOR_SIGMA_MM
 from classification_async import LatestClassification
 
 
@@ -42,6 +43,64 @@ def test_history_fusion_size_weight_and_outlier_rejection():
     small.update(dict(probabilities={'blue_cha': .51, 'blue_soldier': .49}, size_mm=23.), 1.)
     assert small.label == 'blue_soldier'
     assert len(small.sizes) == 6
+
+
+@pytest.mark.parametrize('group,label,wrong', [
+    ('small', 'blue_soldier', 'blue_cha'),
+    ('medium', 'blue_cha', 'blue_king'),
+    ('king', 'blue_king', 'blue_cha'),
+])
+def test_empirical_size_groups_overrule_a_wrong_cnn_group(group, label, wrong):
+    piece = PieceState('a')
+    piece.update(dict(size_mm=SIZE_REFERENCES_MM[group], probabilities={label: .1, wrong: .9}), 1.)
+    assert piece.label == label
+    assert piece.probabilities[label] > .98
+
+
+def test_size_prior_preserves_within_group_odds_and_zero_cnn_probability():
+    piece = PieceState('a')
+    piece.update(dict(size_mm=SIZE_REFERENCES_MM['medium'],
+                      probabilities={'blue_cha': .3, 'red_horse': .1, 'blue_king': .6, 'blue_po': 0.}), 1.)
+    assert piece.probabilities['blue_cha']/piece.probabilities['red_horse'] == pytest.approx(3.)
+    assert piece.probabilities['blue_po'] == 0.
+    assert piece.probabilities['blue_king'] < .01
+
+
+@pytest.mark.parametrize('size,strength', [(None, .5), (SIZE_REFERENCES_MM['small'], 0.)])
+def test_missing_geometry_or_disabled_size_prior_keeps_cnn_probabilities(size, strength):
+    raw = {'blue_cha': .6, 'blue_soldier': .4}
+    piece = PieceState('a')
+    piece.update(dict(size_mm=size, probabilities=raw), 1., size_strength=strength)
+    assert piece.probabilities == raw
+
+
+def test_no_floor_prior_normalizes_distant_sizes_without_underflow():
+    piece = PieceState('a')
+    piece.update(dict(size_mm=10000., probabilities={
+        'blue_king': 1e-300, 'blue_cha': .9, 'blue_soldier': .1}), 1.)
+    assert all(np.isfinite(v) for v in piece.probabilities.values())
+    assert sum(piece.probabilities.values()) == pytest.approx(1.)
+    assert piece.probabilities['blue_king'] > .999
+
+
+def test_size_spread_softens_prior_and_empirical_width_keeps_room_for_measurement_noise():
+    raw = {'blue_cha': .5, 'blue_king': .5}
+    stable, spread = PieceState('stable'), PieceState('spread')
+    size = SIZE_REFERENCES_MM['medium']
+    stable.sizes.extend([size, size])
+    spread.sizes.extend([size-1., size+1.])
+    for p in (stable, spread):
+        p.update(dict(size_mm=None, probabilities=raw), 1.)
+    assert spread.probabilities['blue_king'] > stable.probabilities['blue_king']
+    assert SIZE_PRIOR_SIGMA_MM > 3*.3694940477107863
+
+
+def test_snapshot_records_no_floor_prior_configuration():
+    fusion = PieceTracker().snapshot()['fusion']
+    assert fusion['size_references_mm'] == SIZE_REFERENCES_MM
+    assert fusion['size_likelihood_floor'] == 0.
+    assert fusion['size_sigma_mm'] == SIZE_PRIOR_SIGMA_MM
+    assert fusion['size_weighting'] == 'gaussian_no_floor'
 
 
 def test_move_preserves_identity_and_history_without_ghost_positions():

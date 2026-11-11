@@ -41,7 +41,7 @@ from piece_detection.detector import DEFAULT_MODEL, count_unique_detections, ded
 from rules import COLS, ROWS, Game, detect_top_side, infer_move, other  # noqa: E402
 from diagnostics import ObstructionMonitor, BoxSizeEstimator, box_label
 from classification_async import LatestClassification
-from piece_state import PieceTracker, StateStore
+from piece_state import PieceTracker, StateStore, size_prior_metadata
 from piece_motion import PieceMotionMonitor, draw_piece_regions
 from count_log import CountLog  # noqa: E402
 from video_log import BoardRenderer, EvaluationVideos  # noqa: E402
@@ -70,7 +70,7 @@ def parse_args():
     p.add_argument("--classification-interval", type=float, default=.5, help="종류가 알려진 정상 객체의 갱신 간격(초), 기본 0.5; 미분류 객체는 즉시 재시도")
     p.add_argument("--tracking-low-conf", type=float, default=.1, help="hybrid 기존 ID 추적 보조 검출 하한; 새 객체/종류 갱신에는 사용 안 함")
     p.add_argument("--history-alpha", type=float, default=.2, help="현재 관측 비중; 기본 과거 80%% + 현재 20%%")
-    p.add_argument("--size-strength", type=float, default=.5, help="크기 보조 가중치 강도; 0이면 사용 안 함")
+    p.add_argument("--size-strength", type=float, default=.5, help="바닥값 없는 크기 가우시안 강도 (폭 1.2mm); 0이면 사용 안 함")
     p.add_argument("--state-dir", type=Path, default=HERE/"states", help="말별 상태·이벤트 세션의 상위 저장 폴더")
     p.add_argument("--classifier-batch", type=int, default=32)
     p.add_argument("--classifier-size", type=int, default=224, help="Ultralytics 분류 입력 크기; MobileNet은 체크포인트 설정 사용")
@@ -315,6 +315,7 @@ class Worker:
                             initial_state='fresh; no automatic state restore', object_model='unified-detection-v2',
                             missing_retention='session lifetime; immediate spatial attachment, semantic verification; MISS overlay 2 seconds',
                             semantic_gate='regular=healthy objects; unknown=urgent preview at 0.5; game=global stability')
+            metadata.update(size_strength=getattr(args, 'size_strength', .5), **size_prior_metadata())
             if args.calibration and Path(args.calibration).is_file():
                 import shutil
                 shutil.copyfile(args.calibration, directory/'calibration.yaml')
@@ -337,7 +338,8 @@ class Worker:
                     classifier_threshold=detector.classification_conf,
                     confidence_semantics="conf=YOLO detection probability; classification_conf=history/size-fused probability when tracking",
                     state_directory=str(self.state_store.directory) if self.state_store else None,
-                    classification_interval=getattr(args, "classification_interval", .5))
+                    classification_interval=getattr(args, "classification_interval", .5),
+                    size_strength=getattr(args, 'size_strength', .5), **size_prior_metadata())
                 self.classification_log = (self.count_log.path.parent/"classifications.jsonl").open("w", encoding="utf-8")
             else:
                 self.classification_log = None
