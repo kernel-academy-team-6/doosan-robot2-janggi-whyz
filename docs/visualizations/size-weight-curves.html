@@ -1,0 +1,149 @@
+<div id="janggi-size-weight-curves">
+  <h2>크기 적합도 → CNN 확률 보정</h2>
+  <div class="viz-controls sw-controls">
+    <label class="form-label">관측 크기 <output data-size class="tabular-nums">29.0 mm</output><input data-input="size" class="form-range" type="range" min="18" max="40" step="0.1" value="29" aria-label="관측 대표 크기 mm"></label>
+    <label class="form-label">size_strength <output data-strength class="tabular-nums">0.50</output><input data-input="strength" class="form-range" type="range" min="0" max="1" step="0.05" value="0.5" aria-label="크기 가중치 강도"></label>
+    <label class="form-label">크기 퍼짐 MAD <output data-spread class="tabular-nums">0.00 mm</output><input data-input="spread" class="form-range" type="range" min="0" max="3" step="0.1" value="0" aria-label="크기 관측 중앙값 절대편차 mm"></label>
+  </div>
+  <div class="sw-legend" aria-label="종류별 크기 곡선">
+    <button type="button" data-group="small" aria-pressed="true"><span class="sw-swatch" style="background:var(--viz-series-1)"></span>사·졸·병 · 23 mm</button>
+    <button type="button" data-group="medium" aria-pressed="true"><span class="sw-swatch" style="background:var(--viz-series-2)"></span>차·포·마·상 · 29 mm</button>
+    <button type="button" data-group="king" aria-pressed="true"><span class="sw-swatch" style="background:var(--viz-series-3)"></span>궁 · 35 mm</button>
+  </div>
+  <div class="sw-panel"><h3>① 원래 가우시안 모양 · 폭 1.8 mm, 최댓값 1</h3><svg data-plot="gaussian" class="sw-plot" role="img" aria-label="23, 29, 35 mm를 중심으로 한 가우시안 모양의 곡선"></svg></div>
+  <div class="sw-panel"><h3>② 바닥값·강도를 반영한 실제 곱셈 가중치</h3><svg data-plot="weight" class="sw-plot" role="img" aria-label="CNN 확률에 실제 곱하는 완화된 크기 가중치 곡선"></svg></div>
+  <div class="sw-detail tabular-nums" data-detail aria-live="polite"></div>
+  <div class="sw-panel"><h3>③ CNN 예시 → 곱셈 → 재정규화 · 과거 이력 결합 전</h3>
+    <div class="text-small">예시 입력 · 진영 생략 · 클래스별 입력값 수정 가능</div>
+    <div class="table-responsive"><table class="table table-sm"><thead><tr><th>종류</th><th>CNN 입력 (%)</th><th>× 가중치</th><th>곱한 값 (%)</th><th>정규화 후 (%)</th></tr></thead><tbody data-rows></tbody></table></div>
+    <div data-error role="alert" class="text-destructive" hidden>CNN 입력 합계가 0입니다.</div>
+  </div>
+  <div class="tooltip sw-tooltip" role="tooltip" hidden></div>
+</div>
+<style>
+#janggi-size-weight-curves{position:relative;color:var(--foreground)}
+#janggi-size-weight-curves .sw-controls{margin-top:calc(var(--font-size-base)*1);gap:calc(var(--font-size-base)*1)}
+#janggi-size-weight-curves .sw-controls label{flex:1 1 190px;min-width:0}
+#janggi-size-weight-curves .sw-controls output{margin-inline-start:calc(var(--font-size-base)*.5)}
+#janggi-size-weight-curves .sw-panel{margin-top:calc(var(--font-size-base)*1)}
+#janggi-size-weight-curves .sw-legend{display:flex;flex-wrap:wrap;gap:calc(var(--font-size-base)*1);margin-top:calc(var(--font-size-base)*.5)}
+#janggi-size-weight-curves .sw-legend button{appearance:none;background:transparent;border:0;padding:0;color:var(--foreground);font:inherit;display:inline-flex;align-items:center;gap:calc(var(--font-size-base)*.4)}
+#janggi-size-weight-curves .sw-legend button[aria-pressed="false"]{opacity:.45}
+#janggi-size-weight-curves .sw-swatch{display:inline-block;width:20px;height:3px}
+#janggi-size-weight-curves .sw-plot{display:block;width:100%;height:235px;overflow:visible}
+#janggi-size-weight-curves .sw-plot text{fill:var(--foreground);font-size:12px;font-weight:400}
+#janggi-size-weight-curves .sw-plot .axis path,#janggi-size-weight-curves .sw-plot .axis line{stroke:var(--border)}
+#janggi-size-weight-curves .sw-detail{margin-top:calc(var(--font-size-base)*.5)}
+#janggi-size-weight-curves .sw-tooltip{position:absolute;pointer-events:none;background:var(--popover);color:var(--popover-foreground);padding:calc(var(--font-size-base)*.5);z-index:2}
+#janggi-size-weight-curves td{vertical-align:middle}
+#janggi-size-weight-curves .sw-number{min-width:85px}
+#janggi-size-weight-curves .sw-result{display:grid;grid-template-columns:minmax(20px,1fr) 46px;align-items:center;gap:calc(var(--font-size-base)*.5);min-width:110px}
+#janggi-size-weight-curves .sw-track{height:6px;background:var(--muted)}
+#janggi-size-weight-curves .sw-bar{height:100%;background:var(--viz-series-1);transition:width .15s}
+@media(max-width:480px){#janggi-size-weight-curves .sw-controls label{flex-basis:100%}}
+@media(prefers-reduced-motion:reduce){#janggi-size-weight-curves .sw-bar{transition:none}}
+</style>
+<script src="https://cdn.jsdelivr.net/npm/d3@7.9.0/dist/d3.min.js"></script>
+<script>
+(()=>{
+ const root=document.getElementById('janggi-size-weight-curves');
+ const groups=[{id:'small',label:'사·졸·병',mu:23,color:'var(--viz-series-1)'},{id:'medium',label:'차·포·마·상',mu:29,color:'var(--viz-series-2)'},{id:'king',label:'궁',mu:35,color:'var(--viz-series-3)'}];
+ const kinds=[{label:'궁',group:'king',value:55},{label:'차',group:'medium',value:45},{label:'포',group:'medium',value:0},{label:'마',group:'medium',value:0},{label:'상',group:'medium',value:0},{label:'사',group:'small',value:0},{label:'졸·병',group:'small',value:0}];
+ let state={size:29,strength:.5,spread:0,values:kinds.map(k=>k.value),hidden:[]};
+ const plots=[{key:'gaussian',node:root.querySelector('[data-plot="gaussian"]'),label:'가우시안 값'},{key:'weight',node:root.querySelector('[data-plot="weight"]'),label:'실제 곱하는 값'}];
+ const tooltip=root.querySelector('.sw-tooltip');
+ let first=true;
+ const normal=(x,mu)=>Math.exp(-.5*((x-mu)/1.8)**2);
+ const exponent=()=>state.strength/(1+state.spread);
+ const likelihood=(x,mu)=>.25+.75*normal(x,mu);
+ const weight=(x,mu)=>likelihood(x,mu)**exponent();
+ const val=(key,x,g)=>key==='gaussian'?normal(x,g.mu):weight(x,g.mu);
+ const pct=n=>(n*100).toFixed(1);
+ function applySaved(saved){
+  const s=saved?.privateContent;if(!s)return;
+  for(const [key,min,max] of [['size',18,40],['strength',0,1],['spread',0,3]])if(Number.isFinite(s[key]))state[key]=Math.max(min,Math.min(max,s[key]));
+  if(Array.isArray(s.values)&&s.values.length===7&&s.values.every(n=>Number.isFinite(n)&&n>=0&&n<=100))state.values=s.values;
+  if(Array.isArray(s.hidden))state.hidden=s.hidden.filter(id=>groups.some(g=>g.id===id));
+ }
+ function save(){if(window.openai?.setWidgetState)window.openai.setWidgetState({modelContent:{observed_size_mm:state.size,size_strength:state.strength,MAD_mm:state.spread,cnn_example_percent:state.values},privateContent:state}).catch(()=>{});}
+ applySaved(window.openai?.widgetState);
+ const rows=root.querySelector('[data-rows]');
+ kinds.forEach((k,i)=>{
+  const tr=document.createElement('tr');tr.innerHTML=`<th scope="row">${k.label}</th><td class="sw-number"><input type="number" class="form-control tabular-nums" min="0" max="100" step="1" value="${state.values[i]}" aria-label="${k.label} CNN 예시 입력 퍼센트"></td><td class="tabular-nums" data-w></td><td class="tabular-nums" data-product></td><td><div class="sw-result"><div class="sw-track"><div class="sw-bar"></div></div><span class="tabular-nums" data-result></span></div></td>`;
+  rows.append(tr);tr.querySelector('input').addEventListener('input',e=>{state.values[i]=Math.min(100,Math.max(0,Number(e.target.value)||0));drawTable();});tr.querySelector('input').addEventListener('change',save);
+ });
+ function syncInputs(){
+  for(const key of ['size','strength','spread'])root.querySelector(`[data-input="${key}"]`).value=state[key];
+  [...rows.children].forEach((row,i)=>row.querySelector('input').value=state.values[i]);
+  groups.forEach(g=>root.querySelector(`[data-group="${g.id}"]`).setAttribute('aria-pressed',!state.hidden.includes(g.id)));
+ }
+ function drawTable(){
+  const sum=state.values.reduce((a,b)=>a+b,0);
+  const ws=kinds.map(k=>weight(state.size,groups.find(g=>g.id===k.group).mu));
+  const products=state.values.map((v,i)=>sum?v/sum*ws[i]:0);
+  const total=products.reduce((a,b)=>a+b,0);
+  [...rows.children].forEach((row,i)=>{
+   row.querySelector('[data-w]').textContent=ws[i].toFixed(3);
+   row.querySelector('[data-product]').textContent=total?pct(products[i]):'—';
+   row.querySelector('[data-result]').textContent=total?pct(products[i]/total):'—';
+   row.querySelector('.sw-bar').style.width=(total?products[i]/total*100:0)+'%';
+  });
+  root.querySelector('[data-error]').hidden=sum>0;
+  root.dataset.exampleKing=total?(products[0]/total).toFixed(6):'';
+  root.dataset.exampleChariot=total?(products[1]/total).toFixed(6):'';
+ }
+ function hideHover(){tooltip.hidden=true;plots.forEach(p=>d3.select(p.node).select('.hover-layer').attr('display','none'));}
+ function hover(event,p){
+  const point=d3.pointer(event,p.node),xval=Math.max(p.domain[0],Math.min(p.domain[1],p.x.invert(point[0])));
+  const visible=groups.filter(g=>!state.hidden.includes(g.id));
+  plots.forEach(q=>{
+   const layer=d3.select(q.node).select('.hover-layer').attr('display',null);
+   layer.select('line').attr('x1',q.x(xval)).attr('x2',q.x(xval));
+   layer.selectAll('circle').data(visible,g=>g.id).join('circle').attr('data-chart-hover-marker','').attr('r',4).attr('cx',q.x(xval)).attr('cy',g=>q.y(val(q.key,xval,g))).attr('fill',g=>g.color);
+  });
+  tooltip.innerHTML=`<div class="tabular-nums">${xval.toFixed(1)} mm</div>`+visible.map(g=>`<div><span class="sw-swatch" style="background:${g.color}"></span> ${g.label}: ${val(p.key,xval,g).toFixed(3)}</div>`).join('');
+  tooltip.hidden=false;
+  const bounds=root.getBoundingClientRect();
+  tooltip.style.left=Math.max(0,Math.min(root.clientWidth-tooltip.offsetWidth,event.clientX-bounds.left+12))+'px';
+  tooltip.style.top=(event.clientY-bounds.top+16)+'px';
+ }
+ function drawPlots(){
+  const animate=!first&&!matchMedia('(prefers-reduced-motion: reduce)').matches;
+  const samples=d3.range(d3.min(groups,g=>g.mu)-3*1.8,d3.max(groups,g=>g.mu)+3*1.8+.025,.05);
+  const ext=d3.extent(samples),pad=(ext[1]-ext[0])*.015,domain=[ext[0]-pad,ext[1]+pad];
+  for(const p of plots){
+   const width=Math.max(280,Math.round(p.node.parentElement.getBoundingClientRect().width)),height=235,m={left:64,right:18,top:27,bottom:50};
+   const x=d3.scaleLinear().domain(domain).range([m.left,width-m.right]);
+   const y=d3.scaleLinear().domain([0,1.04]).range([height-m.bottom,m.top]);
+   p.x=x;p.y=y;p.domain=domain;
+   const s=d3.select(p.node).attr('viewBox',`0 0 ${width} ${height}`);
+   s.selectAll('rect[data-chart-frame]').data([0]).join('rect').attr('data-chart-frame','').attr('x',m.left).attr('y',m.top).attr('width',width-m.left-m.right).attr('height',height-m.top-m.bottom).attr('fill','none').attr('stroke','var(--border)');
+   s.selectAll('g.y-axis').data([0]).join('g').attr('class','axis y-axis').attr('transform',`translate(${m.left},0)`).call(d3.axisLeft(y).tickValues([0,.25,.5,.75,1]).tickFormat(d3.format('.2~f')).tickSize(0).tickPadding(8)).call(g=>g.select('.domain').remove());
+   s.selectAll('g.x-axis').data([0]).join('g').attr('class','axis x-axis').attr('transform',`translate(0,${height-m.bottom})`).call(d3.axisBottom(x).tickValues(width<420?[20,25,30,35]:[20,23,26,29,32,35,38]).tickSize(0).tickPadding(8)).call(g=>g.select('.domain').remove());
+   s.selectAll('text[data-axis="x"]').data([0]).join('text').attr('class','axis-title').attr('data-axis','x').attr('x',(m.left+width-m.right)/2).attr('y',height-6).attr('text-anchor','middle').text('관측 크기 (mm)');
+   s.selectAll('text[data-axis="y"]').data([0]).join('text').attr('class','axis-title').attr('data-axis','y').attr('x',m.left).attr('y',14).text(p.label);
+   const line=d3.line().x(d=>x(d.x)).y(d=>y(d.y));
+   const paths=s.selectAll('path.sw-curve').data(groups,g=>g.id).join('path').attr('class','sw-curve').attr('fill','none').attr('stroke',g=>g.color).attr('stroke-width',2).attr('display',g=>state.hidden.includes(g.id)?'none':null);
+   (animate?paths.transition().duration(140):paths).attr('d',g=>line(samples.map(v=>({x:v,y:val(p.key,v,g)}))));
+   s.selectAll('line.sw-selected').data([0]).join('line').attr('class','sw-selected').attr('x1',x(state.size)).attr('x2',x(state.size)).attr('y1',m.top).attr('y2',height-m.bottom).attr('stroke','var(--foreground)').attr('stroke-width',1).attr('stroke-dasharray','4 4');
+   s.selectAll('circle.sw-selected-dot').data(groups.filter(g=>!state.hidden.includes(g.id)),g=>g.id).join('circle').attr('class','sw-selected-dot').attr('r',4).attr('cx',x(state.size)).attr('cy',g=>y(val(p.key,state.size,g))).attr('fill',g=>g.color);
+   let layer=s.select('g.hover-layer');if(layer.empty()){layer=s.append('g').attr('class','hover-layer').attr('display','none');layer.append('line').attr('data-chart-hover-guide','').attr('stroke','var(--foreground)').attr('stroke-width',1);}
+   layer.select('line').attr('y1',m.top).attr('y2',height-m.bottom);
+   s.selectAll('rect[data-chart-hit]').data([0]).join('rect').attr('data-chart-hit','').attr('data-chart-hover-overlay','cross-series').attr('x',m.left).attr('y',m.top).attr('width',width-m.left-m.right).attr('height',height-m.top-m.bottom).attr('fill','transparent').on('pointermove',e=>hover(e,p)).on('pointerleave',hideHover).on('click',e=>{hover(e,p);state.size=Math.round(x.invert(d3.pointer(e,p.node)[0])*10)/10;state.size=Math.max(18,Math.min(40,state.size));syncInputs();draw();save();});
+   const texts=[...p.node.querySelectorAll('.x-axis text')];for(let i=1;i<texts.length;i++){const a=texts[i-1].getBoundingClientRect(),b=texts[i].getBoundingClientRect();if(a.right+4>b.left)texts[i].style.visibility='hidden';}
+  }
+  first=false;
+ }
+ function draw(){
+  root.querySelector('[data-size]').textContent=state.size.toFixed(1)+' mm';
+  root.querySelector('[data-strength]').textContent=state.strength.toFixed(2);
+  root.querySelector('[data-spread]').textContent=state.spread.toFixed(2)+' mm';
+  root.querySelector('[data-detail]').textContent=`유효 강도 ${exponent().toFixed(3)} · 중심 가중치 1.000 · 먼 크기의 가중치 하한 ${(Math.pow(.25,exponent())).toFixed(3)}`;
+  drawPlots();drawTable();root.dataset.ready='true';
+ }
+ for(const key of ['size','strength','spread']){const el=root.querySelector(`[data-input="${key}"]`);el.addEventListener('input',()=>{state[key]=Number(el.value);hideHover();draw();});el.addEventListener('change',save);}
+ root.querySelectorAll('[data-group]').forEach(b=>b.addEventListener('click',()=>{const id=b.dataset.group;state.hidden=state.hidden.includes(id)?state.hidden.filter(v=>v!==id):[...state.hidden,id];syncInputs();drawPlots();save();}));
+ window.addEventListener('openai:set_globals',e=>{if(e.detail?.globals?.widgetState){applySaved(e.detail.globals.widgetState);syncInputs();draw();}});
+ syncInputs();draw();new ResizeObserver(()=>{hideHover();drawPlots();}).observe(root);
+})();
+</script>

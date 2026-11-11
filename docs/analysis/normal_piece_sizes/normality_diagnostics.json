@@ -1,0 +1,295 @@
+{
+  "groups": [
+    {
+      "group": "king",
+      "group_ko": "궁",
+      "n": 960,
+      "mean_mm": 35.44792306470889,
+      "std_mm": 0.3407004312078016,
+      "skewness": 0.04839303262840034,
+      "excess_kurtosis": -1.712959191457238,
+      "within_sigma": {
+        "1": 0.44479166666666664,
+        "2": 1.0,
+        "3": 1.0,
+        "6": 1.0
+      },
+      "per_track": [
+        {
+          "piece_id": "piece_0001",
+          "label": "blue_king",
+          "n": 480,
+          "mean_mm": 35.12504596289461,
+          "std_mm": 0.10356778315192591
+        },
+        {
+          "piece_id": "piece_0003",
+          "label": "red_king",
+          "n": 480,
+          "mean_mm": 35.77080016652318,
+          "std_mm": 0.11284984456826763
+        }
+      ]
+    },
+    {
+      "group": "medium",
+      "group_ko": "중간말",
+      "n": 7585,
+      "mean_mm": 28.767328979182714,
+      "std_mm": 0.3694940477107863,
+      "skewness": 0.35989944485637704,
+      "excess_kurtosis": -0.2727017609297926,
+      "within_sigma": {
+        "1": 0.6656558998022413,
+        "2": 0.9299934080421886,
+        "3": 1.0,
+        "6": 1.0
+      },
+      "per_track": [
+        {
+          "piece_id": "piece_0002",
+          "label": "blue_po",
+          "n": 480,
+          "mean_mm": 28.348612892197266,
+          "std_mm": 0.047535638561768866
+        },
+        {
+          "piece_id": "piece_0006",
+          "label": "blue_cha",
+          "n": 480,
+          "mean_mm": 28.771881240545948,
+          "std_mm": 0.2013763201335046
+        },
+        {
+          "piece_id": "piece_0004",
+          "label": "blue_sang",
+          "n": 480,
+          "mean_mm": 28.442627713722615,
+          "std_mm": 0.19628029844980674
+        },
+        {
+          "piece_id": "piece_0007",
+          "label": "red_cha",
+          "n": 479,
+          "mean_mm": 29.07988032639385,
+          "std_mm": 0.26561751124760397
+        },
+        {
+          "piece_id": "piece_0005",
+          "label": "red_sang",
+          "n": 480,
+          "mean_mm": 29.499548141435607,
+          "std_mm": 0.2033479157014226
+        },
+        {
+          "piece_id": "piece_0009",
+          "label": "red_po",
+          "n": 480,
+          "mean_mm": 28.956576029052385,
+          "std_mm": 0.04843473580290729
+        },
+        {
+          "piece_id": "piece_0011",
+          "label": "blue_horse",
+          "n": 480,
+          "mean_mm": 28.50029985127944,
+          "std_mm": 0.09942843850772162
+        },
+        {
+          "piece_id": "piece_0015",
+          "label": "blue_cha",
+          "n": 480,
+          "mean_mm": 28.48764096497122,
+          "std_mm": 0.04118454691689137
+        },
+        {
+          "piece_id": "piece_0012",
+          "label": "blue_po",
+          "n": 480,
+          "mean_mm": 28.576062272672242,
+          "std_mm": 0.1428653795898237
+        },
+        {
+          "piece_id": "piece_0008",
+          "label": "red_po",
+          "n": 480,
+          "mean_mm": 28.883190838106188,
+          "std_mm": 0.1517646913954492
+        },
+        {
+          "piece_id": "piece_0013",
+          "label": "red_horse",
+          "n": 480,
+          "mean_mm": 29.24495581483799,
+          "std_mm": 0.14396178547762406
+        },
+        {
+          "piece_id": "piece_0010",
+          "label": "red_cha",
+          "n": 37,
+          "mean_mm": 29.099570433026624,
+          "std_mm": 0.056315797564637546
+        },
+        {
+          "piece_id": "piece_0024",
+          "label": "red_cha",
+          "n": 480,
+          "mean_mm": 28.743960922616125,
+          "std_mm": 0.06064808640485834
+        },
+        {
+          "piece_id": "piece_0023",
+          "label": "red_horse",
+          "n": 480,
+          "mean_mm": 28.851772122311782,
+          "std_mm": 0.0680782953659134
+        },
+        {
+          "piece_id": "piece_0028",
+          "label": "blue_horse",
+          "n": 480,
+          "mean_mm": 28.226310084128986,
+          "std_mm": 0.21398768499038082
+        },
+        {
+          "piece_id": "piece_0016",
+          "label": "blue_sang",
+          "n": 424,
+          "mean_mm": 28.582152751369115,
+          "std_mm": 0.1744811349016689
+        },
+        {
+          "piece_id": "piece_0010",
+          "label": "red_sang",
+          "n": 405,
+          "mean_mm": 29.08483973327012,
+          "std_mm": 0.06266750472536495
+        }
+      ]
+    },
+    {
+      "group": "small",
+      "group_ko": "작은말",
+      "n": 6720,
+      "mean_mm": 22.72896727350252,
+      "std_mm": 0.2973550128614671,
+      "skewness": 0.4601195550098157,
+      "excess_kurtosis": -0.8216513225103834,
+      "within_sigma": {
+        "1": 0.6171130952380952,
+        "2": 0.9861607142857143,
+        "3": 1.0,
+        "6": 1.0
+      },
+      "per_track": [
+        {
+          "piece_id": "piece_0018",
+          "label": "blue_sa",
+          "n": 480,
+          "mean_mm": 22.627718999038212,
+          "std_mm": 0.16863770239205347
+        },
+        {
+          "piece_id": "piece_0020",
+          "label": "blue_soldier",
+          "n": 480,
+          "mean_mm": 22.3917128112753,
+          "std_mm": 0.09724091988717777
+        },
+        {
+          "piece_id": "piece_0014",
+          "label": "red_soldier",
+          "n": 358,
+          "mean_mm": 22.887422469227523,
+          "std_mm": 0.04108303529895686
+        },
+        {
+          "piece_id": "piece_0022",
+          "label": "red_soldier",
+          "n": 480,
+          "mean_mm": 22.485138592016316,
+          "std_mm": 0.032949554090487214
+        },
+        {
+          "piece_id": "piece_0017",
+          "label": "red_soldier",
+          "n": 480,
+          "mean_mm": 22.696783764444323,
+          "std_mm": 0.05434038982071696
+        },
+        {
+          "piece_id": "piece_0030",
+          "label": "blue_sa",
+          "n": 480,
+          "mean_mm": 22.35095009268652,
+          "std_mm": 0.08842497159384011
+        },
+        {
+          "piece_id": "piece_0026",
+          "label": "blue_soldier",
+          "n": 480,
+          "mean_mm": 22.705174537388128,
+          "std_mm": 0.0387342186961012
+        },
+        {
+          "piece_id": "piece_0025",
+          "label": "red_soldier",
+          "n": 480,
+          "mean_mm": 22.81944160206645,
+          "std_mm": 0.07756801016995941
+        },
+        {
+          "piece_id": "piece_0019",
+          "label": "red_sa",
+          "n": 480,
+          "mean_mm": 23.151870940640745,
+          "std_mm": 0.05864196041171972
+        },
+        {
+          "piece_id": "piece_0021",
+          "label": "red_soldier",
+          "n": 480,
+          "mean_mm": 23.164071343268105,
+          "std_mm": 0.07936682315992581
+        },
+        {
+          "piece_id": "piece_0029",
+          "label": "blue_soldier",
+          "n": 480,
+          "mean_mm": 22.508854177873793,
+          "std_mm": 0.05913922710757067
+        },
+        {
+          "piece_id": "piece_0031",
+          "label": "blue_soldier",
+          "n": 480,
+          "mean_mm": 22.513754766056266,
+          "std_mm": 0.1443206561145602
+        },
+        {
+          "piece_id": "piece_0027",
+          "label": "red_sa",
+          "n": 480,
+          "mean_mm": 23.26979694141348,
+          "std_mm": 0.06256983748751722
+        },
+        {
+          "piece_id": "piece_0032",
+          "label": "blue_soldier",
+          "n": 480,
+          "mean_mm": 22.611399181622325,
+          "std_mm": 0.043615138613714265
+        },
+        {
+          "piece_id": "piece_0014",
+          "label": "red_sa",
+          "n": 122,
+          "mean_mm": 22.971822246346445,
+          "std_mm": 0.039781211527179935
+        }
+      ]
+    }
+  ],
+  "method": "Descriptive histogram and normal Q-Q comparison; no iid normality-test p-values because consecutive frames are correlated.",
+  "limitations": "Selected normal frames; model-predicted labels; one recording and calibration. Tail probabilities beyond the sample are not established."
+}

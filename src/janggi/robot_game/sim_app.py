@@ -12,6 +12,7 @@ from __future__ import annotations
 import argparse
 import random
 import sys
+import threading
 import time
 from pathlib import Path
 
@@ -40,6 +41,12 @@ class SimWorker:
         self.stab = BoardStabilizer(window=args.window)
         self.use_roi, self.fps, self.error = False, 30.0, None
         self.last_frame_t = time.time()
+        # The simulator supplies synthetic detections, not the live classifier
+        # or obstruction diagnostics. Keep the UI worker interface explicit.
+        self.obstruction_reset = threading.Event()
+        self.tracker = None
+        self.size_estimator = None
+        self.robot_motion = False
 
     def render(self):
         img = np.full((self.args.height, self.args.width, 3), (120, 160, 200), np.uint8)
@@ -62,8 +69,23 @@ class SimWorker:
         self.last_frame_t = time.time()
         return self.render(), dets, raw, self.stab.update(raw)
 
-    def fresh_state(self, timeout=10.0):
+    def fresh_state(self, timeout=10.0, new_game=False):
         return self.world.fresh_state()
+
+    def tracking_ready(self, new_game=False):
+        return True
+
+    def mark_game_generation(self):
+        pass
+
+    def expect_robot_move(self, src, dst):
+        pass
+
+    def get_piece_regions(self, frame):
+        return []
+
+    def get_obstruction(self):
+        return {"state": "unavailable", "reason": "가상 검출 입력 · 실제 가림 진단 없음", "motion": 0.0}
 
     def stop(self):
         pass

@@ -1,0 +1,10 @@
+{
+  "backend": "offline_model_only",
+  "source": "capture_workspace_docs.py",
+  "initial_width_mm": 40,
+  "target_width_mm": 60,
+  "gripper_feedback_received": false,
+  "arm_pose_received": false,
+  "profile_settings_sent": false,
+  "note": "Pure profile and geometry calculation; no ROS node or hardware was started."
+}

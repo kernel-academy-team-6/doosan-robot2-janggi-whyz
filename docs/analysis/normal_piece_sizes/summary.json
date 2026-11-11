@@ -1,0 +1,177 @@
+{
+  "source_session": "janggi/realtime_ui/evaluations/counts_20261111_055048_087201",
+  "source_video": "tools/captures/video_20261109_223623_956498/color.mp4",
+  "calibration": "janggi/realtime_ui/states/session_20261111_055048_043505/calibration.yaml",
+  "frame_counts": {
+    "settling": 48,
+    "stable": 486,
+    "suspected": 1055
+  },
+  "filters": {
+    "global_settling": 48,
+    "normal_frames": 480,
+    "unconfirmed_or_low_confidence_boxes": 94,
+    "local_diagnostic_regions": 999,
+    "global_suspected": 1055,
+    "tracking_only_present": 174,
+    "repeat_loop_frames": 132
+  },
+  "total_normal_observations": 15265,
+  "kinds": [
+    {
+      "kind": "king",
+      "kind_ko": "궁",
+      "n": 960,
+      "mean_mm": 35.44792306470889,
+      "sample_variance_mm2": 0.11607678382518197,
+      "sample_std_mm": 0.34070043120780164,
+      "min_mm": 34.95440319416271,
+      "max_mm": 36.09083424098986,
+      "track_ids": 2,
+      "pooled_within_track_variance_mm2": 0.011730686563043258,
+      "pooled_within_track_std_mm": 0.10830829406395089
+    },
+    {
+      "kind": "cha",
+      "kind_ko": "차",
+      "n": 1956,
+      "mean_mm": 28.776901167621997,
+      "sample_variance_mm2": 0.07383899431890883,
+      "sample_std_mm": 0.2717333147019497,
+      "min_mm": 28.324602083932803,
+      "max_mm": 29.52092604858658,
+      "track_ids": 5,
+      "pooled_within_track_variance_mm2": 0.02861982208344818,
+      "pooled_within_track_std_mm": 0.1691739403201574
+    },
+    {
+      "kind": "po",
+      "kind_ko": "포",
+      "n": 1920,
+      "mean_mm": 28.69111050800702,
+      "sample_variance_mm2": 0.07150124196065397,
+      "sample_std_mm": 0.2673971614670843,
+      "min_mm": 28.18484512716353,
+      "max_mm": 29.14504703788067,
+      "track_ids": 4,
+      "pooled_within_track_variance_mm2": 0.012012149701368227,
+      "pooled_within_track_std_mm": 0.10959995301718074
+    },
+    {
+      "kind": "horse",
+      "kind_ko": "마",
+      "n": 1920,
+      "mean_mm": 28.70583446813955,
+      "sample_variance_mm2": 0.16633796106198487,
+      "sample_std_mm": 0.407845511268648,
+      "min_mm": 27.766638492354463,
+      "max_mm": 29.723444165212157,
+      "track_ids": 4,
+      "pooled_within_track_variance_mm2": 0.020259098422365056,
+      "pooled_within_track_std_mm": 0.1423344597150144
+    },
+    {
+      "kind": "sang",
+      "kind_ko": "상",
+      "n": 1789,
+      "mean_mm": 28.904660295713164,
+      "sample_variance_mm2": 0.213819592591824,
+      "sample_std_mm": 0.46240630682531136,
+      "min_mm": 28.264557808406252,
+      "max_mm": 29.776646035740622,
+      "track_ids": 4,
+      "pooled_within_track_variance_mm2": 0.029537831080404843,
+      "pooled_within_track_std_mm": 0.17186573562058508
+    },
+    {
+      "kind": "sa",
+      "kind_ko": "사",
+      "n": 2042,
+      "mean_mm": 22.857357522756203,
+      "sample_variance_mm2": 0.14422964978033123,
+      "sample_std_mm": 0.3797757888285287,
+      "min_mm": 22.146088251173833,
+      "max_mm": 23.48462414054448,
+      "track_ids": 5,
+      "pooled_within_track_variance_mm2": 0.010349240694662155,
+      "pooled_within_track_std_mm": 0.10173121789628863
+    },
+    {
+      "kind": "soldier",
+      "kind_ko": "졸·병",
+      "n": 4678,
+      "mean_mm": 22.672923475089515,
+      "sample_variance_mm2": 0.053745495484408316,
+      "sample_std_mm": 0.23183074749568555,
+      "min_mm": 22.22689163428888,
+      "max_mm": 23.32538390142672,
+      "track_ids": 10,
+      "pooled_within_track_variance_mm2": 0.005622882292794364,
+      "pooled_within_track_std_mm": 0.07498588062291703
+    }
+  ],
+  "metric": "sqrt(width_mm * height_mm) from the current raw detection box; not the stored rolling median",
+  "variance": "sample variance, denominator n-1; frame observations are temporally correlated",
+  "normal_definition": "first playback only; replayed ObstructionMonitor stable; no local diagnostic regions anywhere; no tracking-only boxes; confirmed labels and configured confidence thresholds",
+  "obstruction_replay": {
+    "window_seconds": 2.0,
+    "settle_seconds": 0.8,
+    "motion_threshold": 0.03,
+    "timestamp": "recorded counts.csv elapsed_s; polygon from the saved calibration",
+    "limitations": "Original global state/manual obstruction-reset actions were not logged. Normal states are recomputed with current code and default monitor parameters, not claimed as exact original runtime states."
+  },
+  "additional_limitations": [
+    "Heuristic normal is not proof of no stationary occlusion.",
+    "Labels are model predictions, not independently checked class ground truth.",
+    "No size-based outlier rejection is added; empirical dispersion is not truncated by the runtime size prior.",
+    "A track ID is not a guaranteed unique physical piece.",
+    "These empirical statistics do not replace the current fixed 1.8 mm Gaussian width."
+  ],
+  "input_sha256": {
+    "color.mp4": "ec823aa1c73acbb8333b57951c8c32eb6526118eab75da82086435ce03638ff9",
+    "calibration.yaml": "b7b5e306e3545b2ce8a44d2de1923111c21dbd88640a0480d8fe6a1fcc73eff9",
+    "counts.csv": "74fcf29738c620f346aec9146a06dec14594001a1e2f8a7b57e815f5c8e6dea9",
+    "classifications.jsonl": "7c21afe30ad0a795309b1e2da3c8d88e3109d2fd73df524dddf1b4b2917490d1"
+  },
+  "size_groups": [
+    {
+      "group": "king",
+      "group_ko": "궁",
+      "kinds": "king",
+      "n": 960,
+      "mean_mm": 35.44792306470889,
+      "sample_variance_mm2": 0.11607678382518197,
+      "sample_std_mm": 0.34070043120780164,
+      "min_mm": 34.95440319416271,
+      "max_mm": 36.09083424098986,
+      "mean_minus_6sd_mm": 33.40372047746208,
+      "mean_plus_6sd_mm": 37.492125651955696
+    },
+    {
+      "group": "medium",
+      "group_ko": "중간말",
+      "kinds": "cha,po,horse,sang",
+      "n": 7585,
+      "mean_mm": 28.767328979182714,
+      "sample_variance_mm2": 0.13652585129370085,
+      "sample_std_mm": 0.3694940477107863,
+      "min_mm": 27.766638492354463,
+      "max_mm": 29.776646035740622,
+      "mean_minus_6sd_mm": 26.550364692917995,
+      "mean_plus_6sd_mm": 30.984293265447434
+    },
+    {
+      "group": "small",
+      "group_ko": "작은말",
+      "kinds": "sa,soldier",
+      "n": 6720,
+      "mean_mm": 22.728967273502516,
+      "sample_variance_mm2": 0.08842000367384327,
+      "sample_std_mm": 0.2973550128614671,
+      "min_mm": 22.146088251173833,
+      "max_mm": 23.48462414054448,
+      "mean_minus_6sd_mm": 20.94483719633371,
+      "mean_plus_6sd_mm": 24.51309735067132
+    }
+  ]
+}

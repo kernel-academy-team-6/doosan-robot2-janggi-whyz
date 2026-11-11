@@ -1,0 +1,84 @@
+{
+  "piece": {
+    "captured_at": "2026-11-11T13:46:48.028309+09:00",
+    "commit": "44f41ea8520fe0ef294cafa1cccbeffc5e85e0ce",
+    "command": "janggi/.venv/bin/python tools/capture_workspace_docs.py --mode piece",
+    "display": "isolated Xvfb",
+    "robot_connected": false,
+    "camera_connected": false,
+    "input": "tools/datasets/janggi_pieces/frames/a88f9da14046815fb1a8a443d5c5edabafb915cbf6d8cdcb52bfb504ba7de3d1/000000060.png",
+    "input_sha256": "f3e645c548817655d63bcb87e11bfd8192e61ee1980c293a4b53afe0dd3a4654",
+    "detector": "models/weights_only_piece.pt",
+    "detector_sha256": "ec0acd79cfe8c3ae5ba3cee30a8e8bcfdc2dd4f96076ff913859146ab9c2f8eb",
+    "device": "cpu",
+    "synthetic_obstruction": false
+  },
+  "hybrid": {
+    "captured_at": "2026-11-11T13:46:59.287993+09:00",
+    "commit": "44f41ea8520fe0ef294cafa1cccbeffc5e85e0ce",
+    "command": "janggi/.venv/bin/python tools/capture_workspace_docs.py --mode hybrid",
+    "display": "isolated Xvfb",
+    "robot_connected": false,
+    "camera_connected": false,
+    "input": "tools/datasets/janggi_pieces/frames/a88f9da14046815fb1a8a443d5c5edabafb915cbf6d8cdcb52bfb504ba7de3d1/000000060.png",
+    "input_sha256": "f3e645c548817655d63bcb87e11bfd8192e61ee1980c293a4b53afe0dd3a4654",
+    "detector": "models/weights_only_piece.pt",
+    "detector_sha256": "ec0acd79cfe8c3ae5ba3cee30a8e8bcfdc2dd4f96076ff913859146ab9c2f8eb",
+    "device": "cpu",
+    "synthetic_obstruction": false,
+    "classifier": "models/piece_classifier/best.pt",
+    "classifier_sha256": "cc0314c2fbb3fa22af0f5ecd2cf161fcb3d4a8858923a4a58bebfebefb5b09f4"
+  },
+  "obstruction": {
+    "captured_at": "2026-11-11T13:47:11.640299+09:00",
+    "commit": "44f41ea8520fe0ef294cafa1cccbeffc5e85e0ce",
+    "command": "janggi/.venv/bin/python tools/capture_workspace_docs.py --mode obstruction",
+    "display": "isolated Xvfb",
+    "robot_connected": false,
+    "camera_connected": false,
+    "input": "tools/datasets/janggi_pieces/frames/a88f9da14046815fb1a8a443d5c5edabafb915cbf6d8cdcb52bfb504ba7de3d1/000000060.png",
+    "input_sha256": "f3e645c548817655d63bcb87e11bfd8192e61ee1980c293a4b53afe0dd3a4654",
+    "detector": "models/weights_only_piece.pt",
+    "detector_sha256": "ec0acd79cfe8c3ae5ba3cee30a8e8bcfdc2dd4f96076ff913859146ab9c2f8eb",
+    "device": "cpu",
+    "synthetic_obstruction": true,
+    "classifier": "models/piece_classifier/best.pt",
+    "classifier_sha256": "cc0314c2fbb3fa22af0f5ecd2cf161fcb3d4a8858923a4a58bebfebefb5b09f4"
+  },
+  "dataset": {
+    "captured_at": "2026-11-11T13:47:14.376438+09:00",
+    "commit": "44f41ea8520fe0ef294cafa1cccbeffc5e85e0ce",
+    "command": "janggi/.venv/bin/python tools/capture_workspace_docs.py --mode dataset",
+    "display": "isolated Xvfb",
+    "robot_connected": false,
+    "camera_connected": false
+  },
+  "evaluation": {
+    "captured_at": "2026-11-11T13:47:16.747889+09:00",
+    "commit": "44f41ea8520fe0ef294cafa1cccbeffc5e85e0ce",
+    "command": "janggi/.venv/bin/python tools/capture_workspace_docs.py --mode evaluation",
+    "display": "isolated Xvfb",
+    "robot_connected": false,
+    "camera_connected": false
+  },
+  "tcp": {
+    "captured_at": "2026-11-11T13:47:16.868012+09:00",
+    "commit": "44f41ea8520fe0ef294cafa1cccbeffc5e85e0ce",
+    "command": "janggi/.venv/bin/python tools/capture_workspace_docs.py --mode tcp",
+    "display": "isolated Xvfb",
+    "robot_connected": false,
+    "camera_connected": false,
+    "screenshot": "tcp.png",
+    "screenshot_method": "headless Chrome rendering of the actual offline report.py output",
+    "hardware_feedback": false
+  },
+  "simulation": {
+    "captured_at": "2026-11-11T13:49:05.217097+09:00",
+    "commit": "44f41ea8520fe0ef294cafa1cccbeffc5e85e0ce",
+    "command": "janggi/.venv/bin/python tools/capture_workspace_docs.py --mode simulation",
+    "display": "isolated Xvfb",
+    "robot_connected": false,
+    "camera_connected": false,
+    "working_tree_note": "SimWorker UI compatibility patch applied after base HEAD; see sim_worker_compatibility.patch"
+  }
+}

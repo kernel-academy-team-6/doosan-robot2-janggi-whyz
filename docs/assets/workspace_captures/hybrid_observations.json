@@ -1,0 +1,226 @@
+[
+  {
+    "id": "piece_0001",
+    "visible": true,
+    "label": "red_king",
+    "flags": [],
+    "revival_state": "active"
+  },
+  {
+    "id": "piece_0002",
+    "visible": true,
+    "label": "blue_sang",
+    "flags": [],
+    "revival_state": "active"
+  },
+  {
+    "id": "piece_0003",
+    "visible": true,
+    "label": "blue_cha",
+    "flags": [],
+    "revival_state": "active"
+  },
+  {
+    "id": "piece_0004",
+    "visible": true,
+    "label": "blue_king",
+    "flags": [],
+    "revival_state": "active"
+  },
+  {
+    "id": "piece_0005",
+    "visible": true,
+    "label": "blue_po",
+    "flags": [],
+    "revival_state": "active"
+  },
+  {
+    "id": "piece_0006",
+    "visible": true,
+    "label": "red_horse",
+    "flags": [],
+    "revival_state": "active"
+  },
+  {
+    "id": "piece_0007",
+    "visible": true,
+    "label": "red_sang",
+    "flags": [],
+    "revival_state": "active"
+  },
+  {
+    "id": "piece_0008",
+    "visible": true,
+    "label": "blue_cha",
+    "flags": [],
+    "revival_state": "active"
+  },
+  {
+    "id": "piece_0009",
+    "visible": true,
+    "label": "blue_sang",
+    "flags": [],
+    "revival_state": "active"
+  },
+  {
+    "id": "piece_0010",
+    "visible": true,
+    "label": "red_cha",
+    "flags": [],
+    "revival_state": "active"
+  },
+  {
+    "id": "piece_0011",
+    "visible": true,
+    "label": "blue_horse",
+    "flags": [],
+    "revival_state": "active"
+  },
+  {
+    "id": "piece_0012",
+    "visible": true,
+    "label": "red_po",
+    "flags": [],
+    "revival_state": "active"
+  },
+  {
+    "id": "piece_0013",
+    "visible": true,
+    "label": "red_soldier",
+    "flags": [],
+    "revival_state": "active"
+  },
+  {
+    "id": "piece_0014",
+    "visible": true,
+    "label": "blue_po",
+    "flags": [],
+    "revival_state": "active"
+  },
+  {
+    "id": "piece_0015",
+    "visible": true,
+    "label": "red_po",
+    "flags": [],
+    "revival_state": "active"
+  },
+  {
+    "id": "piece_0016",
+    "visible": true,
+    "label": "blue_sa",
+    "flags": [],
+    "revival_state": "active"
+  },
+  {
+    "id": "piece_0017",
+    "visible": true,
+    "label": "blue_soldier",
+    "flags": [],
+    "revival_state": "active"
+  },
+  {
+    "id": "piece_0018",
+    "visible": true,
+    "label": "red_cha",
+    "flags": [],
+    "revival_state": "active"
+  },
+  {
+    "id": "piece_0019",
+    "visible": true,
+    "label": "red_soldier",
+    "flags": [],
+    "revival_state": "active"
+  },
+  {
+    "id": "piece_0020",
+    "visible": true,
+    "label": "red_sang",
+    "flags": [],
+    "revival_state": "active"
+  },
+  {
+    "id": "piece_0021",
+    "visible": true,
+    "label": "red_soldier",
+    "flags": [],
+    "revival_state": "active"
+  },
+  {
+    "id": "piece_0022",
+    "visible": true,
+    "label": "blue_sa",
+    "flags": [],
+    "revival_state": "active"
+  },
+  {
+    "id": "piece_0023",
+    "visible": true,
+    "label": "red_horse",
+    "flags": [],
+    "revival_state": "active"
+  },
+  {
+    "id": "piece_0024",
+    "visible": true,
+    "label": "blue_soldier",
+    "flags": [],
+    "revival_state": "active"
+  },
+  {
+    "id": "piece_0025",
+    "visible": true,
+    "label": "blue_horse",
+    "flags": [],
+    "revival_state": "active"
+  },
+  {
+    "id": "piece_0026",
+    "visible": true,
+    "label": "red_soldier",
+    "flags": [],
+    "revival_state": "active"
+  },
+  {
+    "id": "piece_0027",
+    "visible": true,
+    "label": "red_sa",
+    "flags": [],
+    "revival_state": "active"
+  },
+  {
+    "id": "piece_0028",
+    "visible": true,
+    "label": "blue_soldier",
+    "flags": [],
+    "revival_state": "active"
+  },
+  {
+    "id": "piece_0029",
+    "visible": true,
+    "label": "blue_soldier",
+    "flags": [],
+    "revival_state": "active"
+  },
+  {
+    "id": "piece_0030",
+    "visible": true,
+    "label": "red_soldier",
+    "flags": [],
+    "revival_state": "active"
+  },
+  {
+    "id": "piece_0031",
+    "visible": true,
+    "label": "blue_soldier",
+    "flags": [],
+    "revival_state": "active"
+  },
+  {
+    "id": "piece_0032",
+    "visible": true,
+    "label": "red_sa",
+    "flags": [],
+    "revival_state": "active"
+  }
+]
