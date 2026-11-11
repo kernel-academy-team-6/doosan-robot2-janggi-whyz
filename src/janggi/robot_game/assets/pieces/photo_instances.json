@@ -1,0 +1,610 @@
+{
+  "blue_cha_0": {
+    "source": "docs/IMG_1183.jpg",
+    "sha256": "e9c2bc4ba0fdb9eae84935d615864d61ae828ced990e6236af46733f59349ea2",
+    "source_size": [
+      3024,
+      4032
+    ],
+    "method": "native-resolution photographic RGB crop; white-face convex hull alpha; no recolouring",
+    "purpose": "Gazebo rendered surface only",
+    "crop_xywh": [
+      133,
+      690,
+      202,
+      198
+    ],
+    "texture_key": "blue_cha_0",
+    "label": "blue_cha",
+    "instance": 0
+  },
+  "blue_cha_1": {
+    "source": "docs/IMG_1183.jpg",
+    "sha256": "e9c2bc4ba0fdb9eae84935d615864d61ae828ced990e6236af46733f59349ea2",
+    "source_size": [
+      3024,
+      4032
+    ],
+    "method": "native-resolution photographic RGB crop; white-face convex hull alpha; no recolouring",
+    "purpose": "Gazebo rendered surface only",
+    "crop_xywh": [
+      2700,
+      689,
+      202,
+      196
+    ],
+    "texture_key": "blue_cha_1",
+    "label": "blue_cha",
+    "instance": 1
+  },
+  "blue_sang_0": {
+    "source": "docs/IMG_1183.jpg",
+    "sha256": "e9c2bc4ba0fdb9eae84935d615864d61ae828ced990e6236af46733f59349ea2",
+    "source_size": [
+      3024,
+      4032
+    ],
+    "method": "native-resolution photographic RGB crop; white-face convex hull alpha; no recolouring",
+    "purpose": "Gazebo rendered surface only",
+    "crop_xywh": [
+      455,
+      689,
+      200,
+      198
+    ],
+    "texture_key": "blue_sang_0",
+    "label": "blue_sang",
+    "instance": 0
+  },
+  "blue_sang_1": {
+    "source": "docs/IMG_1183.jpg",
+    "sha256": "e9c2bc4ba0fdb9eae84935d615864d61ae828ced990e6236af46733f59349ea2",
+    "source_size": [
+      3024,
+      4032
+    ],
+    "method": "native-resolution photographic RGB crop; white-face convex hull alpha; no recolouring",
+    "purpose": "Gazebo rendered surface only",
+    "crop_xywh": [
+      2076,
+      691,
+      204,
+      204
+    ],
+    "texture_key": "blue_sang_1",
+    "label": "blue_sang",
+    "instance": 1
+  },
+  "blue_horse_0": {
+    "source": "docs/IMG_1183.jpg",
+    "sha256": "e9c2bc4ba0fdb9eae84935d615864d61ae828ced990e6236af46733f59349ea2",
+    "source_size": [
+      3024,
+      4032
+    ],
+    "method": "native-resolution photographic RGB crop; white-face convex hull alpha; no recolouring",
+    "purpose": "Gazebo rendered surface only",
+    "crop_xywh": [
+      777,
+      687,
+      198,
+      195
+    ],
+    "texture_key": "blue_horse_0",
+    "label": "blue_horse",
+    "instance": 0
+  },
+  "blue_horse_1": {
+    "source": "docs/IMG_1183.jpg",
+    "sha256": "e9c2bc4ba0fdb9eae84935d615864d61ae828ced990e6236af46733f59349ea2",
+    "source_size": [
+      3024,
+      4032
+    ],
+    "method": "native-resolution photographic RGB crop; white-face convex hull alpha; no recolouring",
+    "purpose": "Gazebo rendered surface only",
+    "crop_xywh": [
+      2377,
+      679,
+      200,
+      196
+    ],
+    "texture_key": "blue_horse_1",
+    "label": "blue_horse",
+    "instance": 1
+  },
+  "blue_sa_0": {
+    "source": "docs/IMG_1183.jpg",
+    "sha256": "e9c2bc4ba0fdb9eae84935d615864d61ae828ced990e6236af46733f59349ea2",
+    "source_size": [
+      3024,
+      4032
+    ],
+    "method": "native-resolution photographic RGB crop; white-face convex hull alpha; no recolouring",
+    "purpose": "Gazebo rendered surface only",
+    "crop_xywh": [
+      1121,
+      707,
+      157,
+      152
+    ],
+    "texture_key": "blue_sa_0",
+    "label": "blue_sa",
+    "instance": 0
+  },
+  "blue_sa_1": {
+    "source": "docs/IMG_1183.jpg",
+    "sha256": "e9c2bc4ba0fdb9eae84935d615864d61ae828ced990e6236af46733f59349ea2",
+    "source_size": [
+      3024,
+      4032
+    ],
+    "method": "native-resolution photographic RGB crop; white-face convex hull alpha; no recolouring",
+    "purpose": "Gazebo rendered surface only",
+    "crop_xywh": [
+      1757,
+      706,
+      158,
+      156
+    ],
+    "texture_key": "blue_sa_1",
+    "label": "blue_sa",
+    "instance": 1
+  },
+  "blue_king_0": {
+    "source": "docs/IMG_1183.jpg",
+    "sha256": "e9c2bc4ba0fdb9eae84935d615864d61ae828ced990e6236af46733f59349ea2",
+    "source_size": [
+      3024,
+      4032
+    ],
+    "method": "native-resolution photographic RGB crop; white-face convex hull alpha; no recolouring",
+    "purpose": "Gazebo rendered surface only",
+    "crop_xywh": [
+      1430,
+      936,
+      250,
+      248
+    ],
+    "texture_key": "blue_king_0",
+    "label": "blue_king",
+    "instance": 0
+  },
+  "blue_po_0": {
+    "source": "docs/IMG_1183.jpg",
+    "sha256": "e9c2bc4ba0fdb9eae84935d615864d61ae828ced990e6236af46733f59349ea2",
+    "source_size": [
+      3024,
+      4032
+    ],
+    "method": "native-resolution photographic RGB crop; white-face convex hull alpha; no recolouring",
+    "purpose": "Gazebo rendered surface only",
+    "crop_xywh": [
+      452,
+      1232,
+      203,
+      200
+    ],
+    "texture_key": "blue_po_0",
+    "label": "blue_po",
+    "instance": 0
+  },
+  "blue_po_1": {
+    "source": "docs/IMG_1183.jpg",
+    "sha256": "e9c2bc4ba0fdb9eae84935d615864d61ae828ced990e6236af46733f59349ea2",
+    "source_size": [
+      3024,
+      4032
+    ],
+    "method": "native-resolution photographic RGB crop; white-face convex hull alpha; no recolouring",
+    "purpose": "Gazebo rendered surface only",
+    "crop_xywh": [
+      2383,
+      1228,
+      211,
+      198
+    ],
+    "texture_key": "blue_po_1",
+    "label": "blue_po",
+    "instance": 1
+  },
+  "blue_soldier_0": {
+    "source": "docs/IMG_1183.jpg",
+    "sha256": "e9c2bc4ba0fdb9eae84935d615864d61ae828ced990e6236af46733f59349ea2",
+    "source_size": [
+      3024,
+      4032
+    ],
+    "method": "native-resolution photographic RGB crop; white-face convex hull alpha; no recolouring",
+    "purpose": "Gazebo rendered surface only",
+    "crop_xywh": [
+      156,
+      1550,
+      169,
+      155
+    ],
+    "texture_key": "blue_soldier_0",
+    "label": "blue_soldier",
+    "instance": 0
+  },
+  "blue_soldier_1": {
+    "source": "docs/IMG_1183.jpg",
+    "sha256": "e9c2bc4ba0fdb9eae84935d615864d61ae828ced990e6236af46733f59349ea2",
+    "source_size": [
+      3024,
+      4032
+    ],
+    "method": "native-resolution photographic RGB crop; white-face convex hull alpha; no recolouring",
+    "purpose": "Gazebo rendered surface only",
+    "crop_xywh": [
+      798,
+      1543,
+      157,
+      157
+    ],
+    "texture_key": "blue_soldier_1",
+    "label": "blue_soldier",
+    "instance": 1
+  },
+  "blue_soldier_2": {
+    "source": "docs/IMG_1183.jpg",
+    "sha256": "e9c2bc4ba0fdb9eae84935d615864d61ae828ced990e6236af46733f59349ea2",
+    "source_size": [
+      3024,
+      4032
+    ],
+    "method": "native-resolution photographic RGB crop; white-face convex hull alpha; no recolouring",
+    "purpose": "Gazebo rendered surface only",
+    "crop_xywh": [
+      1442,
+      1549,
+      156,
+      162
+    ],
+    "texture_key": "blue_soldier_2",
+    "label": "blue_soldier",
+    "instance": 2
+  },
+  "blue_soldier_3": {
+    "source": "docs/IMG_1183.jpg",
+    "sha256": "e9c2bc4ba0fdb9eae84935d615864d61ae828ced990e6236af46733f59349ea2",
+    "source_size": [
+      3024,
+      4032
+    ],
+    "method": "native-resolution photographic RGB crop; white-face convex hull alpha; no recolouring",
+    "purpose": "Gazebo rendered surface only",
+    "crop_xywh": [
+      2086,
+      1541,
+      173,
+      161
+    ],
+    "texture_key": "blue_soldier_3",
+    "label": "blue_soldier",
+    "instance": 3
+  },
+  "blue_soldier_4": {
+    "source": "docs/IMG_1183.jpg",
+    "sha256": "e9c2bc4ba0fdb9eae84935d615864d61ae828ced990e6236af46733f59349ea2",
+    "source_size": [
+      3024,
+      4032
+    ],
+    "method": "native-resolution photographic RGB crop; white-face convex hull alpha; no recolouring",
+    "purpose": "Gazebo rendered surface only",
+    "crop_xywh": [
+      2723,
+      1523,
+      168,
+      156
+    ],
+    "texture_key": "blue_soldier_4",
+    "label": "blue_soldier",
+    "instance": 4
+  },
+  "red_soldier_0": {
+    "source": "docs/IMG_1183.jpg",
+    "sha256": "e9c2bc4ba0fdb9eae84935d615864d61ae828ced990e6236af46733f59349ea2",
+    "source_size": [
+      3024,
+      4032
+    ],
+    "method": "native-resolution photographic RGB crop; white-face convex hull alpha; no recolouring",
+    "purpose": "Gazebo rendered surface only",
+    "crop_xywh": [
+      168,
+      2428,
+      162,
+      163
+    ],
+    "texture_key": "red_soldier_0",
+    "label": "red_soldier",
+    "instance": 0
+  },
+  "red_soldier_1": {
+    "source": "docs/IMG_1183.jpg",
+    "sha256": "e9c2bc4ba0fdb9eae84935d615864d61ae828ced990e6236af46733f59349ea2",
+    "source_size": [
+      3024,
+      4032
+    ],
+    "method": "native-resolution photographic RGB crop; white-face convex hull alpha; no recolouring",
+    "purpose": "Gazebo rendered surface only",
+    "crop_xywh": [
+      795,
+      2416,
+      158,
+      158
+    ],
+    "texture_key": "red_soldier_1",
+    "label": "red_soldier",
+    "instance": 1
+  },
+  "red_soldier_2": {
+    "source": "docs/IMG_1183.jpg",
+    "sha256": "e9c2bc4ba0fdb9eae84935d615864d61ae828ced990e6236af46733f59349ea2",
+    "source_size": [
+      3024,
+      4032
+    ],
+    "method": "native-resolution photographic RGB crop; white-face convex hull alpha; no recolouring",
+    "purpose": "Gazebo rendered surface only",
+    "crop_xywh": [
+      1463,
+      2418,
+      160,
+      165
+    ],
+    "texture_key": "red_soldier_2",
+    "label": "red_soldier",
+    "instance": 2
+  },
+  "red_soldier_3": {
+    "source": "docs/IMG_1183.jpg",
+    "sha256": "e9c2bc4ba0fdb9eae84935d615864d61ae828ced990e6236af46733f59349ea2",
+    "source_size": [
+      3024,
+      4032
+    ],
+    "method": "native-resolution photographic RGB crop; white-face convex hull alpha; no recolouring",
+    "purpose": "Gazebo rendered surface only",
+    "crop_xywh": [
+      2109,
+      2414,
+      166,
+      165
+    ],
+    "texture_key": "red_soldier_3",
+    "label": "red_soldier",
+    "instance": 3
+  },
+  "red_soldier_4": {
+    "source": "docs/IMG_1183.jpg",
+    "sha256": "e9c2bc4ba0fdb9eae84935d615864d61ae828ced990e6236af46733f59349ea2",
+    "source_size": [
+      3024,
+      4032
+    ],
+    "method": "native-resolution photographic RGB crop; white-face convex hull alpha; no recolouring",
+    "purpose": "Gazebo rendered surface only",
+    "crop_xywh": [
+      2758,
+      2401,
+      166,
+      160
+    ],
+    "texture_key": "red_soldier_4",
+    "label": "red_soldier",
+    "instance": 4
+  },
+  "red_po_0": {
+    "source": "docs/IMG_1183.jpg",
+    "sha256": "e9c2bc4ba0fdb9eae84935d615864d61ae828ced990e6236af46733f59349ea2",
+    "source_size": [
+      3024,
+      4032
+    ],
+    "method": "native-resolution photographic RGB crop; white-face convex hull alpha; no recolouring",
+    "purpose": "Gazebo rendered surface only",
+    "crop_xywh": [
+      436,
+      2693,
+      207,
+      215
+    ],
+    "texture_key": "red_po_0",
+    "label": "red_po",
+    "instance": 0
+  },
+  "red_po_1": {
+    "source": "docs/IMG_1183.jpg",
+    "sha256": "e9c2bc4ba0fdb9eae84935d615864d61ae828ced990e6236af46733f59349ea2",
+    "source_size": [
+      3024,
+      4032
+    ],
+    "method": "native-resolution photographic RGB crop; white-face convex hull alpha; no recolouring",
+    "purpose": "Gazebo rendered surface only",
+    "crop_xywh": [
+      2418,
+      2672,
+      205,
+      209
+    ],
+    "texture_key": "red_po_1",
+    "label": "red_po",
+    "instance": 1
+  },
+  "red_king_0": {
+    "source": "docs/IMG_1183.jpg",
+    "sha256": "e9c2bc4ba0fdb9eae84935d615864d61ae828ced990e6236af46733f59349ea2",
+    "source_size": [
+      3024,
+      4032
+    ],
+    "method": "native-resolution photographic RGB crop; white-face convex hull alpha; no recolouring",
+    "purpose": "Gazebo rendered surface only",
+    "crop_xywh": [
+      1396,
+      2972,
+      260,
+      263
+    ],
+    "texture_key": "red_king_0",
+    "label": "red_king",
+    "instance": 0
+  },
+  "red_cha_0": {
+    "source": "docs/IMG_1183.jpg",
+    "sha256": "e9c2bc4ba0fdb9eae84935d615864d61ae828ced990e6236af46733f59349ea2",
+    "source_size": [
+      3024,
+      4032
+    ],
+    "method": "native-resolution photographic RGB crop; white-face convex hull alpha; no recolouring",
+    "purpose": "Gazebo rendered surface only",
+    "crop_xywh": [
+      100,
+      3290,
+      208,
+      215
+    ],
+    "texture_key": "red_cha_0",
+    "label": "red_cha",
+    "instance": 0
+  },
+  "red_cha_1": {
+    "source": "docs/IMG_1183.jpg",
+    "sha256": "e9c2bc4ba0fdb9eae84935d615864d61ae828ced990e6236af46733f59349ea2",
+    "source_size": [
+      3024,
+      4032
+    ],
+    "method": "native-resolution photographic RGB crop; white-face convex hull alpha; no recolouring",
+    "purpose": "Gazebo rendered surface only",
+    "crop_xywh": [
+      2752,
+      3263,
+      207,
+      214
+    ],
+    "texture_key": "red_cha_1",
+    "label": "red_cha",
+    "instance": 1
+  },
+  "red_horse_0": {
+    "source": "docs/IMG_1183.jpg",
+    "sha256": "e9c2bc4ba0fdb9eae84935d615864d61ae828ced990e6236af46733f59349ea2",
+    "source_size": [
+      3024,
+      4032
+    ],
+    "method": "native-resolution photographic RGB crop; white-face convex hull alpha; no recolouring",
+    "purpose": "Gazebo rendered surface only",
+    "crop_xywh": [
+      423,
+      3254,
+      206,
+      224
+    ],
+    "texture_key": "red_horse_0",
+    "label": "red_horse",
+    "instance": 0
+  },
+  "red_horse_1": {
+    "source": "docs/IMG_1183.jpg",
+    "sha256": "e9c2bc4ba0fdb9eae84935d615864d61ae828ced990e6236af46733f59349ea2",
+    "source_size": [
+      3024,
+      4032
+    ],
+    "method": "native-resolution photographic RGB crop; white-face convex hull alpha; no recolouring",
+    "purpose": "Gazebo rendered surface only",
+    "crop_xywh": [
+      2114,
+      3257,
+      209,
+      224
+    ],
+    "texture_key": "red_horse_1",
+    "label": "red_horse",
+    "instance": 1
+  },
+  "red_sang_0": {
+    "source": "docs/IMG_1183.jpg",
+    "sha256": "e9c2bc4ba0fdb9eae84935d615864d61ae828ced990e6236af46733f59349ea2",
+    "source_size": [
+      3024,
+      4032
+    ],
+    "method": "native-resolution photographic RGB crop; white-face convex hull alpha; no recolouring",
+    "purpose": "Gazebo rendered surface only",
+    "crop_xywh": [
+      775,
+      3268,
+      207,
+      219
+    ],
+    "texture_key": "red_sang_0",
+    "label": "red_sang",
+    "instance": 0
+  },
+  "red_sang_1": {
+    "source": "docs/IMG_1183.jpg",
+    "sha256": "e9c2bc4ba0fdb9eae84935d615864d61ae828ced990e6236af46733f59349ea2",
+    "source_size": [
+      3024,
+      4032
+    ],
+    "method": "native-resolution photographic RGB crop; white-face convex hull alpha; no recolouring",
+    "purpose": "Gazebo rendered surface only",
+    "crop_xywh": [
+      2431,
+      3267,
+      209,
+      216
+    ],
+    "texture_key": "red_sang_1",
+    "label": "red_sang",
+    "instance": 1
+  },
+  "red_sa_0": {
+    "source": "docs/IMG_1183.jpg",
+    "sha256": "e9c2bc4ba0fdb9eae84935d615864d61ae828ced990e6236af46733f59349ea2",
+    "source_size": [
+      3024,
+      4032
+    ],
+    "method": "native-resolution photographic RGB crop; white-face convex hull alpha; no recolouring",
+    "purpose": "Gazebo rendered surface only",
+    "crop_xywh": [
+      1125,
+      3277,
+      159,
+      173
+    ],
+    "texture_key": "red_sa_0",
+    "label": "red_sa",
+    "instance": 0
+  },
+  "red_sa_1": {
+    "source": "docs/IMG_1183.jpg",
+    "sha256": "e9c2bc4ba0fdb9eae84935d615864d61ae828ced990e6236af46733f59349ea2",
+    "source_size": [
+      3024,
+      4032
+    ],
+    "method": "native-resolution photographic RGB crop; white-face convex hull alpha; no recolouring",
+    "purpose": "Gazebo rendered surface only",
+    "crop_xywh": [
+      1784,
+      3266,
+      164,
+      184
+    ],
+    "texture_key": "red_sa_1",
+    "label": "red_sa",
+    "instance": 1
+  }
+}

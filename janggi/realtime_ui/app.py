@@ -56,18 +56,23 @@ FULL_SET = {"king": 1, "cha": 2, "po": 2, "horse": 2, "sang": 2, "sa": 2, "soldi
 
 def parse_args():
     p = argparse.ArgumentParser(description="장기말 실시간 인식 + 게임 UI")
-    p.add_argument("--source", default="realsense", help="realsense | 웹캠 번호 | 동영상/이미지 파일 경로")
+    p.add_argument("--source", default="realsense", help="realsense | gazebo (원본 RGB 직접 수신) | 웹캠 번호 | 동영상/이미지 파일 경로")
+    p.add_argument("--gazebo-transport", choices=("gazebo", "ros"), default="gazebo",
+                   help="Gazebo 영상 수신 경로: 기본은 원본 직접 구독; ros는 비교/호환용")
     p.add_argument("--playback-fps", type=float, default=0.0,
                    help="동영상 재생 FPS (기본/0: 속도 제한 없음). 카메라·사진에는 적용 안 함")
     model_options = p.add_mutually_exclusive_group()
     model_options.add_argument("--model-mode", "-model-mode", choices=("piece", "full", "hybrid", "cnn"), default=None,
                                help="piece: 위치 전용, full: 기존 14종, hybrid/cnn: 위치 YOLO + 별도 분류 (생략 시 weights.pt)")
     model_options.add_argument("--model", type=Path, default=None, help="모델 파일 경로 직접 지정")
-    p.add_argument("--classifier", type=Path, default=HERE.parents[1]/"models/piece_classifier/best.pt",
+    p.add_argument("--classifier", type=Path, default=HERE.parents[1]/"models/piece_classifier_pieces2_224/best.pt",
                    help="hybrid/cnn 모드의 분류 가중치")
     p.add_argument("--classifier-backend", choices=("mobilenet", "ultralytics"), default="mobilenet")
     p.add_argument("--classifier-conf", type=float, default=.5, help="종류 분류 확률 기준; 미달이면 위치만 표시")
-    p.add_argument("--classification-interval", type=float, default=.5, help="종류가 알려진 정상 객체의 갱신 간격(초), 기본 0.5; 미분류 객체는 즉시 재시도")
+    p.add_argument("--classification-interval", type=float, default=0., help="정상 객체 CNN 갱신의 추가 최소 간격(초), 기본 0")
+    p.add_argument("--unknown-classification-interval", type=float, default=0.,
+                   help="알 객체 CNN 재분류 최소 간격(초), 기본 0: 매 처리 프레임 요청")
+    p.add_argument("--classification-frames", type=int, default=4, help="정상 객체 CNN 갱신 프레임 간격; 기본 4")
     p.add_argument("--tracking-low-conf", type=float, default=.1, help="hybrid 기존 ID 추적 보조 검출 하한; 새 객체/종류 갱신에는 사용 안 함")
     p.add_argument("--history-alpha", type=float, default=.2, help="현재 관측 비중; 기본 과거 80%% + 현재 20%%")
     p.add_argument("--size-strength", type=float, default=.5, help="바닥값 없는 크기 가우시안 강도 (폭 1.2mm); 0이면 사용 안 함")
@@ -87,9 +92,9 @@ def parse_args():
     p.add_argument("--conf", type=float, default=0.35, help="검출 신뢰도 임계값 (UI 슬라이더로 바꿀 수 있다)")
     p.add_argument("--full-frame", action="store_true", help="판 영역만 잘라 인식하지 않고 전체 프레임을 인식")
     p.add_argument("--roi-margin", type=int, default=60, help="판 영역 인식 때 격자 바깥 여유 [px]")
-    p.add_argument("--calibration", type=Path, default=DEFAULT_CALIBRATION,
-                   help="네 모서리 픽셀을 읽을 보정 파일 (없으면 판 매핑 없이 검출만)")
-    p.add_argument("--piece-height", type=float, default=12.0, help="말 높이 [mm] (시차 보정)")
+    p.add_argument("--calibration", type=Path, default=None,
+                   help="보정 파일 직접 지정; 생략 시 녹화 폴더의 보정/Gazebo 보정/실물 기본값 자동 선택")
+    p.add_argument("--piece-height", type=float, default=5.0, help="말 높이 [mm] (시차 보정)")
     p.add_argument("--max-dist", type=float, default=0.45, help="교차점 할당 최대 거리 [칸]")
     p.add_argument("--window", type=int, default=8, help="판 상태 안정화 프레임 수")
     p.add_argument("--log-counts", action="store_true", help="인식 개수·conf 로그와 오버레이/인식판 영상을 evaluations/에 저장")
@@ -104,6 +109,14 @@ def parse_args():
     g.add_argument("--ns", default="dsr01", help="로봇 네임스페이스")
     g.add_argument("--no-motion", action="store_true", help="로봇을 움직이지 않고 엔진 수와 집을 좌표만 표시")
     args = p.parse_args()
+    from source_calibration import resolve_calibration, is_simulation_calibration
+    try:
+        args.calibration, args.calibration_origin = resolve_calibration(args.source,args.calibration,DEFAULT_CALIBRATION)
+        args.simulation_calibration = is_simulation_calibration(args.calibration)
+    except (ValueError,OSError) as exc:
+        p.error(str(exc))
+    if (args.source == 'gazebo' or args.simulation_calibration) and args.model_mode is None and args.model is None:
+        args.model_mode = 'hybrid'
     if args.model is None:
         model_names = {"piece": "weights_only_piece.pt", "full": "weights_14class.pt",
                        "hybrid": "weights_only_piece.pt", "cnn": "weights_only_piece.pt"}
@@ -115,12 +128,16 @@ def parse_args():
     if (not all(np.isfinite(v) for v in (args.obstruction_motion, args.obstruction_window, args.obstruction_settle))
             or not 0 < args.obstruction_motion <= 1 or args.obstruction_window <= 0 or args.obstruction_settle < 0):
         p.error("방해 감지 비율은 0~1, 관측 창은 양수, 안정 대기는 0 이상이어야 한다")
-    if (not np.isfinite(args.classification_interval) or args.classification_interval <= 0
+    if (not np.isfinite(args.unknown_classification_interval) or args.unknown_classification_interval < 0):
+        p.error("미분류 객체의 분류 간격은 0 이상인 유한한 숫자여야 한다")
+    if (not np.isfinite(args.classification_interval) or args.classification_interval < 0
             or not 0 < args.history_alpha <= 1 or not np.isfinite(args.size_strength) or args.size_strength < 0):
-        p.error("분류 간격은 양수, 현재 관측 비중은 0~1, 크기 가중치는 0 이상이어야 한다")
+        p.error("분류 간격은 0 이상, 현재 관측 비중은 0~1, 크기 가중치는 0 이상이어야 한다")
     if (not all(np.isfinite(v) for v in (args.local_conf_drop, args.local_size_change, args.local_move_ratio))
             or not 0 < args.local_conf_drop <= 1 or args.local_size_change <= 0 or args.local_move_ratio <= 0):
         p.error("말 센서 신뢰도 하락 기준은 0~1, 크기/이동 변화 비율은 양수여야 한다")
+    if args.classification_frames < 1:
+        p.error("분류 프레임 간격은 양수여야 한다")
     if not np.isfinite(args.tracking_low_conf) or not 0 <= args.tracking_low_conf <= 1:
         p.error("추적 보조 검출 하한은 0~1이어야 한다")
     if args.expected_pieces <= 0:
@@ -247,6 +264,9 @@ class Worker:
         self.last_frame_t = 0.0
         self.running = True
         self.error = None
+        self._performance_samples=deque(maxlen=120)
+        self._performance_directory=None
+        self._last_performance_write=float('-inf')
         self.use_roi = mapper is not None and not args.full_frame
         self.count_log = None
         self.video_log = None
@@ -267,7 +287,7 @@ class Worker:
         self.size_estimator = None
         if mapper is not None and args.calibration:
             try:
-                self.size_estimator = BoxSizeEstimator.from_calibration(args.calibration, getattr(args, 'piece_height', 12.))
+                self.size_estimator = BoxSizeEstimator.from_calibration(args.calibration, getattr(args, 'piece_height', 5.))
             except (KeyError, ValueError, OSError) as exc:
                 print(f"[크기 표시] mm 추정 사용 불가: {exc}")
         self.monitor_context = None
@@ -301,20 +321,24 @@ class Worker:
             from datetime import datetime
             directory = getattr(args, 'state_dir', HERE/'states')/datetime.now().strftime('session_%Y%m%d_%H%M%S_%f')
             self.state_store = StateStore(directory)
+            self._performance_directory=directory
             self.classifier_worker = LatestClassification(detector.classify_observations,
-                                                          getattr(args, 'classification_interval', .5))
+                                                          getattr(args, 'classification_interval', 0.),
+                                                          urgent_interval=getattr(args, 'unknown_classification_interval', 0.))
             import json, hashlib
-            metadata = dict(source=args.source, detector=str(args.model),
+            metadata = dict(source=args.source, video_transport=getattr(source, 'transport', None), inference_device=str(detector.device), calibration_origin=getattr(args, 'calibration_origin', 'explicit'), detector=str(args.model),
                             detector_sha256=hashlib.sha256(args.model.read_bytes()).hexdigest(), classifier=str(detector.classifier.path),
                             classifier_sha256=hashlib.sha256(detector.classifier.path.read_bytes()).hexdigest(),
                             classes=detector.classifier.classes, calibration=str(args.calibration),
-                            piece_height_mm=getattr(args, 'piece_height', 12.),
-                            classification_interval=getattr(args, 'classification_interval', .5),
+                            piece_height_mm=getattr(args, 'piece_height', 5.),
+                            classification_frames=getattr(args, 'classification_frames', 4),
+                            classification_interval=getattr(args, 'classification_interval', 0.),
+                            unknown_classification_interval=getattr(args, 'unknown_classification_interval', 0.),
                             tracking_low_conf=getattr(args, 'tracking_low_conf', .1),
                             tracking_policy='bounded velocity prediction; global high/low assignment',
                             initial_state='fresh; no automatic state restore', object_model='unified-detection-v2',
                             missing_retention='session lifetime; immediate spatial attachment, semantic verification; MISS overlay 2 seconds',
-                            semantic_gate='regular=healthy objects; unknown=urgent preview at 0.5; game=global stability')
+                            semantic_gate='regular=healthy objects; unknown=latest preview, threshold 0.5, rate limited; game=global stability')
             metadata.update(size_strength=getattr(args, 'size_strength', .5), **size_prior_metadata())
             if args.calibration and Path(args.calibration).is_file():
                 import shutil
@@ -338,7 +362,9 @@ class Worker:
                     classifier_threshold=detector.classification_conf,
                     confidence_semantics="conf=YOLO detection probability; classification_conf=history/size-fused probability when tracking",
                     state_directory=str(self.state_store.directory) if self.state_store else None,
-                    classification_interval=getattr(args, "classification_interval", .5),
+                    classification_frames=getattr(args, "classification_frames", 4),
+                    classification_interval=getattr(args, "classification_interval", 0.),
+                    unknown_classification_interval=getattr(args, "unknown_classification_interval", 0.),
                     size_strength=getattr(args, 'size_strength', .5), **size_prior_metadata())
                 self.classification_log = (self.count_log.path.parent/"classifications.jsonl").open("w", encoding="utf-8")
             else:
@@ -360,7 +386,9 @@ class Worker:
                 video_glyphs = GlyphCache(FONT_PATH, 16)
                 board_renderer = BoardRenderer(FONT_PATH)
             while self.running:
+                frame_started=time.perf_counter()
                 frame = self.source.read()
+                received_at=time.perf_counter()
                 if frame is None:
                     continue
                 roi = None
@@ -375,6 +403,7 @@ class Worker:
                 else:
                     dets = detect(frame, conf=self.args.conf, roi=roi)
                     tracking_candidates = None
+                detected_at=time.perf_counter()
                 count_dets = list(dets)
                 raw = self.mapper.assign(dets, self.args.max_dist) if self.mapper else {}
                 unique_dets = (dets if positions_only and getattr(self.detector, 'positions_deduplicated', False)
@@ -415,6 +444,7 @@ class Worker:
                 if self.tracker is not None:
                     with self.lock:
                         tracked_board = self._update_tracks(frame, dets, raw, view_status)
+                tracked_at=time.perf_counter()
                 if getattr(self, "classification_log", None) is not None:
                     import json
                     self.classification_log.write(json.dumps(dict(inference_frame=self.frames, frame=getattr(self.source, "source_frame", None),
@@ -445,6 +475,21 @@ class Worker:
                                           getattr(self.source, "source_loop", None),
                                           confidences=[d.conf for d in count_dets],
                                           deduplicated_confidences=[d.conf for d in unique_dets])
+                finished_at=time.perf_counter()
+                self._performance_samples.append([(received_at-frame_started)*1000.,(detected_at-received_at)*1000.,
+                    (tracked_at-detected_at)*1000.,(finished_at-tracked_at)*1000.,(finished_at-frame_started)*1000.])
+                if self._performance_directory is not None and finished_at-self._last_performance_write>=5.:
+                    import json
+                    means=np.mean(np.asarray(self._performance_samples),axis=0)
+                    performance=dict(wall_time=time.time(),processed_frames=self.frames,processing_fps=self.fps,
+                        inference_device=str(self.detector.device),samples=len(self._performance_samples),
+                        stages_ms=dict(zip(('input_wait','position_yolo','tracking_fusion_state','output_logging','frame_total'),map(float,means))),
+                        source=self.source.statistics() if hasattr(self.source,'statistics') else dict(kind=type(self.source).__name__),
+                        cnn=self.classifier_worker.statistics() if self.classifier_worker is not None else None)
+                    temporary=self._performance_directory/'performance.tmp'
+                    temporary.write_text(json.dumps(performance,ensure_ascii=False,indent=2)+'\n')
+                    temporary.replace(self._performance_directory/'performance.json')
+                    self._last_performance_write=finished_at
                 n += 1
                 if time.time() - t0 >= 1.0:
                     self.fps, n, t0 = n / (time.time() - t0), 0, time.time()
@@ -468,6 +513,7 @@ class Worker:
 
     def _update_tracks(self, frame, dets, raw, view_status):
         now = time.monotonic()
+        self._classification_frame = getattr(self, "_classification_frame", -1) + 1
         self._visible_cells = frozenset(raw)
         self._stable_gate = view_status['state'] == 'stable' and not self.robot_motion
         if self.classifier_worker.error:
@@ -566,7 +612,10 @@ class Worker:
                 detection.name = piece.display_label
                 detection.side, detection.kind = piece.display_label.split('_', 1)
             urgent = piece.display_label is None
-            due = piece.eligible and now-max(piece.last_classified, piece.last_regular_attempt) >= interval
+            frame_interval = getattr(self.args, 'classification_frames', 0)
+            frame_due = not frame_interval or self._classification_frame % frame_interval == 0
+            due = (piece.eligible and frame_due
+                   and now-max(piece.last_classified, piece.last_regular_attempt) >= interval)
             if urgent or due:
                 eligible.append(detection)
                 epochs[pid] = piece.visual_epoch
@@ -574,7 +623,8 @@ class Worker:
         if eligible:
             metadata = dict(frame=getattr(self.source, 'source_frame', None), source_time=getattr(self.source, 'source_time', None),
                             loop=getattr(self.source, 'source_loop', None), frame_size=[frame.shape[1], frame.shape[0]],
-                            observed_at=now, wall_time=time.time(), epochs=epochs, urgent_ids=urgent_ids, regular_ids=regular_ids)
+                            observed_at=now, wall_time=time.time(), epochs=epochs, urgent_ids=urgent_ids, regular_ids=regular_ids,
+                            processing_frame=self._classification_frame)
             self.classifier_worker.submit(frame, eligible, metadata)
         elif hasattr(self.classifier_worker, 'cancel_pending'):
             self.classifier_worker.cancel_pending()
@@ -1038,7 +1088,25 @@ class App:
             self.log.see("end")
 
     # ------------------------------------------------------------------ 마우스 (클릭 또는 드래그)
+    def _gazebo_human_input(self):
+        # Physical simulation must not teleport pieces from board clicks.
+        return False
+
+    def _move_gazebo_piece(self, src, dst):
+        messagebox.showinfo('물리 시뮬레이션',
+                            '화면에서 말 좌표를 직접 옮기는 기능은 꺼져 있습니다. 접촉·힘으로 이동하세요.',
+                            parent=self.root)
+        self.cancel_select()
+
     def on_press(self, cell, e):
+        if self._gazebo_human_input():
+            if self.sel and cell in self.game.legal_moves(self.sel):
+                self._move_gazebo_piece(self.sel, cell)
+            elif cell in self.game.board and self.game.board[cell][0] == self.game.turn:
+                self.sel, self.drag_xy = cell, (e.x, e.y)
+            else:
+                self.cancel_select()
+            return
         if self.mode.get() != "game" or self.game is None or self.rg is not None:
             return
         if self.sel and cell in self.game.legal_moves(self.sel):
@@ -1056,6 +1124,15 @@ class App:
             self.drag_xy = (e.x, e.y)
 
     def on_release(self, cell, e):
+        if self.args.source == "gazebo" and self.rg is not None and not self._gazebo_human_input():
+            self.cancel_select()
+            return
+        if self._gazebo_human_input():
+            if self.sel and cell and cell != self.sel and cell in self.game.legal_moves(self.sel):
+                self._move_gazebo_piece(self.sel, cell)
+            else:
+                self.drag_xy = None
+            return
         if self.sel and cell and cell != self.sel and cell in self.game.legal_moves(self.sel):
             self.play(self.sel, cell)
             self.cancel_select()
@@ -1118,6 +1195,11 @@ class App:
         from engine import JanggiEngine
         from piece_detection import CameraToBase
 
+        if (getattr(self.args, "simulation_calibration", False) and self.args.source != "gazebo"
+                and not self.args.no_motion):
+            raise RuntimeError("Gazebo 녹화 재생은 --no-motion으로 확인하세요. 가상 로봇 제어에는 --source gazebo를 사용하세요.")
+        if self.args.source == "gazebo" and not self.args.no_motion:
+            self.worker.source.require_virtual_driver()
         self.robot_phase = "엔진 시작 중"
         engine = JanggiEngine()
         geom = BoardGeometry.from_calibration(self.args.calibration)
@@ -1329,6 +1411,7 @@ class App:
 
 def main():
     args = parse_args()
+    print(f"[보정] {args.calibration} ({args.calibration_origin})")
     mapper = None
     if args.calibration and Path(args.calibration).exists():
         mapper = BoardMapper.from_calibration(args.calibration, piece_height_mm=args.piece_height)
@@ -1353,13 +1436,20 @@ def main():
         print("[위치 인식] 진영·종류를 분류하지 않는 모델이므로 --robot을 비활성화한다. 로봇 연결 없음.")
         args.robot = False
     try:
-        source = RealSenseSource(args.width, args.height) if args.source == "realsense" else \
-            CvSource(args.source, args.width, args.height, args.playback_fps)
+        if args.source == "gazebo":
+            from ros_source import GazeboSource
+            source = GazeboSource(namespace=args.ns, transport=args.gazebo_transport)
+        elif args.source == "realsense":
+            source = RealSenseSource(args.width, args.height)
+        else:
+            source = CvSource(args.source, args.width, args.height, args.playback_fps)
     except RuntimeError as e:
         sys.exit(f"[오류] 영상 입력을 열 수 없다 ({args.source}): {e}\n"
                  "  - RealSense: USB 3 포트에 연결됐는지 `lsusb | grep -i realsense`로 확인한다\n"
                  "  - 보정 도구·realsense-viewer 등 카메라를 쓰는 다른 프로그램을 끈다\n"
                  "  - 카메라 없이 확인하려면 --source <이미지/동영상 경로> 또는 --source 0 (웹캠)")
+    if args.source == "gazebo":
+        print(f"[영상] {source.transport}: {source.topic}")
     worker = Worker(source, detector, mapper, args)
     try:
         App(args, worker, mapper).run()

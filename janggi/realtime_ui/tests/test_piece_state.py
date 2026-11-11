@@ -418,3 +418,28 @@ def test_emergency_preview_threshold_does_not_change_fused_history():
     piece.label, piece.probabilities = 'red_king', {'red_king': .95}
     tracker.update_preview(piece.id, {'probabilities': {'blue_cha': 1.}}, {'observed_at': 3.})
     assert piece.display_label == 'red_king'
+
+
+def test_urgent_classification_is_limited_to_tenth_second_and_keeps_newest_frame():
+    starts=[];frames=[];first=threading.Event();second=threading.Event()
+    def classify(frame,detections):
+        starts.append(time.monotonic());frames.append(int(frame[0]))
+        (first if len(starts)==1 else second).set()
+        return {}
+    runner=LatestClassification(classify,interval=.5,urgent_interval=.1)
+    try:
+        runner.submit(np.array([1]),[],{'urgent_ids':['unknown']})
+        assert first.wait(1.)
+        runner.submit(np.array([2]),[],{'urgent_ids':['unknown']})
+        assert not second.wait(.03)
+        runner.submit(np.array([3]),[],{'urgent_ids':['unknown']})
+        assert second.wait(1.)
+        assert frames==[1,3]
+        assert starts[1]-starts[0]>=.095
+        assert runner.interval==.5  # regular refresh rate remains separate
+    finally:runner.close()
+
+
+@pytest.mark.parametrize('value',[-1.,float('nan'),float('inf')])
+def test_urgent_interval_must_be_positive_and_finite(value):
+    with pytest.raises(ValueError):LatestClassification(lambda *args:{},urgent_interval=value)

@@ -3,3 +3,6 @@ ultralytics==8.4.204
 pyrealsense2==2.59.1.11053
 pillow
 pyyaml
+
+# 데이터셋 제작 도구의 사진 파일 드래그 앤 드롭
+tkinterdnd2==0.7.0

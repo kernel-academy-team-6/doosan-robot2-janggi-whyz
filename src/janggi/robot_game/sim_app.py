@@ -107,12 +107,15 @@ def main():
         (["--no-motion"] if a.no_motion or a.setup_only else [])
     args = ui.parse_args()
 
+    if a.gazebo:
+        from simulation_calibration import ensure_simulation_calibration
+        args.calibration = ensure_simulation_calibration()
     rng = np.random.default_rng(a.seed)
     random.seed(a.seed)
-    geom = BoardGeometry.from_calibration(DEFAULT_CALIBRATION)
-    mapper = BoardMapper.from_calibration(DEFAULT_CALIBRATION, piece_height_mm=args.piece_height)
+    geom = BoardGeometry.from_calibration(args.calibration)
+    mapper = BoardMapper.from_calibration(args.calibration, piece_height_mm=args.piece_height)
     board0, _ = fen_to_board(START_FEN, "red")
-    world = SimWorld(board0, geom, CameraToBase.from_calibration(DEFAULT_CALIBRATION), mapper, rng)
+    world = SimWorld(board0, geom, CameraToBase.from_calibration(args.calibration), mapper, rng)
     app = ui.App(args, SimWorker(world, mapper, args), mapper)
 
     results, step = [], {"turn": 0, "phase": "start", "t": time.time()}
@@ -169,7 +172,7 @@ def main():
             if a.gazebo:
                 from gz_scene import GzScene
                 print("[배치] Gazebo 장면 생성 중 · 팔 이동 명령 없음", flush=True)
-                scene = GzScene(world)
+                scene = GzScene(world, calibration=args.calibration)
                 scene.start()
             print("[배치 완료] 자동 대국 없이 대기합니다. 창을 닫으면 종료합니다.", flush=True)
             app.run()

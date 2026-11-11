@@ -10,7 +10,7 @@ from .crops import prepare_image
 from .detector import deduplicate_detections
 from .labels import SIDES, KINDS
 
-DEFAULT_CLASSIFIER = Path(__file__).resolve().parents[2]/'models/piece_classifier/best.pt'
+DEFAULT_CLASSIFIER = Path(__file__).resolve().parents[2]/'models/piece_classifier_pieces2_224/best.pt'
 PREPROCESSING = 'tight-square-frame-rgb-v1'
 VALID_CLASSES = {f'{side}_{kind}' for side in SIDES for kind in KINDS}
 

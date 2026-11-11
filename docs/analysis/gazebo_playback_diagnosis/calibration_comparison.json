@@ -1,0 +1,18 @@
+{
+  "video_shape": [
+    720,
+    1280,
+    3
+  ],
+  "detections": 32,
+  "mapping": {
+    "hardware": {
+      "assigned": 16,
+      "mean_nearest_cell_distance": 0.3436439769087979
+    },
+    "recording": {
+      "assigned": 32,
+      "mean_nearest_cell_distance": 0.010778684302899954
+    }
+  }
+}

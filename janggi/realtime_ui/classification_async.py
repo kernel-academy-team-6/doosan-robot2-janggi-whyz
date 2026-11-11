@@ -1,18 +1,21 @@
 """최신 프레임 하나만 예약하며 오래된 분류 결과를 버리는 비동기 실행기."""
 from dataclasses import replace
 import threading
+import math
+from collections import deque
 import time
 
 
 class LatestClassification:
-    def __init__(self, function, interval=.5):
-        if interval <= 0:
-            raise ValueError('분류 주기는 양수여야 합니다.')
-        self.function, self.interval = function, interval
+    def __init__(self, function, interval=0., urgent_interval=0.):
+        if not all(math.isfinite(value) and value >= 0 for value in (interval, urgent_interval)):
+            raise ValueError('분류 주기는 0 이상이어야 합니다.')
+        self.function, self.interval, self.urgent_interval = function, interval, urgent_interval
         self.condition = threading.Condition()
         self.pending, self.completed = None, None
         self.generation, self.last_start = 0, float('-inf')
         self.closed, self.busy, self.error = False, False, None
+        self.durations_ms=deque(maxlen=60);self.batches=0;self.last_batch_size=0
         self.thread = threading.Thread(target=self._run, daemon=True, name='piece-classification')
         self.thread.start()
 
@@ -38,12 +41,19 @@ class LatestClassification:
             result, self.completed = self.completed, None
             return result
 
+    def statistics(self):
+        with self.condition:
+            return dict(batches=self.batches,last_batch_size=self.last_batch_size,
+                        mean_batch_ms=sum(self.durations_ms)/len(self.durations_ms) if self.durations_ms else None,
+                        last_batch_ms=self.durations_ms[-1] if self.durations_ms else None)
+
     def _run(self):
         while True:
             with self.condition:
                 while not self.closed:
                     urgent = self.pending is not None and bool(self.pending[3].get('urgent_ids'))
-                    delay = 0. if urgent else self.interval-(time.monotonic()-self.last_start)
+                    interval = self.urgent_interval if urgent else self.interval
+                    delay = interval-(time.monotonic()-self.last_start)
                     if self.pending is not None and delay <= 0:
                         break
                     self.condition.wait(timeout=max(.001, delay) if self.pending is not None else None)
@@ -53,8 +63,11 @@ class LatestClassification:
                 self.pending = None
                 self.last_start, self.busy = time.monotonic(), True
             try:
+                started=time.perf_counter()
                 observations = self.function(frame, detections)
                 with self.condition:
+                    self.durations_ms.append((time.perf_counter()-started)*1000.)
+                    self.batches+=1;self.last_batch_size=len(detections)
                     if generation == self.generation:
                         self.completed = dict(observations=observations, metadata=metadata)
             except Exception as exc:

@@ -268,3 +268,59 @@ def test_group_minimums_fail_without_splitting_group():
         plan_export(rows, unit='group')
     planned, _ = plan_export(rows, unit='group', min_per_class=(1, 0, 0))
     assert {r['split'] for r in planned} == {'train'}
+
+
+def test_photo_batch_orientation_duplicates_and_export(tmp_path):
+    from piece_dataset.extraction import extract_images
+    sys.path.insert(0, str(ROOT/'janggi'))
+    from piece_detection.detector import Detection
+
+    class Detector:
+        def detect(self, frame, **kwargs):
+            assert frame.shape[:2] == (60, 40)  # EXIF 90-degree rotation
+            return [Detection(0, 'piece', 'unknown', 'piece', .9, (10, 20, 30, 40))]
+
+    photo = tmp_path/'공백 있는 사진.jpg'
+    image = Image.new('RGB', (60, 40), 'white')
+    exif = Image.Exif()
+    exif[274] = 6
+    image.save(photo, exif=exif)
+    bad = tmp_path/'broken.png'
+    bad.write_bytes(b'not an image')
+    model = tmp_path/'model.pt'
+    model.write_bytes(b'model')
+    project = tmp_path/'project'
+    progress = []
+    result = extract_images(project, [photo, photo, bad], model=model, detector=Detector(),
+                            progress=lambda n, total: progress.append((n, total)))
+    assert result['added'] == result['processed_images'] == 1
+    assert len(result['errors']) == 1 and progress[-1] == (2, 2)
+    catalog = Catalog(project)
+    row = catalog.samples()[0]
+    assert Image.open(project/row['frame_path']).size == (40, 60)
+    catalog.label(row['id'], 'blue_cha')
+    catalog.close()
+    assert extract_images(project, [photo], model=model, detector=Detector())['added'] == 0
+    catalog = Catalog(project)
+    assert catalog.samples()[0]['label'] == 'blue_cha'
+    catalog.close()
+    output = export_dataset(project, size=64, augment=1, ratios=(100, 0, 0), min_per_class=(1, 0, 0))
+    assert output
+
+
+def test_photo_validation_and_cancel(tmp_path):
+    from piece_dataset.extraction import extract_images, image_paths
+    with pytest.raises(ValueError):
+        image_paths([])
+    unsupported = tmp_path/'video.mp4'
+    unsupported.touch()
+    with pytest.raises(ValueError):
+        image_paths([unsupported])
+    photo = tmp_path/'one.png'
+    Image.new('RGB', (40, 40)).save(photo)
+    model = tmp_path/'model.pt'
+    model.touch()
+    cancel = threading.Event()
+    cancel.set()
+    with pytest.raises(Cancelled):
+        extract_images(tmp_path/'project', [photo], model=model, detector=object(), cancel=cancel)

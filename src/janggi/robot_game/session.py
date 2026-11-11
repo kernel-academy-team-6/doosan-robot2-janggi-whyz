@@ -77,7 +77,7 @@ class TurnError(Exception):
 class RobotGameConfig:
     human_side: str = "blue"          # 사람 진영 (먼저 둠)
     movetime_ms: int = 1000           # 엔진 생각 시간
-    piece_height_mm: float = 12.0     # 말 높이 (박스 중심 = 말 윗면 중심)
+    piece_height_mm: float = 5.0     # 말 높이 (박스 중심 = 말 윗면 중심)
     max_offset_mm: float = 18.0       # 카메라로 찾은 말이 교차점에서 이만큼 넘게 떨어지면 교차점 위치로 집는다
     observe_joints: list[float] = field(default_factory=load_observe_joints)
     observe_vel: float = 30.0         # 관찰 자세 이동 속도 [deg/s]

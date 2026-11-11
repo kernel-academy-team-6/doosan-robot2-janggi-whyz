@@ -48,7 +48,7 @@ class SimWorld:
     """가상 장기판 + 가상 카메라 + 가상 그리퍼."""
 
     def __init__(self, board, geom: BoardGeometry, cam: CameraToBase, mapper: BoardMapper, rng,
-                 place_noise_mm=5.0, pixel_noise=1.0, piece_h=12.0, window=8):
+                 place_noise_mm=5.0, pixel_noise=1.0, piece_h=5.0, window=8):
         self.geom, self.cam, self.mapper, self.rng = geom, cam, mapper, rng
         self.place_noise, self.pixel_noise, self.piece_h, self.window = place_noise_mm, pixel_noise, piece_h, window
         self.pieces = []   # dict(side, kind, pos(mm, 판 평면 위 말 바닥 중심), state 'board'|'held'|'off')
@@ -164,11 +164,14 @@ def main():
     ap.add_argument("--gazebo", action="store_true", help="장기판·말을 Gazebo에 띄워 보여준다 (sim_gazebo.launch.py)")
     args = ap.parse_args()
 
+    if args.gazebo and args.calibration == DEFAULT_CALIBRATION:
+        from simulation_calibration import ensure_simulation_calibration
+        args.calibration = ensure_simulation_calibration()
     rng = np.random.default_rng(args.seed)
     random.seed(args.seed)
     geom = BoardGeometry.from_calibration(args.calibration)
     cam = CameraToBase.from_calibration(args.calibration)
-    mapper = BoardMapper.from_calibration(args.calibration, piece_height_mm=12.0)
+    mapper = BoardMapper.from_calibration(args.calibration, piece_height_mm=5.0)
     board0, _ = fen_to_board(args.fen, args.top_side)
     world = SimWorld(board0, geom, cam, mapper, rng, place_noise_mm=args.place_noise)
 
@@ -182,7 +185,7 @@ def main():
     scene = None
     if args.gazebo:
         from gz_scene import GzScene
-        scene = GzScene(world)
+        scene = GzScene(world, calibration=args.calibration)
         scene.start(tip_fn=mover.current_tip if mover else None)
     cfg = RobotGameConfig(human_side="blue", movetime_ms=args.movetime)
     rg = RobotGame(engine, cam, geom, picker, cfg, log=lambda m: print("  " + m, flush=True))

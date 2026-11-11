@@ -1,0 +1,23 @@
+{
+  "wall_time": 1794402771.0559516,
+  "processed_frames": 11,
+  "processing_fps": 1.907530584108202,
+  "inference_device": "cpu",
+  "samples": 11,
+  "stages_ms": {
+    "input_wait": 5.514417452187362,
+    "position_yolo": 472.44245736510493,
+    "tracking_fusion_state": 17.353778998684984,
+    "output_logging": 0.05438936535607685,
+    "frame_total": 495.36504318133336
+  },
+  "source": {
+    "kind": "CvSource"
+  },
+  "cnn": {
+    "batches": 7,
+    "last_batch_size": 32,
+    "mean_batch_ms": 698.4730522859276,
+    "last_batch_ms": 672.5421150040347
+  }
+}

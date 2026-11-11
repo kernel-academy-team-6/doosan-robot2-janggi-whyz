@@ -1,0 +1,19 @@
+{
+  "scope": "Five-second concurrent subscribers in the tool environment; no YOLO/CNN in the probe. RGB-only scene.",
+  "gazebo_native": {
+    "frames": 151,
+    "wall_fps": 30.183648029863175,
+    "sim_fps": 30.303030303030198
+  },
+  "ros_subscriber": {
+    "frames": 47,
+    "wall_fps": 9.44658318601866,
+    "sim_fps": 9.482580911152342
+  },
+  "latest_render_log": {
+    "time": "2026-11-11 21:47:37",
+    "vendor": "Intel",
+    "renderer": "Mesa Intel(R) Graphics (RPL-P)"
+  },
+  "limits": "Does not isolate ros_gz_bridge, DDS/network transport and rclpy conversion from each other. Renderer log identifies a recorded context, not CNN device."
+}

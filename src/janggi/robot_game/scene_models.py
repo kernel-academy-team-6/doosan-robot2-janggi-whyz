@@ -1,9 +1,9 @@
 """Calibrated board and D455f SDF geometry, independent of Gazebo transport.
 
-The board surface and RGB optical pose come from calibration. Housing offsets
-are nominal D455 geometry; the 400 mm square and thickness are explicit scene
-assumptions, not additional calibration measurements. The RGB-D renderer is an
-ideal aligned depth camera, not a simulation of the hardware stereo algorithm.
+The board surface and RGB optical pose come from the selected calibration.
+The live Gazebo path derives a level, yaw-only board calibration first. Housing
+offsets are nominal D455 geometry; outer size and thickness come from scene config.
+The renderer is RGB-only; depth and point-cloud processing are disabled.
 """
 from pathlib import Path
 import math
@@ -111,7 +111,9 @@ class CalibratedLayout:
             lines.append(box_visual(f'line{i}', mid, [length, .0012, .0004], '0.07 0.045 0.025 1', rotation))
         return (f'<sdf version="1.9"><model name="janggi_board"><static>true</static>'
                 f'<pose>{pose_text(self.center, self.rotation)}</pose><link name="board_surface">'
-                f'{wood}{"".join(lines)}</link></model></sdf>')
+                f'<collision name="board_contact"><pose>0 0 {-self.thickness_m/2} 0 0 0</pose>'
+                f'<geometry><box><size>{self.outer_size_m[0]} {self.outer_size_m[1]} {self.thickness_m}</size>'
+                f'</box></geometry></collision>{wood}{"".join(lines)}</link></model></sdf>')
 
     def camera_sdf(self):
         c = self.config['camera'];i = self.intrinsics
@@ -135,13 +137,12 @@ class CalibratedLayout:
                 f'<projection><p_fx>{i["fx"]}</p_fx><p_fy>{i["fy"]}</p_fy><p_cx>{i["ppx"]}</p_cx><p_cy>{i["ppy"]}</p_cy><tx>0</tx><ty>0</ty></projection></lens>')
         return (f'<sdf version="1.9"><model name="intel_realsense_d455f"><static>true</static>'
                 f'<pose>{pose_text(self.camera_position_m, self.camera_rotation)}</pose><link name="color_camera_frame">'
-                f'{"".join(visuals)}<sensor name="d455f_rgbd" type="rgbd_camera">'
-                f'<always_on>true</always_on><update_rate>{c["update_rate_hz"]}</update_rate><visualize>true</visualize>'
-                f'<topic>{topic}</topic><camera>'
+                f'{"".join(visuals)}<sensor name="d455f_rgb" type="camera">'
+                f'<always_on>true</always_on><update_rate>{c["update_rate_hz"]}</update_rate><visualize>false</visualize>'
+                f'<topic>{topic}/image</topic><camera>'
                 f'<camera_info_topic>{topic}/camera_info</camera_info_topic><optical_frame_id>{optical}</optical_frame_id>'
                 f'<horizontal_fov>{hfov:.12g}</horizontal_fov><image><width>{i["width"]}</width><height>{i["height"]}</height><format>R8G8B8</format></image>'
                 f'<clip><near>{c["near_clip_m"]}</near><far>{c["far_clip_m"]}</far></clip>'
-                f'<depth_camera><clip><near>{c["depth_near_m"]}</near><far>{c["depth_far_m"]}</far></clip></depth_camera>'
                 f'{lens}</camera></sensor></link></model></sdf>')
 
     def summary(self):
@@ -150,10 +151,12 @@ class CalibratedLayout:
                     board_rpy_deg=np.degrees(rotation_rpy(self.rotation)).tolist(),
                     board_outer_size_mm=(self.outer_size_m*1000).tolist(),
                     board_outer_size_source=self.config['board']['outer_size_source'],
+                    board_thickness_mm=self.thickness_m*1000.,
+                    horizontal_tabletop_z_mm=self.config['board']['tabletop_z_mm'],
                     grid_top_bottom_mm=[float(np.linalg.norm(corners[1]-corners[0])),float(np.linalg.norm(corners[2]-corners[3]))],
                     grid_left_right_mm=[float(np.linalg.norm(corners[3]-corners[0])),float(np.linalg.norm(corners[2]-corners[1]))],
                     camera_optical_position_m=self.camera_position_m.tolist(),
                     camera_sensor_rpy_deg=np.degrees(rotation_rpy(self.camera_rotation)).tolist(),
                     camera_topic=self.config['camera']['topic'],
                     distortion='ideal pinhole; recorded inverse-Brown distortion is not applied',
-                    depth='ideal RGB-aligned rendering; hardware stereo/noise/filter/IMU not simulated')
+                    depth='disabled (RGB-only sensor)', point_cloud='disabled (RGB-only sensor)')

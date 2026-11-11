@@ -44,7 +44,7 @@ class PiecePicker:
         if self.on_grip:
             self.on_grip(cmd, self.mover.current_tip())
 
-    def grasp_point(self, top_center_mm, piece_height_mm: float = 12.0) -> np.ndarray:
+    def grasp_point(self, top_center_mm, piece_height_mm: float = 5.0) -> np.ndarray:
         """말 윗면 중심(base, mm) → 집을 팁 위치 (같은 말 중심축에서 grasp_height 높이)."""
         b = self.mover.board
         p = np.asarray(top_center_mm, float)

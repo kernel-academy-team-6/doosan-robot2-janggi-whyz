@@ -86,11 +86,11 @@ class ObstructionMonitor:
 
 
 class BoxSizeEstimator:
-    def __init__(self, camera, image_size, height_mm=12.):
+    def __init__(self, camera, image_size, height_mm=5.):
         self.camera, self.image_size, self.height_mm = camera, image_size, height_mm
 
     @classmethod
-    def from_calibration(cls, path, height_mm=12.):
+    def from_calibration(cls, path, height_mm=5.):
         data = yaml.safe_load(Path(path).read_text(encoding='utf-8'))
         intr = data['camera']['color_intrinsics']
         return cls(CameraToBase.from_calibration(path), (intr['width'], intr['height']), height_mm)

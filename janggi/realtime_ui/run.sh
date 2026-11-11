@@ -9,13 +9,15 @@ if [[ ! -x "$VENV/bin/python" ]]; then
   echo "[오류] venv가 없다. 먼저 $HERE/../setup_venv.sh 를 실행한다." >&2
   exit 1
 fi
-robot=0; motion=1
+robot=0; motion=1; gazebo=0; previous=""
 for a in "$@"; do
   [[ "$a" == "--robot" ]] && robot=1
   [[ "$a" == "--no-motion" ]] && motion=0
+  if [[ "$a" == "--source=gazebo" || ( "$previous" == "--source" && "$a" == "gazebo" ) ]]; then gazebo=1; fi
+  previous="$a"
 done
-if [[ $robot == 1 && $motion == 1 ]]; then
-  # 로봇 대국: ROS(rclpy, dsr_msgs2)를 쓰므로 ROS 환경을 불러온다. venv 패키지(numpy, torch 등)가 우선한다.
+if [[ ( $robot == 1 && $motion == 1 ) || $gazebo == 1 ]]; then
+  # 로봇 대국/Gazebo 영상: ROS(rclpy, sensor_msgs, dsr_msgs2)를 쓰므로 ROS 환경을 불러온다. venv 패키지(numpy, torch 등)가 우선한다.
   set +u
   source /opt/ros/jazzy/setup.bash
   source "$WS/install/setup.bash"

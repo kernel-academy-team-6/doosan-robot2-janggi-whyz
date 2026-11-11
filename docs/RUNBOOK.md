@@ -128,23 +128,19 @@ cd ~/doosan_janggi_ws
 ./janggi/realtime_ui/run.sh --model models/weights_14class.pt --robot          # [대국 시작] → 사람이 두고 [착수 완료](Space) → 로봇이 둔다
 ```
 
-카메라·로봇 없이 확인하려면 가상 로봇(+ Gazebo)으로:
+실물 카메라 대신 Gazebo RGB를 기존 UI에서 hybrid로 인식하려면:
 
 ```bash
-ros2 launch src/janggi/robot_game/sim_gazebo.launch.py                 # 워크스페이스 루트에서
-./src/janggi/robot_game/run_sim_app.sh --gazebo --setup-only          # 다른 터미널: 배치만 생성, 팔 이동 없이 대기
-./src/janggi/robot_game/run_sim_check.sh --gazebo                   # 다른 터미널
+# 터미널 1: workspace 루트, ROS/workspace source 후
+ros2 launch src/janggi/robot_game/sim_gazebo.launch.py
+# 터미널 2: workspace 루트
+./janggi/realtime_ui/run.sh --source gazebo --model-mode hybrid --robot
 ```
 
-배치 전용과 자동 대국 프로그램은 하나씩 실행한다. `--setup-only`는 홈 이동·엔진 시작·자동 착수를
-하지 않으며 현재 로봇 자세를 표시한다. 자동 대국으로 전환할 때는 배치 전용 창을 닫고
-`./src/janggi/robot_game/run_sim_app.sh --gazebo --turns 3`을 실행한다.
-
-Gazebo의 판·D455f는 저장된 보정 좌표를 사용한다. 판 외곽은 400×400mm 추정값이며 격자는 실측 보정값을 유지한다.
-카메라 영상은 `/janggi_sim/d455f/color/image_raw`, 깊이는
-`/janggi_sim/d455f/aligned_depth_to_color/image_raw`에서 확인한다.
-새 Sensors world를 읽도록 기존 Gazebo와 드라이버를 종료하고 첫 터미널부터 재시작한다.
-[보정 장면 문서와 실제 렌더링 캡처](GAZEBO_CALIBRATED_SCENE.md)에 치수 검증 및 한계를 정리했다.
+launch가 판·말·카메라·로봇 미러까지 생성한다. `run_sim_app.sh`는 함께 실행하지 않는다.
+`[대국 시작]` 후 오른쪽 판에서 사람 말을 옮기고, 실제 영상 인식 갱신 뒤 `[착수 완료]`를 누른다.
+로봇은 가상 드라이버 명령과 관절 피드백을 따른다. 받침은 수평 −30mm, 판 두께는 10mm다.
+[상세 설정·실제 UI 캡처·물리 시뮬레이션 한계](GAZEBO_CALIBRATED_SCENE.md)를 참고한다.
 
 ### 연결이 끊길 때
 
@@ -163,3 +159,26 @@ Gazebo의 판·D455f는 저장된 보정 좌표를 사용한다. 판 외곽은 4
 - `fhekwn549/e0509_gripper_description`만 공식 Jazzy 드라이버 위에 빌드하면 `FlangeSerialOpen` 헤더가 없어 실패한다.
 - `fhekwn549/doosan-robot2` Humble 포크 전체를 Jazzy에 빌드하면 Jazzy DRFL 바이너리가 없고 `ros2_control` 하드웨어 API가 달라 실패한다.
 - 이 저장소는 공식 Doosan Jazzy 드라이버에 필요한 시리얼 서비스만 패치한다.
+
+### Gazebo 카메라 원본 1분 녹화
+
+Gazebo를 켠 상태에서 workspace 루트의 새 터미널에서 실행한다. 인식 UI는 필요 없다.
+
+```bash
+./tools/run_gazebo_recorder.sh --duration 60 --fps 30
+```
+
+Gazebo 원본 영상 토픽을 직접 받아 `tools/captures/gazebo_*/color.mp4`로 저장한다.
+카메라 시뮬레이션 시간 기준 1분이며 컴퓨터가 느리면 실제 소요 시간은 더 길 수 있다.
+[수신 경로·프레임 누락·출력 파일 설명](../tools/GAZEBO_RECORDER.md)을 참고한다.
+
+### Gazebo 녹화 재생의 격자가 어긋날 때
+
+UI는 이제 녹화 옆 보정 파일을 자동 선택한다. workspace 루트에서:
+
+```bash
+./janggi/realtime_ui/run.sh --source tools/captures/gazebo_20261111_212837_235435/color.mp4 --model-mode hybrid --playback-fps 30
+```
+
+MP4와 `calibration.yaml`을 함께 보관한다. `--calibration`을 명시하면 자동 선택보다 우선한다.
+실시간 `--source gazebo`는 기본으로 원본 직접 수신하며, 재시작한 Gazebo launch의 ROS 영상 브리지는 기본 OFF다.

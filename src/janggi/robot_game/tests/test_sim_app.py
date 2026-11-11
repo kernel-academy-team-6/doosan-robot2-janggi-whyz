@@ -76,7 +76,7 @@ def test_setup_only_builds_gazebo_without_a_picker_and_cleans_up(monkeypatch, se
     events = setup_harness
 
     class Scene:
-        def __init__(self, world):
+        def __init__(self, world, **kwargs):
             events.append('scene')
 
         def start(self):
@@ -96,7 +96,7 @@ def test_setup_scene_failure_still_stops_scene_without_playing(monkeypatch, setu
     events = setup_harness
 
     class Scene:
-        def __init__(self, world):
+        def __init__(self, world, **kwargs):
             pass
 
         def start(self):

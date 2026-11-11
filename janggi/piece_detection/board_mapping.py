@@ -32,7 +32,7 @@ Board = dict[Cell, Piece]
 
 class BoardMapper:
     def __init__(self, corner_px, principal_px=None, camera_dist_mm: float | None = None,
-                 piece_height_mm: float = 12.0):
+                 piece_height_mm: float = 5.0):
         self.corner_px = np.asarray(corner_px, dtype=np.float64).reshape(4, 2)
         self.H = cv2.getPerspectiveTransform(self.corner_px.astype(np.float32), CORNER_BOARD.astype(np.float32))
         self.H_inv = np.linalg.inv(self.H)
@@ -42,7 +42,7 @@ class BoardMapper:
         self._grid = np.array([[self.board_to_pixel(x, y) for x in range(COLS)] for y in range(ROWS)])
 
     @classmethod
-    def from_calibration(cls, path: str | Path = DEFAULT_CALIBRATION, piece_height_mm: float = 12.0):
+    def from_calibration(cls, path: str | Path = DEFAULT_CALIBRATION, piece_height_mm: float = 5.0):
         path = Path(path)
         if not path.exists():
             raise FileNotFoundError(f"보정 파일이 없다: {path} (src/janggi/calibration에서 먼저 보정한다)")

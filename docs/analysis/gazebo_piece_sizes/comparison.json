@@ -1,0 +1,650 @@
+{
+  "session": "session_20261111_211245_135978",
+  "scope": "saved last visible snapshot; grouped by initial layout, not predicted labels",
+  "rows": [
+    {
+      "id": "piece_0001",
+      "cell": [
+        0,
+        0
+      ],
+      "expected_side": "red",
+      "expected_kind": "cha",
+      "group": "medium",
+      "display_label": "red_po",
+      "flags": [],
+      "current_size_mm": 29.179016385432966,
+      "median_size_mm": 29.179016385432966,
+      "samples": 20,
+      "width_mm": 27.41004083581714,
+      "height_mm": 31.062157197110334,
+      "moves": []
+    },
+    {
+      "id": "piece_0002",
+      "cell": [
+        4,
+        1
+      ],
+      "expected_side": "red",
+      "expected_kind": "king",
+      "group": "king",
+      "display_label": "red_king",
+      "flags": [],
+      "current_size_mm": 34.90437608313882,
+      "median_size_mm": 34.90437608313882,
+      "samples": 20,
+      "width_mm": 33.53473613052535,
+      "height_mm": 36.32995545309237,
+      "moves": []
+    },
+    {
+      "id": "piece_0003",
+      "cell": [
+        6,
+        0
+      ],
+      "expected_side": "red",
+      "expected_kind": "sang",
+      "group": "medium",
+      "display_label": "red_cha",
+      "flags": [],
+      "current_size_mm": 29.30185222405191,
+      "median_size_mm": 29.30185222405191,
+      "samples": 20,
+      "width_mm": 27.81150999799759,
+      "height_mm": 30.872057785499393,
+      "moves": []
+    },
+    {
+      "id": "piece_0004",
+      "cell": [
+        1,
+        0
+      ],
+      "expected_side": "red",
+      "expected_kind": "horse",
+      "group": "medium",
+      "display_label": "red_po",
+      "flags": [],
+      "current_size_mm": 29.031050243232997,
+      "median_size_mm": 29.031050243232997,
+      "samples": 20,
+      "width_mm": 27.689295785884468,
+      "height_mm": 30.437822786911205,
+      "moves": []
+    },
+    {
+      "id": "piece_0005",
+      "cell": [
+        7,
+        2
+      ],
+      "expected_side": "red",
+      "expected_kind": "po",
+      "group": "medium",
+      "display_label": "red_po",
+      "flags": [],
+      "current_size_mm": 28.719942138773153,
+      "median_size_mm": 28.719942138773153,
+      "samples": 20,
+      "width_mm": 27.54392668592181,
+      "height_mm": 29.946168745651857,
+      "moves": []
+    },
+    {
+      "id": "piece_0006",
+      "cell": [
+        1,
+        2
+      ],
+      "expected_side": "red",
+      "expected_kind": "po",
+      "group": "medium",
+      "display_label": "red_po",
+      "flags": [],
+      "current_size_mm": 29.43784891880234,
+      "median_size_mm": 29.43784891880234,
+      "samples": 20,
+      "width_mm": 28.344827647422942,
+      "height_mm": 30.573018814775565,
+      "moves": []
+    },
+    {
+      "id": "piece_0007",
+      "cell": [
+        4,
+        8
+      ],
+      "expected_side": "blue",
+      "expected_kind": "king",
+      "group": "king",
+      "display_label": "blue_king",
+      "flags": [],
+      "current_size_mm": 35.562581009353615,
+      "median_size_mm": 35.562581009353615,
+      "samples": 20,
+      "width_mm": 34.485670324371235,
+      "height_mm": 36.67312121675852,
+      "moves": []
+    },
+    {
+      "id": "piece_0008",
+      "cell": [
+        7,
+        7
+      ],
+      "expected_side": "blue",
+      "expected_kind": "po",
+      "group": "medium",
+      "display_label": null,
+      "flags": [],
+      "current_size_mm": 28.519087738582947,
+      "median_size_mm": null,
+      "samples": 0,
+      "width_mm": 27.31660412271685,
+      "height_mm": 29.774504978260058,
+      "moves": []
+    },
+    {
+      "id": "piece_0009",
+      "cell": [
+        1,
+        7
+      ],
+      "expected_side": "blue",
+      "expected_kind": "po",
+      "group": "medium",
+      "display_label": "red_po",
+      "flags": [],
+      "current_size_mm": 29.11915028077662,
+      "median_size_mm": 29.11915028077662,
+      "samples": 20,
+      "width_mm": 27.933380510642188,
+      "height_mm": 30.355255882882012,
+      "moves": []
+    },
+    {
+      "id": "piece_0010",
+      "cell": [
+        6,
+        9
+      ],
+      "expected_side": "blue",
+      "expected_kind": "sang",
+      "group": "medium",
+      "display_label": "blue_cha",
+      "flags": [],
+      "current_size_mm": 28.65064214023227,
+      "median_size_mm": 28.650642140232332,
+      "samples": 20,
+      "width_mm": 27.350929260881333,
+      "height_mm": 30.012117219786283,
+      "moves": []
+    },
+    {
+      "id": "piece_0011",
+      "cell": [
+        8,
+        0
+      ],
+      "expected_side": "red",
+      "expected_kind": "cha",
+      "group": "medium",
+      "display_label": "red_po",
+      "flags": [],
+      "current_size_mm": 29.284651446118968,
+      "median_size_mm": 29.284651446118968,
+      "samples": 20,
+      "width_mm": 27.627065127844258,
+      "height_mm": 31.04169068817755,
+      "moves": []
+    },
+    {
+      "id": "piece_0012",
+      "cell": [
+        2,
+        0
+      ],
+      "expected_side": "red",
+      "expected_kind": "sang",
+      "group": "medium",
+      "display_label": "red_cha",
+      "flags": [],
+      "current_size_mm": 28.959808108316643,
+      "median_size_mm": 28.959808108316643,
+      "samples": 20,
+      "width_mm": 28.149566773712852,
+      "height_mm": 29.793370974849427,
+      "moves": []
+    },
+    {
+      "id": "piece_0013",
+      "cell": [
+        4,
+        3
+      ],
+      "expected_side": "red",
+      "expected_kind": "soldier",
+      "group": "small",
+      "display_label": null,
+      "flags": [],
+      "current_size_mm": 23.069550088334175,
+      "median_size_mm": null,
+      "samples": 0,
+      "width_mm": 22.052112593985562,
+      "height_mm": 24.13392998108088,
+      "moves": []
+    },
+    {
+      "id": "piece_0014",
+      "cell": [
+        2,
+        3
+      ],
+      "expected_side": "red",
+      "expected_kind": "soldier",
+      "group": "small",
+      "display_label": "red_soldier",
+      "flags": [],
+      "current_size_mm": 23.626467154444068,
+      "median_size_mm": 23.626467154444068,
+      "samples": 20,
+      "width_mm": 22.58587309410167,
+      "height_mm": 24.71500428052089,
+      "moves": []
+    },
+    {
+      "id": "piece_0015",
+      "cell": [
+        8,
+        9
+      ],
+      "expected_side": "blue",
+      "expected_kind": "cha",
+      "group": "medium",
+      "display_label": "blue_cha",
+      "flags": [],
+      "current_size_mm": 29.542856439445647,
+      "median_size_mm": 29.542856439445647,
+      "samples": 20,
+      "width_mm": 28.636125238754996,
+      "height_mm": 30.47829827970262,
+      "moves": []
+    },
+    {
+      "id": "piece_0016",
+      "cell": [
+        7,
+        9
+      ],
+      "expected_side": "blue",
+      "expected_kind": "horse",
+      "group": "medium",
+      "display_label": "red_po",
+      "flags": [],
+      "current_size_mm": 29.084748448820566,
+      "median_size_mm": 29.084748448820566,
+      "samples": 20,
+      "width_mm": 28.049785742246552,
+      "height_mm": 30.157898534572514,
+      "moves": []
+    },
+    {
+      "id": "piece_0017",
+      "cell": [
+        0,
+        3
+      ],
+      "expected_side": "red",
+      "expected_kind": "soldier",
+      "group": "small",
+      "display_label": null,
+      "flags": [],
+      "current_size_mm": 23.689355032355188,
+      "median_size_mm": null,
+      "samples": 0,
+      "width_mm": 22.42022370549353,
+      "height_mm": 25.03032749452304,
+      "moves": []
+    },
+    {
+      "id": "piece_0018",
+      "cell": [
+        1,
+        9
+      ],
+      "expected_side": "blue",
+      "expected_kind": "horse",
+      "group": "medium",
+      "display_label": "red_po",
+      "flags": [],
+      "current_size_mm": 29.115233133002715,
+      "median_size_mm": 29.115233133002715,
+      "samples": 20,
+      "width_mm": 27.808168496900617,
+      "height_mm": 30.48373360092305,
+      "moves": []
+    },
+    {
+      "id": "piece_0019",
+      "cell": [
+        0,
+        9
+      ],
+      "expected_side": "blue",
+      "expected_kind": "cha",
+      "group": "medium",
+      "display_label": "blue_cha",
+      "flags": [],
+      "current_size_mm": 29.385179411769577,
+      "median_size_mm": 29.385179411769577,
+      "samples": 20,
+      "width_mm": 28.47711844163612,
+      "height_mm": 30.32219607582866,
+      "moves": []
+    },
+    {
+      "id": "piece_0020",
+      "cell": [
+        2,
+        9
+      ],
+      "expected_side": "blue",
+      "expected_kind": "sang",
+      "group": "medium",
+      "display_label": null,
+      "flags": [],
+      "current_size_mm": 28.688351660368657,
+      "median_size_mm": null,
+      "samples": 0,
+      "width_mm": 27.353711517369916,
+      "height_mm": 30.088111460353343,
+      "moves": []
+    },
+    {
+      "id": "piece_0021",
+      "cell": [
+        7,
+        0
+      ],
+      "expected_side": "red",
+      "expected_kind": "horse",
+      "group": "medium",
+      "display_label": "red_po",
+      "flags": [],
+      "current_size_mm": 29.140787614810005,
+      "median_size_mm": 29.140787614810005,
+      "samples": 20,
+      "width_mm": 28.038763043758244,
+      "height_mm": 30.286125728378124,
+      "moves": []
+    },
+    {
+      "id": "piece_0022",
+      "cell": [
+        6,
+        3
+      ],
+      "expected_side": "red",
+      "expected_kind": "soldier",
+      "group": "small",
+      "display_label": "red_sa",
+      "flags": [],
+      "current_size_mm": 23.140976462173374,
+      "median_size_mm": 23.140976462173374,
+      "samples": 20,
+      "width_mm": 22.23590708935649,
+      "height_mm": 24.082884924410774,
+      "moves": []
+    },
+    {
+      "id": "piece_0023",
+      "cell": [
+        8,
+        3
+      ],
+      "expected_side": "red",
+      "expected_kind": "soldier",
+      "group": "small",
+      "display_label": null,
+      "flags": [],
+      "current_size_mm": 23.12742348786221,
+      "median_size_mm": null,
+      "samples": 0,
+      "width_mm": 21.841742356010492,
+      "height_mm": 24.488784295165487,
+      "moves": []
+    },
+    {
+      "id": "piece_0024",
+      "cell": [
+        2,
+        6
+      ],
+      "expected_side": "blue",
+      "expected_kind": "soldier",
+      "group": "small",
+      "display_label": null,
+      "flags": [],
+      "current_size_mm": 23.319215325575172,
+      "median_size_mm": null,
+      "samples": 0,
+      "width_mm": 22.36678389693187,
+      "height_mm": 24.312203574119252,
+      "moves": []
+    },
+    {
+      "id": "piece_0025",
+      "cell": [
+        3,
+        9
+      ],
+      "expected_side": "blue",
+      "expected_kind": "sa",
+      "group": "small",
+      "display_label": "blue_sa",
+      "flags": [],
+      "current_size_mm": 23.363568363246195,
+      "median_size_mm": 23.363568363246195,
+      "samples": 20,
+      "width_mm": 22.619237226295432,
+      "height_mm": 24.13239320154911,
+      "moves": []
+    },
+    {
+      "id": "piece_0026",
+      "cell": [
+        4,
+        6
+      ],
+      "expected_side": "blue",
+      "expected_kind": "soldier",
+      "group": "small",
+      "display_label": "blue_sa",
+      "flags": [],
+      "current_size_mm": 22.947245617094644,
+      "median_size_mm": 22.947245617094644,
+      "samples": 20,
+      "width_mm": 22.157714852530003,
+      "height_mm": 23.764909193744952,
+      "moves": []
+    },
+    {
+      "id": "piece_0027",
+      "cell": [
+        6,
+        6
+      ],
+      "expected_side": "blue",
+      "expected_kind": "soldier",
+      "group": "small",
+      "display_label": "blue_sa",
+      "flags": [],
+      "current_size_mm": 23.036511232277743,
+      "median_size_mm": 23.036511232277743,
+      "samples": 20,
+      "width_mm": 22.20731806787089,
+      "height_mm": 23.896665420514566,
+      "moves": []
+    },
+    {
+      "id": "piece_0028",
+      "cell": [
+        8,
+        6
+      ],
+      "expected_side": "blue",
+      "expected_kind": "soldier",
+      "group": "small",
+      "display_label": "blue_sa",
+      "flags": [],
+      "current_size_mm": 23.19361105306193,
+      "median_size_mm": 23.19361105306193,
+      "samples": 20,
+      "width_mm": 22.162054637219757,
+      "height_mm": 24.273182359963798,
+      "moves": []
+    },
+    {
+      "id": "piece_0029",
+      "cell": [
+        3,
+        0
+      ],
+      "expected_side": "red",
+      "expected_kind": "sa",
+      "group": "small",
+      "display_label": "red_sa",
+      "flags": [],
+      "current_size_mm": 22.94956141622098,
+      "median_size_mm": 22.94956141622098,
+      "samples": 20,
+      "width_mm": 21.924524384151315,
+      "height_mm": 24.022521992660604,
+      "moves": []
+    },
+    {
+      "id": "piece_0030",
+      "cell": [
+        0,
+        6
+      ],
+      "expected_side": "blue",
+      "expected_kind": "soldier",
+      "group": "small",
+      "display_label": "blue_sa",
+      "flags": [],
+      "current_size_mm": 23.393090189815542,
+      "median_size_mm": 23.393090189815542,
+      "samples": 20,
+      "width_mm": 22.638865747202868,
+      "height_mm": 24.172441973885448,
+      "moves": []
+    },
+    {
+      "id": "piece_0031",
+      "cell": [
+        5,
+        9
+      ],
+      "expected_side": "blue",
+      "expected_kind": "sa",
+      "group": "small",
+      "display_label": "blue_sa",
+      "flags": [],
+      "current_size_mm": 23.25287060812505,
+      "median_size_mm": 23.252870608125075,
+      "samples": 20,
+      "width_mm": 22.407715918094357,
+      "height_mm": 24.12990210580056,
+      "moves": []
+    },
+    {
+      "id": "piece_0032",
+      "cell": [
+        5,
+        0
+      ],
+      "expected_side": "red",
+      "expected_kind": "sa",
+      "group": "small",
+      "display_label": "red_sa",
+      "flags": [],
+      "current_size_mm": 22.795052033178713,
+      "median_size_mm": 22.795052033178713,
+      "samples": 20,
+      "width_mm": 22.001390124617533,
+      "height_mm": 23.61734391564305,
+      "moves": []
+    }
+  ],
+  "summary": {
+    "small": {
+      "count": 14,
+      "reference_mm": 22.728967273502516,
+      "current_size_mm": {
+        "n": 14,
+        "mean": 23.20746414741178,
+        "sd": 0.2549107596527624,
+        "min": 22.795052033178713,
+        "max": 23.689355032355188,
+        "bias_mm": 0.47849687390926476,
+        "bias_percent": 2.105229279233889
+      },
+      "median_size_mm": {
+        "n": 10,
+        "mean": 23.169895412963825,
+        "sd": 0.2495519087089864,
+        "min": 22.795052033178713,
+        "max": 23.626467154444068,
+        "bias_mm": 0.4409281394613096,
+        "bias_percent": 1.9399391716989456
+      }
+    },
+    "medium": {
+      "count": 16,
+      "reference_mm": 28.767328979182714,
+      "current_size_mm": {
+        "n": 16,
+        "mean": 29.072512895783625,
+        "sd": 0.2989725915954226,
+        "min": 28.519087738582947,
+        "max": 29.542856439445647,
+        "bias_mm": 0.30518391660091027,
+        "bias_percent": 1.0608698389125815
+      },
+      "median_size_mm": {
+        "n": 14,
+        "mean": 29.13948335239903,
+        "sd": 0.2517812404619389,
+        "min": 28.650642140232332,
+        "max": 29.542856439445647,
+        "bias_mm": 0.37215437321631484,
+        "bias_percent": 1.2936702378090859
+      }
+    },
+    "king": {
+      "count": 2,
+      "reference_mm": 35.44792306470889,
+      "current_size_mm": {
+        "n": 2,
+        "mean": 35.23347854624622,
+        "sd": 0.4654211667368715,
+        "min": 34.90437608313882,
+        "max": 35.562581009353615,
+        "bias_mm": -0.21444451846267043,
+        "bias_percent": -0.6049565106288735
+      },
+      "median_size_mm": {
+        "n": 2,
+        "mean": 35.23347854624622,
+        "sd": 0.4654211667368715,
+        "min": 34.90437608313882,
+        "max": 35.562581009353615,
+        "bias_mm": -0.21444451846267043,
+        "bias_percent": -0.6049565106288735
+      }
+    }
+  }
+}

@@ -20,7 +20,7 @@ cd ~/doosan_janggi_ws/janggi
 | 옵션 생략 | `models/weights.pt` | 현재는 말 위치만 |
 | `--model-mode piece` | `models/weights_only_piece.pt` | 말 위치만 |
 | `--model-mode full` | `models/weights_14class.pt` | 말 위치 + 진영·종류 (14클래스) |
-| `--model-mode hybrid` 또는 `cnn` | `weights_only_piece.pt` → `models/piece_classifier/best.pt` | 위치 YOLO → MobileNetV3-Small 별도 분류 |
+| `--model-mode hybrid` 또는 `cnn` | `weights_only_piece.pt` → `models/piece_classifier_pieces2_224/best.pt` | 위치 YOLO → MobileNetV3-Small 별도 분류 |
 
 다른 모델 파일은 기존 `--model /경로/모델.pt`로 직접 지정할 수 있다.
 `--model-mode`와 `--model`은 동시에 지정하지 않는다. 전환은 프로그램 재실행 시 적용한다.
@@ -218,7 +218,7 @@ UI에서 영상을 반복 재생하면 기록도 이어지며 요약은 기록�
 - **기하평균(mm)**: 말별 유효 크기 관측의 중앙값. 아직 이력이 없으면 현재 박스의 추정값 표시
 
 mm는 말의 정확한 지름이 아닌 **YOLO 박스의 추정 길이**다. 보정 당시와 카메라·판 배치가 같아야 하며,
-`--piece-height`(기본 12mm)를 사용한다. 입력 해상도가 보정 해상도와 다르거나 변환을 사용할 수 없으면
+`--piece-height`(기본 5mm)를 사용한다. 입력 해상도가 보정 해상도와 다르거나 변환을 사용할 수 없으면
 `px (mm N/A)`로 대체한다. 판 확대 화면에 맞춰 늘어난 픽셀 수가 아니다.
 
 ```bash
@@ -230,12 +230,14 @@ mm는 말의 정확한 지름이 아닌 **YOLO 박스의 추정 길이**다. 보
 ## 적응형 비동기 분류와 통합 말 객체
 
 hybrid/cnn은 위치 YOLO를 매 프레임 실행한다. 종류 분류는 별도 스레드에서 객체별 필요에 따라 실행하며,
-이미 종류를 알고 정상인 객체는 기본 **0.5초 간격**, 미분류 객체는 **즉시/최신 프레임 우선**으로 처리한다.
+기본 분류기는 `models/piece_classifier_pieces2_224/best.pt`이며 모델 설정의 224×224 입력을 자동 사용한다.
+이미 종류를 알고 정상인 객체는 **처리 프레임 4개마다**, 미분류 객체(알)는 **매 처리 프레임/최신 프레임 우선**으로 분류를 요청한다.
+첫 분류는 대기 없이 시작할 수 있으며, 이후 긴급 CNN 실행은 최대 초당 10회로 제한한다.
 처리 시간이 길어져도 요청을 쌓지 않고 최신 프레임만 예약한다. 보정 파일이 없어도 영상 좌표 기반의
 객체 연결과 종류 분류가 동작하며, 이 경우 교차점·게임 판정과 mm 크기 보조는 사용하지 않는다.
 
 ```bash
-./realtime_ui/run.sh --model-mode hybrid --classification-interval 0.5 --box-label geometric-mm
+./realtime_ui/run.sh --model-mode hybrid --classification-interval 0.5 --unknown-classification-interval 0.1 --box-label geometric-mm
 # 부하가 크면 분류 간격 늘리기
 ./realtime_ui/run.sh --model-mode hybrid --classification-interval 0.8
 # 판 밖/격자에 맞지 않는 배치까지 전체 화면으로 보기: UI의 판 확대도 해제한다.
@@ -327,13 +329,15 @@ RGB 프레임에서 각 Crop을 추출할 때 전체 프레임의 중복 RGB 복
 
 ID가 새로 생기거나 종류가 비어 `알`로 표시되는 객체는 MOVE/CONF/SIZE·초기 안정화 대기 중에도
 CNN을 우선 실행한다. 원시 분류 최고 확률이 **50% 이상(경계 포함)**이면 즉시 예비 종류를 표시하고,
-50% 미만이면 알을 유지하며 다음 최신 프레임으로 계속 재시도한다. 이 표시 기준은 `--classifier-conf`와 별도이다.
+50% 미만이면 알을 유지하며 매 처리 프레임의 최신 영상으로 재시도한다. 이 표시 기준은 `--classifier-conf`와 별도이다.
 
 방해 중의 긴급 결과는 `preview_label`/`preview_confidence`에만 보관하며 정상 확률 이동평균·mm 크기·게임판
 확정 증거에는 섞지 않는다. 정상 관측이 확보되면 일반 분류/기존 재연결 검증을 통해 정식 종류를 갱신한다.
-이미 알려진 종류는 방해 중에도 유지한다. 알려진 객체의 갱신 주기는 `--classification-interval`로 조절한다.
+이미 알려진 종류는 방해 중에도 유지한다. 알려진 객체의 프레임 주기는 `--classification-frames`(기본 4)로 조절한다.
 
-알인 객체만 매 프레임 예약 후보가 되며, 비동기 실행기는 0.5초 대기보다 긴급 작업을 우선한다.
+시간 제한은 기본 0이다. 추가로 부하를 제한하려면 정상 객체의 `--classification-interval`과
+알 객체의 `--unknown-classification-interval`을 초 단위로 지정할 수 있다.
+프레임은 카메라가 생성한 전체 프레임이 아니라 UI가 검출·추적을 처리한 프레임을 센다.
 모델 실행 중에는 최신 요청 하나만 보관하므로 모든 영상 프레임의 분류를 보장하지는 않는다.
 정기 갱신 시점이 된 정상 객체도 함께 배치에 넣어 미분류 객체 때문에 갱신이 계속 밀리지 않게 한다.
 상태 파일은 정식 `label`과 예비/표시 `preview_label`/`display_label`을 구분하며 긴급 관측은
@@ -471,3 +475,30 @@ SIZE만 남았고 MOVE/CONF/MISS가 없으며 탐지 확률이 `max(0.8, 기준 
 복구 시 잘못된 작은 mm 누적만 비우고 종류 확률 이력은 유지하며, 이전 크기/확률을 `size_reference_rebuilt` 이벤트에 남긴다.
 계속 작아진 박스, 낮은 신뢰도, 극단적인 크기 변화는 자동으로 정상으로 받아들이지 않는다.
 이 경우 실제 화면을 확인하고 **방해 기준 다시 잡기**로 새 기준을 수집한다.
+
+## Gazebo 실제 카메라 입력
+
+가상 드라이버와 새 Gazebo 장면을 띄운 다음 기존 UI를 실행한다.
+
+```bash
+# workspace 루트의 다른 터미널
+ros2 launch src/janggi/robot_game/sim_gazebo.launch.py
+# 이 디렉터리에서
+./run.sh --source gazebo --model-mode hybrid --robot
+```
+
+`--source gazebo`는 Gazebo 원본 RGB 토픽을 직접 구독하며 가짜 프레임/검출을 생성하지 않는다.
+ROS는 작은 로봇/장면 제어 메시지에 사용하며, 영상 브리지는 기본 OFF다.
+비교용 ROS 영상 경로는 launch `camera_bridge:=true`와 UI `--gazebo-transport ros`로 선택한다.
+모델 옵션 생략 시 이 입력은 hybrid를 기본 선택한다. 별도 `sim_app.py`는 필요 없다.
+물리 모드에서는 오른쪽 판 클릭으로 Gazebo 말을 옮기지 않는다. 접촉·외력으로 사람 말을 옮기고
+영상 갱신 뒤 `[착수 완료]`를 누른다. 가상 부착·말 좌표 강제 변경은 비활성화했다.
+렌더링 도메인의 오분류가 남을 수 있으며, 정답 배치로 인식을 덮어쓰지 않는다.
+[실행·높이·보정·로봇 동작 범위](../../docs/GAZEBO_CALIBRATED_SCENE.md)를 참고한다.
+
+### 녹화 파일의 보정 자동 선택
+
+`--source <영상 파일>`은 영상 옆 `calibration.yaml` 또는 `board_calibration.yaml`을 자동 사용한다.
+`--calibration`을 직접 지정하면 그 값이 우선한다. 보정 파일도 영상과 함께 보관한다.
+Gazebo 보정이 선택되면 모델 옵션 생략 시 hybrid가 기본값이다.
+세션 폴더의 `performance.json`에는 입력/YOLO/추적 시간과 CNN 배치 시간, 실행 장치를 기록한다.

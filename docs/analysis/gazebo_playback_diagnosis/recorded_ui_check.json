@@ -1,0 +1,12 @@
+{
+  "mode": "recorded",
+  "calibration": "/home/cse/doosan_janggi_ws/tools/captures/gazebo_20261111_212837_235435/calibration.yaml",
+  "calibration_origin": "recording sidecar",
+  "model_mode": "hybrid",
+  "inference_device": "cpu",
+  "worker_error": null,
+  "processed_frames": 20,
+  "fps": 2.1734892908740795,
+  "detected": 32,
+  "assigned": 32
+}

@@ -1,0 +1,185 @@
+{
+  "image": "/home/cse/doosan_janggi_ws/docs/analysis/gazebo_calibrated_scene/camera_rgb.png",
+  "environment": "isolated tool process, explicit CPU; not a direct GPU profile of the user UI",
+  "detections": 32,
+  "pixel_box_sizes": [
+    [
+      30.404144287109375,
+      34.41081619262695
+    ],
+    [
+      37.22369384765625,
+      40.245849609375
+    ],
+    [
+      30.884185791015625,
+      34.222198486328125
+    ],
+    [
+      30.554473876953125,
+      33.213470458984375
+    ],
+    [
+      30.733154296875,
+      33.698753356933594
+    ],
+    [
+      31.4388427734375,
+      33.86174011230469
+    ],
+    [
+      38.12816619873047,
+      40.55632019042969
+    ],
+    [
+      30.222625732421875,
+      32.95947265625
+    ],
+    [
+      30.906005859375,
+      33.57722473144531
+    ],
+    [
+      30.249107360839844,
+      33.21923828125
+    ],
+    [
+      30.674102783203125,
+      34.450958251953125
+    ],
+    [
+      31.244110107421875,
+      33.00398254394531
+    ],
+    [
+      24.446014404296875,
+      26.736785888671875
+    ],
+    [
+      25.025360107421875,
+      27.360565185546875
+    ],
+    [
+      31.643875122070312,
+      33.744781494140625
+    ],
+    [
+      31.004451751708984,
+      33.376983642578125
+    ],
+    [
+      24.843994140625,
+      27.721424102783203
+    ],
+    [
+      30.715911865234375,
+      33.70207977294922
+    ],
+    [
+      31.44747543334961,
+      33.514747619628906
+    ],
+    [
+      30.220176696777344,
+      33.27009582519531
+    ],
+    [
+      31.1441650390625,
+      33.59088134765625
+    ],
+    [
+      24.649749755859375,
+      26.678253173828125
+    ],
+    [
+      24.224945068359375,
+      27.14263916015625
+    ],
+    [
+      24.759140014648438,
+      26.881912231445312
+    ],
+    [
+      25.006214141845703,
+      26.680419921875
+    ],
+    [
+      24.522003173828125,
+      26.294754028320312
+    ],
+    [
+      24.303924560546875,
+      26.502105712890625
+    ],
+    [
+      24.520339965820312,
+      26.87445068359375
+    ],
+    [
+      24.32940673828125,
+      26.622894287109375
+    ],
+    [
+      25.019699096679688,
+      26.726551055908203
+    ],
+    [
+      24.7669677734375,
+      26.684539794921875
+    ],
+    [
+      24.44415283203125,
+      26.194915771484375
+    ]
+  ],
+  "timings": {
+    "1": {
+      "yolo_ms_median": 716.1755260021891,
+      "cnn_32_ms_median": 759.8163999937242
+    },
+    "4": {
+      "yolo_ms_median": 287.91735898994375,
+      "cnn_32_ms_median": 267.65748400066514
+    },
+    "8": {
+      "yolo_ms_median": 318.21334100095555,
+      "cnn_32_ms_median": 373.661022997112
+    }
+  },
+  "accuracy": {
+    "rendered": {
+      "correct": 9,
+      "total": 32,
+      "below_50": 5
+    },
+    "rendered_flip_horizontal": {
+      "correct": 10,
+      "total": 32,
+      "below_50": 6
+    },
+    "rendered_flip_vertical": {
+      "correct": 9,
+      "total": 32,
+      "below_50": 2
+    },
+    "original_photo": {
+      "correct": 3,
+      "total": 32,
+      "below_50": 2
+    },
+    "original_downsampled_28px": {
+      "correct": 6,
+      "total": 32,
+      "below_50": 4
+    },
+    "scope": "Bare CNN only, using manually mapped initial-setup labels; excludes size prior/history/game gate. One-frame diagnostic, not general accuracy.",
+    "original_photo_crop_scope": "Tight native white-face bounding boxes from photo_instances.json, using current classifier preprocessing."
+  },
+  "live_source_measurement": "Unavailable: live ROS subscription timed out; measurements use a saved Gazebo frame",
+  "renderer_log": {
+    "path": "/home/cse/.gz/rendering/ogre2.log",
+    "renderer": "Mesa Intel(R) Graphics (RPL-P)",
+    "log_time": "2026-11-11 21:11:01",
+    "scope": "latest recorded rendering context; not proof of CNN device or all rendering processes"
+  }
+}

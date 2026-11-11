@@ -1,0 +1,28 @@
+{
+  "wall_time": 1794402755.2888317,
+  "processed_frames": 10,
+  "processing_fps": 1.7732711225506195,
+  "inference_device": "cpu",
+  "samples": 10,
+  "stages_ms": {
+    "input_wait": 3.629324198118411,
+    "position_yolo": 613.9822141005425,
+    "tracking_fusion_state": 21.90802480035927,
+    "output_logging": 0.05071820050943643,
+    "frame_total": 639.5702812995296
+  },
+  "source": {
+    "transport": "gazebo",
+    "topic": "/janggi_sim/d455f/image",
+    "received_frames": 155,
+    "input_fps": 25.372244931088897,
+    "skipped_latest_frames": 130,
+    "conversion_ms_mean": 7.387927908105969
+  },
+  "cnn": {
+    "batches": 6,
+    "last_batch_size": 32,
+    "mean_batch_ms": 835.341399833851,
+    "last_batch_ms": 801.3988040038384
+  }
+}

@@ -52,9 +52,9 @@ def test_square_400mm_board_top_is_at_calibrated_surface(layout):
     model = ET.fromstring(layout.board_sdf()).find('model')
     visuals = model.find('link').findall('visual')
     wood = visuals[0]
-    assert wood.findtext('geometry/box/size') == '0.4 0.4 0.008'
+    assert wood.findtext('geometry/box/size') == '0.4 0.4 0.01'
     position = np.fromstring(wood.findtext('pose'), sep=' ')[:3]
-    assert position[2]+.008/2 == pytest.approx(0.)
+    assert position[2]+.01/2 == pytest.approx(0.)
     assert len(visuals) == 24
     assert layout.config['board']['outer_size_source'] == 'user_estimate_square_not_measured'
 
@@ -74,10 +74,11 @@ def test_grid_sdf_line_boxes_reconstruct_calibrated_segments(layout):
             np.testing.assert_allclose(layout.center+layout.rotation@local,expected,atol=1e-10)
 
 
-def test_camera_has_calibrated_intrinsics_and_active_rgbd_output(layout):
+def test_rgb_only_camera_preserves_existing_image_topic_and_calibration(layout):
     sensor = ET.fromstring(layout.camera_sdf()).find('model/link/sensor')
-    assert sensor.get('type') == 'rgbd_camera'
-    assert sensor.findtext('topic') == '/janggi_sim/d455f'
+    assert sensor.get('type') == 'camera'
+    assert sensor.findtext('topic') == '/janggi_sim/d455f/image'
+    assert sensor.findtext('visualize') == 'false'
     assert sensor.findtext('always_on') == 'true'
     camera = sensor.find('camera')
     assert camera.findtext('image/width') == '1280'
@@ -86,6 +87,8 @@ def test_camera_has_calibrated_intrinsics_and_active_rgbd_output(layout):
     for key,value in [('fx',i['fx']),('fy',i['fy']),('cx',i['ppx']),('cy',i['ppy'])]:
         assert float(camera.findtext('lens/intrinsics/'+key)) == value
     assert camera.findtext('optical_frame_id') == 'sim_d455f_color_optical_frame'
+    assert camera.find('depth_camera') is None
+    assert camera.findtext('camera_info_topic') == '/janggi_sim/d455f/camera_info'
     assert camera.find('distortion') is None  # inverse Brown is not a forward Brown model
 
 
@@ -94,3 +97,10 @@ def test_impossible_board_size_is_rejected(layout):
     config=copy.deepcopy(layout.config);config['board']['outer_size_mm']=[200,200]
     with pytest.raises(ValueError,match='does not fit'):
         CalibratedLayout(layout.geometry,layout.camera,layout.intrinsics,config)
+
+
+def test_unused_shadow_rendering_is_disabled():
+    from scene_models import HERE
+    world=ET.parse(HERE/'worlds/janggi_camera.sdf').find('world')
+    assert world.findtext('scene/shadows')=='false'
+    assert world.findtext('light/cast_shadows')=='false'

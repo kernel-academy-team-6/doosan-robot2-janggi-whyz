@@ -1,0 +1,74 @@
+{
+  "cpp_ros_rate": {
+    "frames": 40,
+    "fps": 10.3032
+  },
+  "concurrent_raw_subscribers": {
+    "gazebo": {
+      "frames": 149,
+      "wall_fps": 29.897244503947213,
+      "sim_fps": 30.303030303030212
+    },
+    "ros": {
+      "frames": 52,
+      "wall_fps": 11.205232323588797,
+      "sim_fps": 11.363636363636221
+    }
+  },
+  "actual_ui_source_adapters": [
+    {
+      "mode": "gazebo",
+      "consumed": 152,
+      "wall_seconds": 5.007944832992507,
+      "transport": "gazebo",
+      "topic": "/janggi_sim/d455f/image",
+      "received_frames": 152,
+      "input_fps": 29.738776310704345,
+      "skipped_latest_frames": 0,
+      "conversion_ms_mean": 6.286587482948865
+    },
+    {
+      "mode": "ros",
+      "consumed": 35,
+      "wall_seconds": 5.4841583099914715,
+      "transport": "ros",
+      "topic": "/janggi_sim/d455f/color/image_raw",
+      "received_frames": 35,
+      "input_fps": 6.201807714255456,
+      "skipped_latest_frames": 0,
+      "conversion_ms_mean": 4.668180514376478
+    }
+  ],
+  "scope": "tool environment live topic input tests without inference; not a direct profile of user GPU execution",
+  "cpp_ros_reliable_rate": {
+    "frames": 128,
+    "fps": 31.0186
+  },
+  "ui_source_adapters_after_ros_reliable": [
+    {
+      "mode": "gazebo",
+      "consumed": 143,
+      "wall_seconds": 5.036685918006697,
+      "transport": "gazebo",
+      "topic": "/janggi_sim/d455f/image",
+      "ros_image_qos": null,
+      "received_frames": 143,
+      "input_fps": 27.95136370632262,
+      "skipped_latest_frames": 0,
+      "conversion_ms_mean": 6.727681132542784
+    },
+    {
+      "mode": "ros",
+      "consumed": 108,
+      "wall_seconds": 5.012488630993175,
+      "transport": "ros",
+      "topic": "/janggi_sim/d455f/color/image_raw",
+      "ros_image_qos": "reliable/keep_last_1",
+      "received_frames": 108,
+      "input_fps": 21.346637990250034,
+      "skipped_latest_frames": 0,
+      "conversion_ms_mean": 5.661174435469245
+    }
+  ],
+  "conclusion": "QoS-dependent ROS image loss is a major contributor in this environment; native input remains fastest. CPU inference is an additional independent processing bottleneck."
+}

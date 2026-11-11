@@ -655,3 +655,34 @@ def test_known_ids_are_selected_only_when_their_half_second_refresh_is_due(monke
     clock[0] = 11.03
     worker._update_tracks(frame, [current], {}, {'state': 'stable'})
     assert len(worker.classifier_worker.requests) == 2
+
+
+def test_known_classification_requests_every_four_processing_frames(monkeypatch):
+    import app
+    worker = adaptive_worker()
+    worker.args.classification_interval = 0.
+    worker.args.classification_frames = 4
+    piece = worker.tracker.pieces['piece_0001']
+    piece.label, piece.probabilities = 'blue_cha', {'blue_cha': .95}
+    current = detection()
+    worker.piece_motion.update([current], .4)
+    monkeypatch.setattr(app.time, 'monotonic', lambda: 10.)
+    frame = np.zeros((100, 100, 3), np.uint8)
+    for _ in range(9):
+        worker._update_tracks(frame, [current], {}, {'state': 'stable'})
+    requests = worker.classifier_worker.requests
+    assert [r['processing_frame'] for r in requests] == [0, 4, 8]
+    assert all(r['regular_ids'] == [piece.id] for r in requests)
+
+
+def test_unknown_classification_requests_each_processing_frame():
+    worker = adaptive_worker()
+    worker.args.classification_interval = 0.
+    worker.args.classification_frames = 4
+    current = detection()
+    worker.piece_motion.update([current], 1.)
+    frame = np.zeros((100, 100, 3), np.uint8)
+    for _ in range(5):
+        worker._update_tracks(frame, [current], {}, {'state': 'suspected'})
+    assert [r['processing_frame'] for r in worker.classifier_worker.requests] == list(range(5))
+    assert all(r['urgent_ids'] for r in worker.classifier_worker.requests)

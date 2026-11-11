@@ -11,7 +11,7 @@ from tkinter import filedialog, messagebox, ttk
 from PIL import Image, ImageDraw, ImageTk
 
 from .core import Catalog, Cancelled, CLASSES, KINDS, SPLITS, augment_image, export_dataset, prepare_image, sample_angles, plan_export
-from .extraction import ROOT, extract_video
+from .extraction import ROOT, extract_video, extract_images, image_paths
 
 
 class DatasetApp:
@@ -24,6 +24,8 @@ class DatasetApp:
         self.events = queue.Queue()
         self.project = tk.StringVar(value=str(self.catalog.root))
         self.video = tk.StringVar(value='')
+        self.photos = []
+        self.photo_summary = tk.StringVar(value='사진을 여러 장 선택하거나 이 영역으로 드래그하세요.')
         self.interval = tk.StringVar(value=str(args.interval))
         self.group = tk.StringVar(value='')
         self.ratios = [tk.StringVar(value=str(v)) for v in args.ratios]
@@ -35,7 +37,7 @@ class DatasetApp:
         self.augment = tk.StringVar(value=str(args.augment))
         self.size = tk.StringVar(value=str(args.size))
         self.angle_step = tk.StringVar(value=str(args.angle_step))
-        self.status = tk.StringVar(value='영상에서 추출하거나 기존 프로젝트를 열어 정답을 붙이세요.')
+        self.status = tk.StringVar(value='영상·사진에서 추출하거나 기존 프로젝트를 열어 정답을 붙이세요.')
         self.info = tk.StringVar()
         root.title('장기말 · 학습 데이터셋 제작')
         root.geometry('1460x930')
@@ -54,6 +56,16 @@ class DatasetApp:
         ttk.Combobox(source, textvariable=self.interval, values=['1', '2', '3', '5', '10'], width=5).pack(side='left', padx=4)
         ttk.Button(source, text='YOLO로 추출', command=self.extract).pack(side='left', padx=3)
         ttk.Button(source, text='작업 중지', command=self.cancel.set).pack(side='left', padx=3)
+        photos = ttk.Frame(root, padding=8)
+        photos.pack(fill='x')
+        ttk.Button(photos, text='사진 여러 장 선택', command=self.choose_photos).pack(side='left')
+        self.drop_area = ttk.Label(photos, textvariable=self.photo_summary, relief='ridge', padding=8)
+        self.drop_area.pack(side='left', fill='x', expand=True, padx=8)
+        ttk.Button(photos, text='사진 YOLO로 추출', command=self.extract_photos).pack(side='left')
+        ttk.Button(photos, text='사진 목록 비우기', command=self.clear_photos).pack(side='left', padx=5)
+        from tkinterdnd2 import DND_FILES
+        self.drop_area.drop_target_register(DND_FILES)
+        self.drop_area.dnd_bind('<<Drop>>', self.drop_photos)
         grouping = ttk.Frame(root, padding=8)
         grouping.pack(fill='x')
         ttk.Label(grouping, text='촬영 그룹').pack(side='left')
@@ -178,6 +190,44 @@ class DatasetApp:
         if path:
             self.video.set(path)
             self.group.set(Path(path).stem)
+
+    def add_photos(self, paths):
+        if self.busy():
+            self.status.set('현재 작업이 끝난 뒤 사진을 추가하세요.')
+            return
+        try:
+            self.photos = image_paths([*self.photos, *paths])
+            self.photo_summary.set(f'사진 {len(self.photos)}장 선택됨 · 추가 선택 / 드래그 가능')
+            if not self.group.get().strip():
+                self.group.set(self.photos[0].parent.name or 'photos')
+        except ValueError as exc:
+            messagebox.showerror('사진 선택 오류', str(exc), parent=self.root)
+
+    def choose_photos(self):
+        paths = filedialog.askopenfilenames(parent=self.root, title='사진 여러 장 선택 (Ctrl / Shift)',
+                  filetypes=[('사진', '*.jpg *.jpeg *.png *.bmp *.tif *.tiff *.webp'), ('모든 파일', '*')])
+        if paths:
+            self.add_photos(paths)
+
+    def drop_photos(self, event):
+        self.add_photos(self.root.tk.splitlist(event.data))
+        return 'copy'
+
+    def clear_photos(self):
+        if not self.busy():
+            self.photos = []
+            self.photo_summary.set('사진을 여러 장 선택하거나 이 영역으로 드래그하세요.')
+
+    def extract_photos(self):
+        try:
+            paths = image_paths(self.photos)
+            project, group = self.catalog.root, self.group.get().strip()
+            self.job('사진에서 말 추출 중… 기존 정답은 유지됩니다.',
+                     lambda progress: extract_images(project, paths, group=group,
+                         model=self.args.model, device=self.args.device, confidence=self.args.conf,
+                         margin=self.args.margin, cancel=self.cancel, progress=progress))
+        except Exception as exc:
+            messagebox.showerror('사진 추출 설정 오류', str(exc), parent=self.root)
 
     def refresh(self, preferred=None):
         self.rows = self.catalog.samples(self.filter.get())
@@ -531,6 +581,7 @@ def main():
         print(export_dataset(args.project, args.size, args.augment, args.seed, angle_step=args.angle_step,
                              ratios=args.ratios, split_mode=args.split_mode, split_unit=args.split_unit, min_per_class=args.min_per_class))
     else:
-        window = tk.Tk()
+        from tkinterdnd2 import TkinterDnD
+        window = TkinterDnD.Tk()
         DatasetApp(window, args)
         window.mainloop()

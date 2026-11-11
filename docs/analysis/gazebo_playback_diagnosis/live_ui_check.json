@@ -1,0 +1,20 @@
+{
+  "mode": "live",
+  "calibration": "/home/cse/doosan_janggi_ws/src/janggi/robot_game/config/gazebo_calibration.yaml",
+  "calibration_origin": "live Gazebo",
+  "model_mode": "hybrid",
+  "inference_device": "cpu",
+  "worker_error": null,
+  "processed_frames": 16,
+  "fps": 1.744027067467209,
+  "detected": 32,
+  "assigned": 32,
+  "source": {
+    "transport": "gazebo",
+    "topic": "/janggi_sim/d455f/image",
+    "received_frames": 250,
+    "input_fps": 25.479042242915035,
+    "skipped_latest_frames": 231,
+    "conversion_ms_mean": 7.733771441417048
+  }
+}

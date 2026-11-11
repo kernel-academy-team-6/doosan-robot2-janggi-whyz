@@ -1,0 +1,21 @@
+{
+  "gazebo_topics": [
+    "/janggi_sim/d455f/camera_info",
+    "/janggi_sim/d455f/image"
+  ],
+  "ros_topics": [
+    "/janggi_sim/d455f/color/camera_info",
+    "/janggi_sim/d455f/color/image_raw"
+  ],
+  "resolution": [
+    1280,
+    720
+  ],
+  "depth": false,
+  "point_cloud": false,
+  "related_tests_passed": 127,
+  "shadow_rendering": false,
+  "sensor_visualization": false,
+  "robot_feedback_mirror_verified": true,
+  "scope": "isolated Gazebo server; active user scene requires restart to apply new world/sensor"
+}

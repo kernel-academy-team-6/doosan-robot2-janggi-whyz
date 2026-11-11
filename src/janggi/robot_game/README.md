@@ -38,41 +38,34 @@ cd ~/doosan_janggi_ws/janggi
 인식된 판을 그대로 쓰므로, 엔진 수가 이상하면 화면의 인식 결과(판·조명)를 확인한다.
 로봇 동작 중 오류가 나면 판을 손으로 바로잡고 `인식된 판으로 맞추기` 후 `착수 완료`를 누르면 로봇 차례부터 다시 한다.
 
-## 시뮬레이터로 확인 (카메라·실제 말 없이)
-
-가상 세계(`sim_check.SimWorld`): 말은 교차점에서 몇 mm씩 비켜 놓이고, 가상 카메라가 보정 결과로 말을 픽셀에 투영해
-가짜 YOLO 박스를 만든다. 그리퍼가 닫히면 에뮬레이터가 보고한 실제 팁 위치 근처의 말을 잡고, 열리면 그 자리에 놓는다.
+## Gazebo 카메라를 기존 UI로 인식
 
 ```bash
-# 터미널 1: 가상 로봇 + Gazebo (Gazebo가 필요 없으면 bringup.launch.py mode:=virtual만 띄워도 된다)
-cd ~/doosan_janggi_ws && ros2 launch src/janggi/robot_game/sim_gazebo.launch.py
+# 터미널 1 (workspace 환경 설정 후): 가상 드라이버 + Gazebo + 장면 + 브리지
+cd ~/doosan_janggi_ws
+ros2 launch src/janggi/robot_game/sim_gazebo.launch.py
 
-# 터미널 2
-cd ~/doosan_janggi_ws/src/janggi/robot_game
-./run_sim_app.sh --gazebo --setup-only     # 배치만 생성하고 대기. 자동 착수·홈 이동 없음
-./run_sim_check.sh --gazebo                # 파이프라인 + 턴마다 검사 (Gazebo에 판·말·로봇 표시)
-./run_sim_check.sh --top-side blue --seed 7  # 초가 카메라 위쪽인 판
-./run_sim_check.sh --no-robot              # 로봇 없이 엔진·인식 경로만
-./run_sim_app.sh --gazebo --turns 3        # 실제 대국 UI를 가상 세계로 자동 진행
+# 터미널 2: 기존 실시간 UI, 실제 렌더링 영상과 실제 YOLO+CNN
+cd ~/doosan_janggi_ws/janggi
+./realtime_ui/run.sh --source gazebo --model-mode hybrid --robot
 ```
 
-`--setup-only`는 판·말을 생성하고 기존 `/dsr01/joint_states`의 **현재 자세**를 Gazebo에 표시한다.
-엔진·집기 제어기를 시작하지 않고, 팔/그리퍼 명령이나 홈 이동을 보내지 않으며 자동 대국도 예약하지 않는다.
-가상 로봇 드라이버와 Gazebo는 터미널 1에 계속 켜두고, 배치 전용 창을 닫아 종료한다.
-`--gazebo`를 생략하면 로봇·Gazebo 없이 2D 배치만 볼 수 있다.
-자동 대국은 배치 전용 창을 종료한 뒤 `--setup-only` 없이 `--gazebo --turns 3`으로 다시 실행한다.
-기존 `--turns 0`은 대국 초기화 과정에서 관찰 자세로 이동하므로 배치 전용 옵션의 대체가 아니다.
+현재는 RGB 전용 카메라로 깊이·포인트 클라우드·그림자 렌더링을 끈다. 설정 변경 적용에는 Gazebo 재시작이 필요하다.
+별도 `sim_app.py` 창은 필요 없다. 화면 클릭으로 Gazebo 말 좌표를 바꾸는 동작은 비활성화했다.
+사람 수는 접촉·외력으로 말을 움직인 뒤 영상 인식 갱신을 확인하고 `[착수 완료]`를 누른다.
+로봇은 가상 드라이버의 관절 피드백을 목표로 토크 PID로 구동한다. 실제 링크와 말은 물리 엔진이 움직인다.
+말은 5mm 두께, 밀도 1,200kg/m³를 가정한 동적 충돌체이며 가상 부착·목적지 스냅은 없다.
+기본 그리퍼 형상이 보정 TCP(+222mm)까지 이어지지 않아 물리적 집기에는 장착 형상 보완이 필요하다.
+회색 받침은 수평 Z=−30mm, 판 두께는 10mm, 윗면은 −20mm다.
 
-`sim_check` 검사 항목: 처음 인식한 판 = 실제 판, 집을 때 팁-말 중심 거리 < 3 mm(교차점으로 집었을 때 거리도 함께 표시),
-로봇이 둔 뒤 실제 판 = 게임 판, 잡은 말이 판 밖에 있음, 관찰 자세 복귀.
+렌더링 영상의 CNN 오분류도 그대로 표시하므로 대국 전에 인식 결과를 확인한다.
+[설정·보정·영상 캡처·동작 한계](../../../docs/GAZEBO_CALIBRATED_SCENE.md)를 참고한다.
 
-Gazebo는 보기 전용이다: `gz_scene.py`가 바닥을 지우고 판 평면 높이에 테이블·장기판·말을 만들고,
-로봇은 `/dsr01/joint_states` 순기구학으로 URDF 링크 메쉬를 옮긴다 (물리·컨트롤러 없음).
-판의 검은 격자와 D455f RGB 광학 좌표는 저장된 보정값을 따른다. 외곽은 정사각형 400×400mm 추정값이다.
-Sensors 플러그인이 있는 world에서 RGB·정렬 깊이·CameraInfo를 생성하여 `/janggi_sim/d455f/` 아래로 브리지한다.
-기존 UI의 검출 입력은 여전히 `SimWorld` 투영값이다. 카메라 추가 후에는 Gazebo를 첫 터미널부터 재시작해야 한다.
-실제 렌더링 캡처, 좌표·치수 근거와 영상 확인 방법은 [보정 장면 문서](../../../docs/GAZEBO_CALIBRATED_SCENE.md)를 참고한다.
-`e0509_gripper_description/bringup_real_gazebo.launch.py`는 지금 빌드에서 뜨지 않아(실행 파일 이름, mimic 관절) 쓰지 않는다.
+### 레거시 합성 검사
+
+`sim_check.py` / `sim_app.py`는 가짜 검출을 쓰는 별도 테스트 도구다.
+이 도구를 쓸 때만 launch에 `scene:=false`를 지정하고 실행한다. 기존 실시간 UI 경로와 함께 실행하지 않는다.
+`--setup-only`는 여전히 엔진·홈 이동·자동 착수 없이 배치만 표시하는 레거시 옵션이다.
 
 ## 구성
 

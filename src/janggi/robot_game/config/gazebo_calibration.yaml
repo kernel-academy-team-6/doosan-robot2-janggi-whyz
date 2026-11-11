@@ -1,0 +1,158 @@
+created: '2026-11-07T17:39:44'
+method: 'Simulation-derived: measured grid/yaw, level board, configured table height,
+  ideal RGB projection'
+T_base_camera:
+  parent_frame: base_link
+  child_frame: camera_color_optical_frame
+  translation:
+  - 0.613455
+  - 0.088593
+  - 0.575542
+  rotation_xyzw:
+  - -0.9999651
+  - 0.00811259
+  - 0.00188063
+  - 0.00066529
+  matrix:
+  - - 0.9998613
+    - -0.01622712
+    - -0.00375033
+    - 0.61345529
+  - - -0.01622212
+    - -0.99986749
+    - 0.00136105
+    - 0.08859302
+  - - -0.00377192
+    - -0.00130002
+    - -0.99999204
+    - 0.57554227
+  - - 0.0
+    - 0.0
+    - 0.0
+    - 1.0
+board_plane_base:
+  normal:
+  - 0.0
+  - 0.0
+  - 1.0
+  d: 0.019999999999999997
+camera:
+  model: RealSense D455F
+  serial: '342622301896'
+  firmware: 5.17.3.10
+  color_intrinsics:
+    width: 1280
+    height: 720
+    fx: 647.4697875976562
+    fy: 646.7091674804688
+    ppx: 643.8978271484375
+    ppy: 366.7391357421875
+    distortion_model: none
+    coeffs:
+    - 0.0
+    - 0.0
+    - 0.0
+    - 0.0
+    - 0.0
+  depth_preset: default
+robot:
+  namespace: dsr01
+  posx_source: /dsr01/aux_control/get_current_posx
+  ref: DR_BASE
+  tcp_name: ''
+  tcp_offset_mm:
+  - 0.0
+  - 0.0
+  - 222.0
+  gripper_position_cmd: 650
+corners:
+- name: top_left
+  pixel:
+  - 675.8207400658555
+  - 206.07699826636963
+  robot_posx:
+  - 638.1300055672676
+  - 236.43637576225177
+  - 201.9468
+  - 5.2182
+  - 178.7417
+  - -34.8021
+  base_xyz:
+  - 0.6429855055672677
+  - 0.23687987576225178
+  - -0.019999999999999997
+  error_mm: 1.948
+  reproj_px: 1.927
+  camera_depth_xyz: null
+  gripper_stroke: 700
+- name: top_right
+  pixel:
+  - 682.1255064105419
+  - 593.1041503578073
+  robot_posx:
+  - 638.1251232280298
+  - -119.89931709510239
+  - 201.94650000000001
+  - 5.2292
+  - 178.7425
+  - -34.7911
+  base_xyz:
+  - 0.6429763232280297
+  - -0.1194551170951024
+  - -0.019999999999999997
+  error_mm: 0.608
+  reproj_px: 0.569
+  camera_depth_xyz: null
+  gripper_stroke: 700
+- name: bottom_right
+  pixel:
+  - 297.1943784858479
+  - 598.837697455394
+  robot_posx:
+  - 283.53886456345913
+  - -119.89818315882557
+  - 201.94610000000003
+  - 5.2205
+  - 178.742
+  - -34.7998
+  base_xyz:
+  - 0.28839266456345913
+  - -0.11945488315882558
+  - -0.019999999999999997
+  error_mm: 1.975
+  reproj_px: 1.927
+  camera_depth_xyz:
+  - -0.739536
+  - 0.490843
+  - 1.521
+  gripper_stroke: 700
+- name: bottom_left
+  pixel:
+  - 291.15673596427763
+  - 209.68395262991896
+  robot_posx:
+  - 283.5348066412435
+  - 239.19292449167622
+  - 201.9466
+  - 5.2176
+  - 178.7419
+  - -34.803
+  base_xyz:
+  - 0.28838950664124346
+  - 0.2396361244916762
+  - -0.019999999999999997
+  error_mm: 2.726
+  reproj_px: 2.669
+  camera_depth_xyz:
+  - -0.331326
+  - -0.144727
+  - 0.671
+  gripper_stroke: 700
+simulation:
+  hardware_source: /home/cse/doosan_janggi_ws/src/janggi/calibration/config/calibration.yaml
+  board_center_z_shift_mm: 59.60725000000001
+  board_yaw_deg: -90.00048247291707
+  board_orientation: yaw_only
+  tabletop_z_mm: -30.0
+  placement_rule: level board; entire bottom surface rests on horizontal table
+  board_thickness_mm: 10.0

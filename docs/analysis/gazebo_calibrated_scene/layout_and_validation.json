@@ -2,26 +2,28 @@
   "world_frame": "base_link",
   "board_center_m": [
     0.465686,
-    0.05940149999999999,
-    -0.07960724999999999
+    0.059401499999999996,
+    -0.019999999999999997
   ],
   "board_rpy_deg": [
-    0.9796378879983281,
-    -0.0022766861872975473,
-    -90.00048247291707
+    0.0,
+    -0.0,
+    -90.00048247291706
   ],
   "board_outer_size_mm": [
     400.0,
     400.0
   ],
   "board_outer_size_source": "user_estimate_square_not_measured",
+  "board_thickness_mm": 10.0,
+  "horizontal_tabletop_z_mm": -30.0,
   "grid_top_bottom_mm": [
-    356.3350415620109,
-    359.09105514061474
+    356.33499297566334,
+    359.0910076643875
   ],
   "grid_left_right_mm": [
-    354.60675927144996,
-    354.5837071186436
+    354.6067108239824,
+    354.5836586646477
   ],
   "camera_optical_position_m": [
     0.61345529,
@@ -36,8 +38,9 @@
   "camera_topic": "/janggi_sim/d455f",
   "distortion": "ideal pinhole; recorded inverse-Brown distortion is not applied",
   "depth": "ideal RGB-aligned rendering; hardware stereo/noise/filter/IMU not simulated",
+  "piece_design_source": "docs/IMG_1183.jpg; 32 individually cropped photographic faces",
   "validation": {
-    "related_tests_passed": 24,
+    "related_tests_passed": 123,
     "rgb_size": [
       1280,
       720
@@ -46,9 +49,20 @@
       1280,
       720
     ],
-    "principal_pixel_depth_m": 0.6526575088500977,
+    "principal_pixel_depth_m": 0.5955440998077393,
     "ros_bridge_topics_received": 3,
     "ros_optical_frame": "sim_d455f_color_optical_frame",
-    "robot_driver_started_for_validation": false
+    "robot_driver_started_for_validation": false,
+    "robot_motion_service_calls": 0,
+    "real_urdf_joint_feedback_pose_check": true,
+    "live_ui": {
+      "worker_error": null,
+      "frames": 22,
+      "detected": 32,
+      "classified_cells": 32,
+      "source": "GazeboSource",
+      "mode": "hybrid"
+    },
+    "accuracy_note": "32 detected/mapped does not mean all classes are correct; rendered-image classification errors remain possible"
   }
 }

@@ -1,11 +1,6 @@
-"""시뮬레이터 장기판·말을 Gazebo에 띄우고 위치를 맞춘다 (보기용).
+"""Physical board, dynamic pieces and torque-driven robot in calibrated base coordinates.
 
-로봇 base 좌표 = Gazebo world 좌표. 로봇은 GzRobotMirror가 /dsr01/robot_description의 링크 메쉬를 정적 모델로 띄우고
-/dsr01/joint_states로 순기구학을 풀어 링크 위치를 옮긴다 (물리·컨트롤러 없이 에뮬레이터 자세를 그대로 보여준다).
-장기판은 base 기준 z ≈ -80 mm라 기본 바닥(ground_plane)에 가려지므로 바닥을 지우고 판 평면 높이에 테이블을 놓는다.
-
-    scene = GzScene(world)          # sim_check.SimWorld
-    scene.start(tip_fn=mover.current_tip)   # 로봇 20 Hz, 말 10 Hz 동기화 (잡힌 말은 팁을 따라간다)
+Entity poses are set only at initial spawn. Physics owns all subsequent motion.
 """
 
 from __future__ import annotations
@@ -35,10 +30,9 @@ from gz.transport13 import Node
 
 from action.board import DEFAULT_CALIBRATION
 from scene_models import CalibratedLayout, DEFAULT_SCENE_CONFIG
+from piece_visuals import piece_visuals, piece_physics
 
-COLOR = {"blue": "0.1 0.35 0.95 1", "red": "0.9 0.12 0.12 1"}
-RADIUS = {"king": 0.024, "sa": 0.015, "soldier": 0.015}   # 그 외 0.019 m
-PIECE_H = 0.012
+PIECE_H = 0.005
 
 
 def rot_to_quat(r):
@@ -140,7 +134,23 @@ class GzScene:
         req = GUICamera()
         req.pose.position.x, req.pose.position.y, req.pose.position.z = map(float, eye)
         req.pose.orientation.x, req.pose.orientation.y, req.pose.orientation.z, req.pose.orientation.w = map(float, q)
-        self.node.request("/gui/move_to/pose", req, GUICamera, Boolean, 1000)
+        ok, reply = self.node.request("/gui/move_to/pose", req, GUICamera, Boolean, 1000)
+        return ok and reply.data
+
+    def wait_for_gui(self, timeout=60.):
+        deadline = time.monotonic()+timeout
+        ready_checks = 0
+        while time.monotonic() < deadline:
+            services = self.node.service_list()
+            pending_initial_state = any(re.search(r'/[0-9]+/state_async$', name) for name in services)
+            if '/gui/move_to/pose' in services and not pending_initial_state:
+                ready_checks += 1
+                if ready_checks >= 3:
+                    return
+            else:
+                ready_checks = 0
+            time.sleep(.2)
+        raise RuntimeError('Gazebo GUI initial state is not ready; scene creation has not started')
 
     def _pose_sdf(self, p, r):
         return " ".join(f"{v:.5f}" for v in (*p, *rot_to_rpy(r)))
@@ -150,57 +160,56 @@ class GzScene:
         self._refresh_existing_models()
         for name in ["ground_plane", "janggi_table", "janggi_board", "intel_realsense_d455f"] + [f"piece_{i}" for i in range(40)]:
             self._remove(name)
-        g, R, c = self.w.geom, self.R, self.center
-        # The calibrated surface is the TOP of the board, not its bottom.
-        tc = c-self.n*(self.layout.thickness_m+.01)
-        self._create(f"""<sdf version="1.9"><model name="janggi_table"><static>true</static>
-          <pose>{self._pose_sdf(tc + R[:, 0] * -0.02, R)}</pose><link name="l"><visual name="v">
-          <geometry><box><size>0.75 0.9 0.02</size></box></geometry>
-          <material><diffuse>0.45 0.45 0.48 1</diffuse><ambient>0.45 0.45 0.48 1</ambient></material>
-          </visual></link></model></sdf>""")
-        self._create(self.layout.board_sdf())
-        for i, p in enumerate(self.w.pieces):
-            r = RADIUS.get(p["kind"], 0.019)
-            col = COLOR[p["side"]]
-            self._create(f"""<sdf version="1.9"><model name="piece_{i}"><static>true</static>
-              <pose>{self._pose_sdf(self._piece_pos(p), R)}</pose><link name="l">
-              <visual name="body"><geometry><cylinder><radius>{r}</radius><length>{PIECE_H}</length></cylinder></geometry>
-              <material><diffuse>{col}</diffuse><ambient>{col}</ambient></material></visual>
-              <visual name="top"><pose>0 0 {PIECE_H / 2:.4f} 0 0 0</pose><geometry><cylinder><radius>{r * 0.7:.4f}</radius>
-              <length>0.0008</length></cylinder></geometry><material><diffuse>0.95 0.92 0.82 1</diffuse>
-              <ambient>0.95 0.92 0.82 1</ambient></material></visual></link></model></sdf>""")
+        for sdf in self.board_model_sdfs():
+            self._create(sdf)
         self._last = {}
-        self.set_camera(c + np.array([0.65, -1.0, 0.95]), c + np.array([-0.15, 0., 0.28]))
+        self._view_ready = self.focus_board()
         import json
         print('[gz] calibrated layout: '+json.dumps(self.layout.summary(), ensure_ascii=False), flush=True)
 
+    def board_model_sdfs(self):
+        """Generate board/table/piece visuals without changing the running world."""
+        R, c = self.R, self.center
+        models = []
+        # The calibrated surface is the TOP of the board, not its bottom.
+        tc = c+R[:,0]*-.02
+        tc[2] = self.layout.config['board']['tabletop_z_mm']/1000.-.01
+        models.append(f"""<sdf version="1.9"><model name="janggi_table"><static>true</static>
+          <pose>{self._pose_sdf(tc, np.eye(3))}</pose><link name="l"><visual name="v">
+          <geometry><box><size>0.75 0.9 0.02</size></box></geometry>
+          <material><diffuse>0.45 0.45 0.48 1</diffuse><ambient>0.45 0.45 0.48 1</ambient></material>
+          </visual><collision name="table_contact"><geometry><box><size>0.75 0.9 0.02</size></box></geometry></collision></link></model></sdf>""")
+        models.append(self.layout.board_sdf())
+        for i, p in enumerate(self.w.pieces):
+            models.append(f'<sdf version="1.9"><model name="piece_{i}"><static>false</static>'
+                         f'<pose>{self._pose_sdf(self._piece_pos(p), R)}</pose><link name="l">'
+                         f'{piece_physics(p["kind"], PIECE_H, **self.layout.config.get("pieces", {}))}'
+                         f'{piece_visuals(p["side"], p["kind"], PIECE_H, p.get("texture_key"))}</link></model></sdf>')
+        return models
+
+    def refresh_board_models(self):
+        raise RuntimeError('Recreating moving physics bodies is disabled; restart the scene instead')
+
+    def focus_board(self):
+        """Move the GUI viewpoint only; never recreate or move scene bodies."""
+        c = self.center
+        return self.set_camera(c + np.array([.60, -.80, .80]), c + np.array([-.12, 0., .08]))
+
     def _piece_pos(self, p, tip_mm=None):
-        """말 중심 위치 (m). 잡힌 말은 팁 위치(= 말 높이 가운데)를 따라간다."""
-        if p["state"] == "held" and tip_mm is not None:
-            return np.asarray(tip_mm, float) / 1000
+        """Initial spawn pose only. Subsequent motion belongs to physics."""
         return p["pos"] / 1000 + self.n * PIECE_H / 2
 
-    # ------------------------------------------------------------------ 동기화
     def sync(self, tip_mm=None):
-        q = rot_to_quat(self.R)
-        req = Pose_V()
-        for i, p in enumerate(list(self.w.pieces)):
-            pos = self._piece_pos(p, tip_mm)
-            if i in self._last and np.linalg.norm(self._last[i] - pos) < 2e-4:
-                continue
-            self._last[i] = pos
-            m = req.pose.add()
-            m.name = f"piece_{i}"
-            m.position.x, m.position.y, m.position.z = map(float, pos)
-            m.orientation.x, m.orientation.y, m.orientation.z, m.orientation.w = map(float, q)
-        if len(req.pose):
-            self._svc("set_pose_vector", req, Pose_V, timeout=500)
+        raise RuntimeError('Direct piece pose updates are disabled in physics mode')
 
     def start(self, tip_fn=None, hz: float = 20.0, robot_ns: str | None = "dsr01"):
+        if tip_fn is not None:
+            raise RuntimeError('Kinematic attachment callbacks are disabled')
         self.build()
         self.robot = None
         if robot_ns:
-            self.robot = GzRobotMirror(self, robot_ns)
+            from physics_robot import PhysicsRobot
+            self.robot = PhysicsRobot(self, robot_ns)
             self.robot.build()
         # Load rendering sensors last: first-time render-engine initialization
         # must not hold up the board/robot entity creation requests.
@@ -210,12 +219,12 @@ class GzScene:
             k = 0
             while not self._stop.is_set():
                 try:
+                    # GUI loading may lag behind server-side model creation.
+                    if not self._view_ready and k < 100 and k % 20 == 0:
+                        self._view_ready = self.focus_board()
                     if self.robot:
                         self.robot.sync()
-                    if k % 2 == 0:
-                        held = any(p["state"] == "held" for p in self.w.pieces)
-                        self.sync(tip_fn() if (held and tip_fn) else None)
-                except Exception as e:  # noqa: BLE001  (보기용이므로 대국을 멈추지 않는다)
+                except Exception as e:  # noqa: BLE001  (report target publication failures)
                     print(f"[gz] 동기화 오류: {e}")
                 k += 1
                 time.sleep(1.0 / hz)
@@ -242,7 +251,7 @@ def _resolve_uri(fn: str) -> str:
 
 
 class GzRobotMirror:
-    """URDF 링크마다 정적 모델을 만들고 joint_states 순기구학으로 위치를 맞춘다."""
+    """ROS feedback reader and diagnostic FK; pose-driven rendering is disabled."""
 
     def __init__(self, scene: GzScene, ns: str = "dsr01", prefix: str = "rb_"):
         self.scene, self.ns, self.prefix = scene, ns, prefix
@@ -290,53 +299,7 @@ class GzRobotMirror:
             self.q[n] = v
 
     def build(self):
-        self._ros()
-        root = ET.fromstring(self.urdf)
-        colors = {m.get("name"): m.find("color").get("rgba") for m in root.findall("material") if m.find("color") is not None}
-        self.joints, children = [], set()
-        for j in root.findall("joint"):
-            mim = j.find("mimic")
-            ax = j.find("axis")
-            self.joints.append(dict(
-                name=j.get("name"), type=j.get("type"), parent=j.find("parent").get("link"),
-                child=j.find("child").get("link"), T=origin_T(j.find("origin")),
-                axis=[float(v) for v in (ax.get("xyz") if ax is not None else "1 0 0").split()],
-                mimic=None if mim is None else (mim.get("joint"), float(mim.get("multiplier", 1)), float(mim.get("offset", 0)))))
-            children.add(j.find("child").get("link"))
-        self.links = [link.get("name") for link in root.findall("link")]
-        self.root = next(n for n in self.links if n not in children)
-        for link in root.findall("link"):
-            vis = []
-            for i, v in enumerate(link.findall("visual")):
-                g = v.find("geometry")
-                t = origin_T(v.find("origin"))
-                pose = " ".join(f"{x:.6f}" for x in (*t[:3, 3], *rot_to_rpy(t[:3, :3])))
-                mat = v.find("material")
-                rgba = None
-                if mat is not None:
-                    c = mat.find("color")
-                    rgba = c.get("rgba") if c is not None else colors.get(mat.get("name"))
-                mesh = g.find("mesh")
-                if mesh is not None:
-                    sc = mesh.get("scale", "1 1 1")
-                    geo = f"<mesh><uri>{_resolve_uri(mesh.get('filename'))}</uri><scale>{sc}</scale></mesh>"
-                elif g.find("box") is not None:
-                    geo = f"<box><size>{g.find('box').get('size')}</size></box>"
-                elif g.find("cylinder") is not None:
-                    c = g.find("cylinder")
-                    geo = f"<cylinder><radius>{c.get('radius')}</radius><length>{c.get('length')}</length></cylinder>"
-                elif g.find("sphere") is not None:
-                    geo = f"<sphere><radius>{g.find('sphere').get('radius')}</radius></sphere>"
-                else:
-                    continue
-                m = f"<material><diffuse>{rgba}</diffuse><ambient>{rgba}</ambient></material>" if rgba else ""
-                vis.append(f'<visual name="v{i}"><pose>{pose}</pose><geometry>{geo}</geometry>{m}</visual>')
-            name = self.prefix + link.get("name")
-            self.scene._remove(name)
-            if vis:
-                self.scene._create(f"""<sdf version="1.9"><model name="{name}"><static>true</static>
-                  <link name="l">{''.join(vis)}</link></model></sdf>""")
-        self._has_vis = {self.prefix + link.get("name") for link in root.findall("link") if link.find("visual") is not None}
+        raise RuntimeError('Static robot mirror is disabled; use PhysicsRobot')
 
     def fk(self) -> dict[str, np.ndarray]:
         T = {self.root: np.eye(4)}
@@ -371,19 +334,4 @@ class GzRobotMirror:
         return {name: base_inverse @ pose for name, pose in T.items()}
 
     def sync(self):
-        req = Pose_V()
-        for link, t in self.fk().items():
-            name = self.prefix + link
-            if name not in self._has_vis:
-                continue
-            if name in self._last and np.abs(self._last[name] - t).max() < 1e-4:
-                continue
-            self._last[name] = t
-            m = req.pose.add()
-            m.name = name
-            m.position.x, m.position.y, m.position.z = map(float, t[:3, 3])
-            q = rot_to_quat(t[:3, :3])
-            m.orientation.x, m.orientation.y, m.orientation.z, m.orientation.w = map(float, q)
-        if len(req.pose):
-            self.scene._svc("set_pose_vector", req, Pose_V, timeout=500)
-
+        raise RuntimeError('Direct robot pose updates are disabled; use joint forces')
