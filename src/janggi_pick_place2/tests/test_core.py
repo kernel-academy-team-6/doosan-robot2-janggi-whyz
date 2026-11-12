@@ -72,12 +72,13 @@ def test_invalid_width_rejected(w):
         tcp_length(w)
 
 
-def test_length_reference_and_change():
+def test_length_is_fixed_from_flange_independently_of_jaw_width():
     assert tcp_length(6.) == pytest.approx(160.)
-    assert tcp_length(40.) < tcp_length(30.)
-    assert tcp_length(30., 180.) - tcp_length(30., 160.) == pytest.approx(20.)
-    assert flange_pose([300., 100., -80., 90.], 30., 180.) == pytest.approx(
-        [300., 100., -80.+tcp_length(30., 180.), 90., 180., 0.])
+    assert tcp_length(40.) == tcp_length(30.) == 160.
+    with pytest.raises(ValueError, match='fixed 160'):
+        tcp_length(30., 222.)
+    assert flange_pose([300., 100., -80., 90.], 30., 160.) == pytest.approx(
+        [300., 100., 80., 90., 180., 0.])
 
 
 def test_down_axis_singular_euler_equivalence():
@@ -86,8 +87,8 @@ def test_down_axis_singular_euler_equivalence():
 
 def test_default_and_zero_allowance(execution):
     g = execution.resolve()
-    assert (g.width_mm, g.open_width_mm, g.close_width_mm, g.release_width_mm, g.current_ma) == (30., 40., 29., 35., 100)
-    assert execution.resolve(opening_allowance_mm=0.).open_width_mm == 30.
+    assert (g.width_mm, g.open_width_mm, g.close_width_mm, g.release_width_mm, g.current_ma) == (26., 36., 26., 36., 100)
+    assert execution.resolve(opening_allowance_mm=0.).open_width_mm == 26.
     with pytest.raises(ValueError):
         execution.resolve(grip_current_ma=0.)
     with pytest.raises(ValueError):
@@ -97,7 +98,9 @@ def test_default_and_zero_allowance(execution):
 def test_clearances_are_validated_without_clipping(execution):
     with pytest.raises(ValueError):
         execution.resolve(object_width_mm=100.)  # 110 mm opening is impossible
-    assert execution.resolve(object_width_mm=100., opening_allowance_mm=0.).release_width_mm == 105.
+    with pytest.raises(ValueError):
+        execution.resolve(object_width_mm=100., opening_allowance_mm=0.)  # release also needs +10
+    assert execution.resolve(object_width_mm=96., opening_allowance_mm=0.).release_width_mm == 106.
 
 
 def test_pick_then_place_height_and_state(execution):
@@ -108,14 +111,15 @@ def test_pick_then_place_height_and_state(execution):
     execution.run('pick', pick, g, check, report)
     assert execution.holding_state == 'holding_unverified'
     moves = [event[1] for event in execution.robot.events if event[0] == 'move']
-    assert [p[2] for p in moves] == pytest.approx([375., -80.+tcp_length(30.), 375.])
-    assert moves[0][:2] == moves[1][:2] == moves[2][:2] == pick[:2]
-    assert execution.gripper.events[0] == ('open', 40., 100)
+    assert [p[2] for p in moves] == pytest.approx([375., 375., -80.+tcp_length(30.), 375.])
+    assert moves[0][:3] == [250., -20., 375.]  # fixed-XYZ alignment before XY
+    assert moves[1][:2] == moves[2][:2] == moves[3][:2] == pick[:2]
+    assert execution.gripper.events[0] == ('open', 36., 100)
     with pytest.raises(RuntimeError):
         execution.preflight('pick', pick, g)
     execution.run('place', place, None, check, report)
     assert execution.holding_state == 'empty_unverified' and execution.held is None
-    assert execution.gripper.events[-1] == ('open', 35., 100)
+    assert execution.gripper.events[-1] == ('open', 36., 100)
     assert sum(e[0] == 'home' for e in execution.robot.events) == 0
     moves = [event[1] for event in execution.robot.events if event[0] == 'move']
     assert [p[2] for p in moves[-3:]] == pytest.approx([375., -75.+tcp_length(30.), 375.])
@@ -179,7 +183,7 @@ def test_combined_uses_current_height_without_home(execution):
     assert all(e[0] != 'home' for e in execution.robot.events)
     moves = [e[1] for e in execution.robot.events if e[0] == 'move']
     assert [p[2] for p in moves] == pytest.approx([
-        310., tcp_length(30.), 310., 310., tcp_length(30.), 310.])
+        310., tcp_length(30.), 310., 310., 310., tcp_length(30.), 310.])
     assert execution.holding_state == 'empty_unverified'
 
 
@@ -190,3 +194,43 @@ def test_tilted_pick_rejected_without_implicit_home(execution):
                       lambda: None, lambda *_: None)
     assert execution.robot.events == []
     assert execution.gripper.events == []
+
+
+def test_axis_alignment_precedes_xy_and_all_translations_hold_downward_orientation(execution):
+    from janggi_pick_place2.geometry import rotation_zyz
+    initial=[250.,-20.,375.,15.,179.,-10.]
+    execution.robot.pose=initial.copy()
+    stages=[]
+    execution.run('pick',[300.,100.,-20.,25.],execution.resolve(),lambda:None,
+                  lambda stage,progress:stages.append(stage))
+    moves=[event[1] for event in execution.robot.events if event[0]=='move']
+    assert moves[0][:3]==initial[:3]  # alignment never translates the flange
+    assert stages.index('pick/align')<stages.index('pick/horizontal')
+    for pose in moves:
+        matrix=rotation_zyz(pose[3:])
+        assert [row[2] for row in matrix]==pytest.approx([0.,0.,-1.],abs=1e-12)
+    assert moves[1][2]==moves[0][2]  # XY segment keeps Z fixed
+    assert moves[2][:2]==moves[1][:2]  # descend keeps XY fixed
+    assert all(pose[3:]==[25.,180.,0.] for pose in moves)
+
+
+def test_failed_alignment_blocks_xy_and_gripper_commands(execution):
+    execution.robot.pose=[250.,-20.,375.,0.,179.,0.]
+    def fails_to_align(pose,check):
+        execution.robot.events.append(('move',list(pose)))
+        execution.robot.pose=[*pose[:3],pose[3],179.,pose[5]]
+    execution.robot.move=fails_to_align
+    with pytest.raises(RuntimeError,match='no XY translation'):
+        execution.run('pick',[300.,100.,-20.,0.],execution.resolve(),lambda:None,lambda *args:None)
+    moves=[e[1] for e in execution.robot.events if e[0]=='move']
+    assert len(moves)==1 and moves[0][:3]==[250.,-20.,375.]
+    assert execution.gripper.events==[]
+
+
+def test_equivalent_zyz_angles_do_not_trigger_spurious_alignment(execution):
+    execution.robot.pose=[250.,-20.,375.,30.,180.,30.]
+    stages=[]
+    execution.run('pick',[300.,100.,-20.,0.],execution.resolve(),lambda:None,
+                  lambda stage,progress:stages.append(stage))
+    assert 'pick/align' not in stages
+    assert len([e for e in execution.robot.events if e[0]=='move'])==3

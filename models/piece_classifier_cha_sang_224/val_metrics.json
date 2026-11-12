@@ -1,0 +1,37 @@
+{
+  "accuracy": 1.0,
+  "macro_f1": 1.0,
+  "balanced_accuracy": 1.0,
+  "samples": 28,
+  "per_class": {
+    "cha": {
+      "precision": 1.0,
+      "recall": 1.0,
+      "f1": 1.0,
+      "support": 14
+    },
+    "sang": {
+      "precision": 1.0,
+      "recall": 1.0,
+      "f1": 1.0,
+      "support": 14
+    }
+  },
+  "confusion_matrix": [
+    [
+      14,
+      0
+    ],
+    [
+      0,
+      14
+    ]
+  ],
+  "classes": [
+    "cha",
+    "sang"
+  ],
+  "cho_cha_as_sang": null,
+  "cho_sang_as_cha": null,
+  "loss": 0.03924292751720974
+}

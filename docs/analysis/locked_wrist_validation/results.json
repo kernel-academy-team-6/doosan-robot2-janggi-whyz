@@ -1,0 +1,109 @@
+{
+  "validation": "offline URDF + independent numerical IK, not physical execution",
+  "home_pose": [
+    232.98987948727404,
+    -0.0008541273964793642,
+    204.9606924578218,
+    -176.65929935076653,
+    179.99277726538435,
+    -86.65908889161258
+  ],
+  "paths": [
+    {
+      "stage": "above",
+      "points": 43,
+      "target_flange_mm": [
+        406.5872,
+        -119.455,
+        204.9606924578218
+      ],
+      "max_joint6_error_deg": 0.0,
+      "endpoint_error_mm": 1.1852117962378599e-06,
+      "duration_sec": 3.5120950796794648
+    },
+    {
+      "stage": "small_pick",
+      "points": 13,
+      "target_flange_mm": [
+        406.5872,
+        -119.455,
+        143.0
+      ],
+      "max_joint6_error_deg": 0.0,
+      "endpoint_error_mm": 9.365176042599564e-07,
+      "duration_sec": 1.7601234736389362
+    },
+    {
+      "stage": "retreat",
+      "points": 13,
+      "target_flange_mm": [
+        406.5872,
+        -119.455,
+        204.9606924578218
+      ],
+      "max_joint6_error_deg": 0.0,
+      "endpoint_error_mm": 1.1187722939002981e-06,
+      "duration_sec": 1.7601234803423538
+    },
+    {
+      "stage": "far_corner",
+      "points": 86,
+      "target_flange_mm": [
+        642.0,
+        236.0,
+        204.9606924578218
+      ],
+      "max_joint6_error_deg": 0.0,
+      "endpoint_error_mm": 1.3243052734644712e-11,
+      "duration_sec": 7.10569887689658
+    },
+    {
+      "stage": "large_place",
+      "points": 12,
+      "target_flange_mm": [
+        642.0,
+        236.0,
+        145.0
+      ],
+      "max_joint6_error_deg": 0.0,
+      "endpoint_error_mm": 2.0156645719379314e-06,
+      "duration_sec": 1.7314833591146432
+    },
+    {
+      "stage": "retreat2",
+      "points": 12,
+      "target_flange_mm": [
+        642.0,
+        236.0,
+        204.9606924578218
+      ],
+      "max_joint6_error_deg": 0.0,
+      "endpoint_error_mm": 3.8006462929540516e-06,
+      "duration_sec": 1.7314833663842806
+    },
+    {
+      "stage": "medium_above",
+      "points": 100,
+      "target_flange_mm": [
+        288.0,
+        -119.0,
+        204.9606924578218
+      ],
+      "max_joint6_error_deg": 0.0,
+      "endpoint_error_mm": 3.6427826844329786e-06,
+      "duration_sec": 8.355653387646907
+    },
+    {
+      "stage": "medium_pick",
+      "points": 13,
+      "target_flange_mm": [
+        288.0,
+        -119.0,
+        144.0
+      ],
+      "max_joint6_error_deg": 0.0,
+      "endpoint_error_mm": 2.2071044693632226e-06,
+      "duration_sec": 1.7458621253237954
+    }
+  ]
+}

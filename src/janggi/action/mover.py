@@ -53,6 +53,7 @@ class BoardMover:
             rclpy.init()
         self.node = rclpy.create_node("janggi_board_mover")
         p = f"/{ns.strip('/')}" if ns else ""
+        self.prefix = p
         self._posx = self.node.create_client(GetCurrentPosx, f"{p}/aux_control/get_current_posx")
         self._movel = self.node.create_client(MoveLine, f"{p}/motion/move_line")
         self._stop = self.node.create_client(MoveStop, f"{p}/motion/move_stop")
@@ -117,6 +118,10 @@ class BoardMover:
         req.vel, req.acc = float(vel), float(acc)
         req.mode = 0       # 절대
         req.sync_type = 0  # 응답 = 이동 완료
+        observer = getattr(self, 'command_observer', None)
+        if observer:
+            observer('move_joint', dict(joints_deg=list(req.pos), velocity=req.vel,
+                                       acceleration=req.acc, purpose='observe_or_home'))
         try:
             res = self._call(self._movej, req, 60.0)
         except TimeoutError:

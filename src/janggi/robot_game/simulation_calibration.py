@@ -40,6 +40,8 @@ def simulation_data(original, config):
     intr['distortion_model'] = 'none'
     for entry, point, original_point in zip(data['corners'], corners, original_corners):
         entry['base_xyz'] = point.tolist()
+        # Preserve the original calibration flange/tip relationship (222mm).
+        # Only translate the recorded flange samples by the board's relocation.
         entry['robot_posx'][:3] = (np.array(entry['robot_posx'][:3])+(point-original_point)*1000.).tolist()
         optical = T[:3,:3].T@(point-T[:3,3])
         entry['pixel'] = [float(intr['fx']*optical[0]/optical[2]+intr['ppx']),

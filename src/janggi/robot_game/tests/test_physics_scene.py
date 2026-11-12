@@ -63,3 +63,18 @@ def test_target_forwarding_only_sends_observed_joints_and_no_entity_poses():
     robot.q.update({f'joint_{i}':.1*i for i in range(1,7)})
     robot.sync()
     assert sent==[('joint_1',.1),('gripper_rh_r1',.3)]
+
+
+@pytest.mark.parametrize('override,expected_mm', [(None, 13.766), ('20.5', 20.5)])
+def test_gripper_attachment_offsets_along_joint6_flange_axis(override, expected_mm):
+    import subprocess
+    source = Path(__file__).resolve().parents[3]/'e0509_gripper_description/urdf/e0509_with_gripper.urdf.xacro'
+    command = ['xacro', str(source)]
+    if override is not None:
+        command.append(f'gripper_mount_offset_mm:={override}')
+    root = ET.fromstring(subprocess.check_output(command, text=True))
+    attachment=root.find("joint[@name='gripper_attach_joint']")
+    assert attachment.find('parent').get('link')=='link_6'
+    assert attachment.find('child').get('link')=='gripper_rh_p12_rn_base'
+    assert [float(x) for x in attachment.find('origin').get('xyz').split()]==pytest.approx([0.,0.,expected_mm/1000.])
+    assert attachment.find('origin').get('rpy')=='0 0 1.5708'

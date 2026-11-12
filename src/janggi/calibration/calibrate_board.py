@@ -69,9 +69,9 @@ def parse_args() -> argparse.Namespace:
     p.add_argument("--tcp-offset", type=float, nargs=3, default=list(GRIPPER_TIP_OFFSET_MM),
                    metavar=("X", "Y", "Z"),
                    help="posx(컨트롤러 TCP) 기준 그리퍼 팁 오프셋 [mm, TCP 좌표계]. 기본은 플랜지→팁 "
-                        f"{GRIPPER_TIP_OFFSET_MM[2]:.0f} mm (그리퍼 {GRIPPER_TIP_POS_CMD}). TCP가 이미 팁이면 0 0 0")
+                        f"고정 {GRIPPER_TIP_OFFSET_MM[2]:.0f} mm. 컨트롤러 TCP는 J6 플랜지 원점이어야 한다")
     p.add_argument("--gripper-cmd", action="store_true",
-                   help=f"시작할 때 그리퍼에 위치 명령 {GRIPPER_TIP_POS_CMD}을 보낸다 (팁 길이가 이 개도 기준)")
+                   help=f"시작할 때 그리퍼에 위치 명령 {GRIPPER_TIP_POS_CMD}을 보낸다 (원래 222mm 보정 팁을 사용한 측정 조건)")
     p.add_argument("--manual-robot", action="store_true",
                    help="ROS 없이 펜던트 좌표(x y z A B C)를 직접 입력 (조그/그리퍼/홈 비활성)")
     p.add_argument("--jog-speed", type=int, default=2, choices=range(1, len(JOG_SPEEDS) + 1),
@@ -86,7 +86,10 @@ def parse_args() -> argparse.Namespace:
     p.add_argument("--depth-preset", default="default", choices=list(DEPTH_PRESETS),
                    help="depth 프리셋 (depth는 교차검증·표시용, 보정 자체는 픽셀만 씀)")
     p.add_argument("--warn-rms-mm", type=float, default=5.0, help="이 값을 넘으면 경고")
-    return p.parse_args()
+    args = p.parse_args()
+    if not np.allclose(args.tcp_offset, GRIPPER_TIP_OFFSET_MM, rtol=0., atol=1e-9):
+        p.error('이 프로젝트는 J6 플랜지 기준 보정용 --tcp-offset 0 0 222를 사용합니다. 집기 명령용 160mm와 구분합니다.')
+    return args
 
 
 # --------------------------------------------------------------------------- 카메라
@@ -799,10 +802,11 @@ def connect_robot(args):
         sys.exit("[오류] motion/jog_multi 서비스가 없다.")
     tcp_name = robot.tcp_name()
     print(f"[로봇] 현재 TCP: {tcp_name or '(알 수 없음)'}, 팁 오프셋 {args.tcp_offset} mm")
-    if any(args.tcp_offset):
-        print("  ※ posx가 J6 플랜지 중심이라고 가정한다 (펜던트 TCP 미설정). 펜던트에 TCP가 설정돼 있으면 "
-              "오프셋이 이중으로 들어가므로 --tcp-offset 0 0 0 으로 실행한다.")
-        print(f"  ※ 팁 길이는 그리퍼 위치 {GRIPPER_TIP_POS_CMD} 기준이다. 그리퍼를 {GRIPPER_TIP_POS_CMD}으로 두고 찍는다.")
+    if not args.manual_robot and tcp_name != '':
+        robot.close()
+        sys.exit('[오류] 컨트롤러 TCP가 기본 J6 플랜지 원점인지 확인할 수 없습니다. '
+                 '별도의 그리퍼 TCP를 사용하지 않습니다.')
+    print('  기준: 컨트롤러 TCP=J6 플랜지 원점, 보정용 팁 연장=로컬 +Z 222mm. 집기용 160mm는 별도입니다.')
     if args.gripper_cmd and robot.can_jog:
         time.sleep(0.5)  # 그리퍼 노드와 토픽 연결 대기
         robot.gripper_position(GRIPPER_TIP_POS_CMD)

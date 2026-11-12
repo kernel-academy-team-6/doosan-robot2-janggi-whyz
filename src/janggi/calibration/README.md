@@ -46,11 +46,11 @@ cd ~/doosan_janggi_ws/src/janggi/calibration
    ./run.sh --gripper-cmd            # 시작 시 그리퍼를 650으로
    ./run.sh --jog-speed 1            # 조그 시작 속도 단계 (기본 2 = 3%)
    ./run.sh --home-vel 20            # 홈 이동 관절 속도 [deg/s] (기본 30)
-   ./run.sh --tcp-offset 0 0 0       # 펜던트 TCP가 이미 그리퍼 팁으로 설정된 경우
+   ./run.sh --tcp-offset 0 0 222     # 원래 보정 팁: J6 플랜지에서 222mm
    ./run.sh --manual-robot           # ROS 없이 펜던트 좌표 입력 (로봇 패널 비활성)
    ```
 
-   그리퍼 팁 오프셋은 **그리퍼 위치 명령 650** 상태에서 J6 중심으로부터 아래로 6.3 + 2.5 + 4.9 + 8.5 = 22.2 cm로 실측한 값이다 (`robot_ui.GRIPPER_TIP_OFFSET_MM`). 펜던트에 TCP를 따로 설정해 두었다면 오프셋이 이중으로 들어가니 `--tcp-offset 0 0 0`을 쓴다.
+   보정 팁 오프셋은 J6 플랜지 원점에서 로컬 Z 방향 222mm인 원래 값을 사용한다. 집기·놓기 명령의 160mm와는 목적이 다르며 합산하지 않는다.
 
 3. 장기판 기준 **좌상단 → 우상단 → 우하단 → 좌하단** 순서로 네 번 반복한다. 왼쪽 위는 카메라 영상, 그 아래는 단계 안내와 로그, 오른쪽은 로봇 패널이다.
 
@@ -165,3 +165,5 @@ USB 통신 오류(`journalctl -k`에 `error -71`, `USB disconnect`)로 카메라
 ```bash
 .venv/bin/python -m pytest tests
 ```
+
+기존 보정 파일의 카메라 변환·판 좌표·측정 posx는 보존한다. 222mm는 보정·장면 기준 계산에 계속 사용한다. 집기·놓기 실행기는 이를 더하지 않고 별도의 160mm만 사용한다.

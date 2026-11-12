@@ -8,3 +8,4 @@ __pycache__/
 .env
 /models/piece_classifier/
 /.vscode/browse.vc.db*
+/tools/calibrations/gripper_height/

@@ -54,6 +54,8 @@ class BoardGeometry:
         corners = np.array([by_name[n]["base_xyz"] for n in CORNER_NAMES], dtype=float) * 1000.0
         # 네 모서리를 같은 툴 자세로 찍었으므로 평균 자세를 쓴다 (ZYZ 각을 직접 평균하지 않고 첫 점 자세 사용)
         abc = np.array(by_name["top_left"]["robot_posx"][3:6], dtype=float)
+        # Calibration/scene reference uses the original measured flange-to-tip offset.
+        # PickPlace2 computes its separate 160mm command offset without adding this.
         offset = np.array(data.get("robot", {}).get("tcp_offset_mm", [0.0, 0.0, 0.0]), dtype=float)
         return cls(corners, abc, offset)
 
@@ -76,6 +78,36 @@ class BoardGeometry:
         c = self.corners_mm - self.corners_mm.mean(axis=0)
         n = np.linalg.svd(c)[2][-1]
         return n if n[2] > 0 else -n
+
+    def command_surface_z(self, point_mm, settings) -> float:
+        """Manual four-corner offsets at base XY, disabled by default.
+
+        Old calibration Z includes an unverified historical tilt and is never
+        used as a command height correction. Clamp manual offsets at board edges.
+        """
+        if not settings.board_z_compensation_enabled:
+            return float(settings.command_board_z_mm)
+        xy = np.asarray(point_mm, float)[:2]
+        tl, tr, br, bl = self.corners_mm[:, :2]
+        uv = np.array([.5, .5])
+        for _ in range(20):
+            u, v = uv
+            actual = tl*(1-u)*(1-v) + tr*u*(1-v) + br*u*v + bl*(1-u)*v
+            jacobian = np.column_stack(((tr-tl)*(1-v)+(br-bl)*v,
+                                        (bl-tl)*(1-u)+(br-tr)*u))
+            try:
+                step = np.linalg.solve(jacobian, xy-actual)
+            except np.linalg.LinAlgError as exc:
+                raise ValueError('판 모서리 XY로 높이 보정 위치를 계산할 수 없습니다.') from exc
+            uv += step
+            if np.max(np.abs(step)) < 1e-10:
+                break
+        if not np.all(np.isfinite(uv)) or np.linalg.norm(xy-actual) > .01:
+            raise ValueError('판 높이 보정 위치가 수렴하지 않았습니다.')
+        u, v = np.clip(uv, 0., 1.)
+        weights = np.array([(1-u)*(1-v), u*(1-v), u*v, (1-u)*v])
+        delta = np.asarray(settings.board_z_corner_offsets_mm, float)
+        return float(settings.command_board_z_mm + settings.board_z_offset_mm + weights @ delta)
 
     def tip_target(self, x: float, y: float, height_mm: float, check: bool = True) -> np.ndarray:
         """(x, y) 교차점에서 판 법선 방향으로 height_mm 띄운 팁 목표 (base, mm)."""

@@ -1,0 +1,117 @@
+{
+  "historical_commit": "8d8ee75",
+  "corners_unchanged_since_initial_commit": true,
+  "robot_source": "/dsr01/aux_control/get_current_posx",
+  "normalization": "RealSense SDK: same software deprojection as calibration UI; no device opened",
+  "recorded_tip_z_span_mm": 6.2479999999999905,
+  "recorded_flange_z_span_mm": 6.248199999999997,
+  "offset_vertical_component_span_mm": 6.804699089002497e-05,
+  "max_saved_tip_vs_formula_difference_mm": 0.0006481726551328393,
+  "plane_tilt_deg": 0.9796405332560015,
+  "plane_residual_z_mm": [
+    0.09305234477157112,
+    -0.09305557682961262,
+    0.0923414023375481,
+    -0.09233817027953503
+  ],
+  "plane_residual_z_span_mm": 0.18610792160118372,
+  "tip_reference_command": 650,
+  "recorded_gripper_commands": [
+    700,
+    700,
+    700,
+    700
+  ],
+  "per_corner": [
+    {
+      "name": "top_left",
+      "flange_z_mm": 145.4568,
+      "offset_z_mm": -221.94646612853464,
+      "tip_z_mm": -76.49000000000001,
+      "flange_z_minus_160_mm": -14.543200000000013
+    },
+    {
+      "name": "top_right",
+      "flange_z_mm": 145.2845,
+      "offset_z_mm": -221.94653417552553,
+      "tip_z_mm": -76.66199999999999,
+      "flange_z_minus_160_mm": -14.715499999999992
+    },
+    {
+      "name": "bottom_right",
+      "flange_z_mm": 139.4071,
+      "offset_z_mm": -221.9464916512269,
+      "tip_z_mm": -82.539,
+      "flange_z_minus_160_mm": -20.592899999999986
+    },
+    {
+      "name": "bottom_left",
+      "flange_z_mm": 139.2086,
+      "offset_z_mm": -221.9464831443389,
+      "tip_z_mm": -82.738,
+      "flange_z_minus_160_mm": -20.79140000000001
+    }
+  ],
+  "pnp_refit_experiments": {
+    "original": {
+      "tilt_deg": 0.9796405332560015,
+      "camera_z_mm": 575.5421534880396,
+      "reprojection_max_px": 2.666060434551367,
+      "board_rms_mm": 1.968239196537232
+    },
+    "all_Z_divided_by_10": {
+      "tilt_deg": 0.09797347870933087,
+      "camera_z_mm": 644.8735583344887,
+      "reprojection_max_px": 2.6940732404184318,
+      "board_rms_mm": 1.9795099114333017
+    },
+    "all_Z_plus_5mm": {
+      "tilt_deg": 0.9796405332560015,
+      "camera_z_mm": 580.5421634403027,
+      "reprojection_max_px": 2.66605764940171,
+      "board_rms_mm": 1.968239198109325
+    },
+    "only_TL_Z_plus_5mm": {
+      "tilt_deg": 1.4407356294350562,
+      "camera_z_mm": 577.3104739611431,
+      "reprojection_max_px": 2.4858091473470143,
+      "board_rms_mm": 2.4216352987244263
+    }
+  },
+  "fixed_camera_plane_plus5mm": {
+    "max_xy_shift_mm": 2.959201139254252,
+    "mean_xy_shift_mm": 1.5367857671986782
+  },
+  "co_translated_camera_and_plane_plus5mm": {
+    "max_xy_shift_mm": 1.5086318863981774e-09
+  },
+  "current_runtime_partial_file_edits": {
+    "all_Z_plus_5mm": {
+      "max_actual_command_xy_shift_mm": 0.08547310354623137,
+      "max_actual_command_z_shift_mm": 0.0,
+      "camera_ray_plane_mapping_changed": false,
+      "note": "Only corner Z fields edited. Stored camera T and plane unchanged; deliberately inconsistent file experiment, not a correction."
+    },
+    "all_Z_divided_by_10": {
+      "max_actual_command_xy_shift_mm": 0.20404600799509845,
+      "max_actual_command_z_shift_mm": 0.0,
+      "camera_ray_plane_mapping_changed": false,
+      "note": "Only corner Z fields edited. Stored camera T and plane unchanged; deliberately inconsistent file experiment, not a correction."
+    },
+    "only_TL_Z_plus_5mm": {
+      "max_actual_command_xy_shift_mm": 0.07765295447557972,
+      "max_actual_command_z_shift_mm": 0.0,
+      "camera_ray_plane_mapping_changed": false,
+      "note": "Only corner Z fields edited. Stored camera T and plane unchanged; deliberately inconsistent file experiment, not a correction."
+    }
+  },
+  "simulated_corner_z_mm": [
+    -19.999999999999996,
+    -19.999999999999996,
+    -19.999999999999996,
+    -19.999999999999996
+  ],
+  "simulation_orientation": "yaw_only",
+  "original_calibration_modified": false,
+  "limitations": "No historical contact video/independent surface measurement. Cannot uniquely identify why operator-recorded flange Z differed. PnP residual is same-point fit, not independent height validation."
+}

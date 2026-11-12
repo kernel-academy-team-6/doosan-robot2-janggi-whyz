@@ -60,6 +60,7 @@ robot:
   posx_source: /dsr01/aux_control/get_current_posx
   ref: DR_BASE
   tcp_name: ''
+  tcp_reference: joint_6_flange
   tcp_offset_mm:
   - 0.0
   - 0.0

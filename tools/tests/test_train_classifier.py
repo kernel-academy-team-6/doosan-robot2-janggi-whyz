@@ -45,3 +45,36 @@ def test_model_checkpoint_batch_and_full_image_transform(tmp_path):
     torch.save(checkpoint, path)
     with pytest.raises(ValueError, match='전처리'):
         classifiers.MobileNetClassifier(path)
+
+
+def test_kind_only_preserves_splits_and_merges_side_labels(tmp_path):
+    import json
+    _,training,_=training_modules()
+    classes=['blue_cha','blue_sang','red_cha','red_sang']
+    (tmp_path/'dataset.json').write_text(json.dumps(dict(schema_version=3,
+        preprocessing='tight square frame',classes=classes)))
+    manifest=[]
+    for si,split in enumerate(['train','val','test']):
+        for ci,label in enumerate(classes):
+            folder=tmp_path/split/label;folder.mkdir(parents=True)
+            Image.new('RGB',(32,32),(20+si*20,30+ci*20,100)).save(folder/'sample.png')
+            manifest.append(json.dumps(dict(sample_id=f'{si}-{ci}',split=split)))
+    (tmp_path/'manifest.jsonl').write_text('\n'.join(manifest))
+    datasets,info=training.load_datasets(tmp_path,64,['cha','sang'])
+    assert info['classes']==['cha','sang'] and info['source_classes']==classes
+    for split,dataset in datasets.items():
+        assert dataset.classes==['cha','sang'] and len(dataset)==4
+        assert dataset.targets==[0,1,0,1]
+        assert all(Path(file).relative_to(tmp_path).parts[0]==split for file,_ in dataset.samples)
+
+
+def test_two_kind_checkpoint_requires_explicit_expert_loader(tmp_path):
+    torch,_,classifiers=training_modules()
+    path=tmp_path/'expert.pt'
+    torch.save(dict(architecture='mobilenet_v3_small',preprocessing=classifiers.PREPROCESSING,
+                    classes=['cha','sang'],image_size=64,
+                    state_dict=classifiers.build_model(2).state_dict()),path)
+    with pytest.raises(ValueError,match='클래스'):
+        classifiers.MobileNetClassifier(path,'cpu')
+    expert=classifiers.MobileNetClassifier(path,'cpu',allowed_classes={'cha','sang'})
+    assert expert.classes==['cha','sang']

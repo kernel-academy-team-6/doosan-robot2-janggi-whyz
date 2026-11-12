@@ -29,14 +29,15 @@ KEY_RELEASE_DEBOUNCE_MS = 30
 # UI가 이 시간 이상 멈추면 조그 중인 로봇을 감시 스레드가 정지시킨다.
 WATCHDOG_S = 0.3
 
-# J6 플랜지 중심 → 그리퍼 팁, 툴 z축(아래) 방향. 그리퍼 위치 명령 650 기준 실측: 6.3+2.5+4.9+8.5 cm
-GRIPPER_TIP_OFFSET_MM = (0.0, 0.0, 63.0 + 25.0 + 49.0 + 85.0)  # 222 mm
+# Calibration reference: original measured J6 flange -> calibration tip, local +Z.
+# Separate from PickPlace2's 160mm command offset; never add the two.
+GRIPPER_TIP_OFFSET_MM = (0.0, 0.0, 222.0)
 GRIPPER_TIP_POS_CMD = 650
 GRIPPER_OPEN, GRIPPER_CLOSE = 0, 700  # gripper_service_node의 open/close 값
 GRIPPER_MIN, GRIPPER_MAX = 0, 700  # RUNBOOK: position_cmd 범위 0(열림)~700(닫힘)
 
 # 홈 자세 기본값 [deg]: 툴이 아래를 보는 준비 자세 (J6 90°). config/robot_poses.yaml이 있으면 그 값을 쓴다.
-DEFAULT_HOME_JOINTS = [0.0, 0.0, 90.0, 0.0, 90.0, 90.0]
+DEFAULT_HOME_JOINTS = [0.0, -13.694, 134.216, 0.0, 59.485, 90.0]
 DR_QSTOP = 1  # move_stop 모드: Quick stop (Stop Category 2)
 
 

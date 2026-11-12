@@ -39,7 +39,7 @@ def build_model(classes, pretrained=False):
 
 
 class MobileNetClassifier:
-    def __init__(self, path=DEFAULT_CLASSIFIER, device=None, batch_size=32):
+    def __init__(self, path=DEFAULT_CLASSIFIER, device=None, batch_size=32, *, allowed_classes=None):
         import torch
         self.path = Path(path)
         if not self.path.is_file():
@@ -49,7 +49,7 @@ class MobileNetClassifier:
             raise ValueError('지원하지 않는 분류 모델/전처리입니다. 이 프로젝트의 학습 스크립트로 만든 best.pt를 사용하세요.')
         self.classes = checkpoint['classes']
         if (not isinstance(self.classes, list) or not self.classes or
-                len(set(self.classes)) != len(self.classes) or not set(self.classes) <= VALID_CLASSES):
+                len(set(self.classes)) != len(self.classes) or not set(self.classes) <= (VALID_CLASSES if allowed_classes is None else set(allowed_classes))):
             raise ValueError('분류 모델의 클래스 목록이 잘못되었습니다.')
         self.size = int(checkpoint['image_size'])
         if not 32 <= self.size <= 1024 or batch_size < 1:

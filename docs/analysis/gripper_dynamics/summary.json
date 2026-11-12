@@ -1,0 +1,13 @@
+{
+  "partition": "janggi_gripper_diagnostic_11874",
+  "samples": 6016,
+  "target_rad": 0.8,
+  "final_mean_rad": {
+    "gripper_rh_l1": 0.8053739962729191,
+    "gripper_rh_l2": 0.802093923125537,
+    "gripper_rh_r1": 0.8053739962729191,
+    "gripper_rh_r2": 0.802093923125537
+  },
+  "max_pair_difference_rad": 0.007050332921635942,
+  "final_pair_difference_rad": 0.0033133534319912394
+}

@@ -30,6 +30,8 @@ EXTRA_DEFAULTS = {
     'service_timeout_sec': 5.0,
     'motion_timeout_sec': 60.0,
     'gripper_command_wait_sec': 5.0,
+    'gripper_wait_for_result': True,
+    'gripper_result_timeout_sec': 20.0,
     'mock_step_delay_sec': 0.05,
     'virtual_gripper_delay_sec': 0.4,
 }
@@ -57,25 +59,18 @@ class PickPlaceNode(Node):
                 raise ValueError(f'{name} must be finite')
         if p['backend'] not in ('mock', 'virtual', 'real'):
             raise ValueError('backend must be mock, virtual, or real')
-        for key in ('service_timeout_sec', 'motion_timeout_sec', 'gripper_command_wait_sec'):
+        for key in ('service_timeout_sec', 'motion_timeout_sec', 'gripper_command_wait_sec','gripper_result_timeout_sec'):
             if p[key] <= 0:
                 raise ValueError(f'{key} must be positive')
         if p['mock_step_delay_sec'] < 0 or p['virtual_gripper_delay_sec'] < 0:
             raise ValueError('simulation delays must be nonnegative')
+        if p['expected_flange_tcp_name'] != '':
+            raise ValueError('Only the unnamed/default J6 flange TCP is supported')
         prefix = '/' + p['robot_namespace'].strip('/') if p['robot_namespace'].strip('/') else ''
         validate_namespace(prefix or '/')
         self.settings = Settings(**{f.name: p[f.name] for f in fields(Settings)}).validate()
-        if p['backend'] == 'mock':
-            self.robot, self.gripper = MockRobot(self.settings), MockGripper()
-        elif p['backend'] == 'virtual':
-            self.robot = VirtualRobotClient(
-                self, prefix, self.settings, p['expected_flange_tcp_name'],
-                p['service_timeout_sec'], p['motion_timeout_sec'])
-            self.gripper = VirtualGripperClient(self, prefix, p['virtual_gripper_delay_sec'])
-        else:
-            self.robot = RobotClient(self, prefix, self.settings, p['expected_flange_tcp_name'],
-                                     p['service_timeout_sec'], p['motion_timeout_sec'])
-            self.gripper = GripperClient(self, prefix, p)
+        from .runtime import create_clients
+        self.robot, self.gripper = create_clients(self, prefix, self.settings, p, p['backend'])
         self.runner = PickPlaceExecutor(self.robot, self.gripper, self.settings)
         group = ReentrantCallbackGroup()
         self.servers = []
@@ -92,9 +87,14 @@ class PickPlaceNode(Node):
                                                   callback_group=group)
         self.get_logger().info(
             f'Actions ready; backend={p["backend"]}; no startup motion. '
-            f'L(6mm)={self.settings.tcp_length_at_6mm_mm} mm; '
+            f'fixed flange extension={self.settings.tcp_length_at_6mm_mm} mm; '
             'targets are base-frame [x,y,absolute TIP z,yaw] in mm/deg.'
         )
+        if self.settings.joint6_lock_enabled:
+            self.get_logger().info(
+                f'J6 locked at {self.settings.joint6_locked_deg:g} deg; task yaw is free. '
+                'Pick/place uses IK/FK-checked joint splines; target yaw is ignored in this mode.'
+            )
         if p['backend'] == 'real':
             self.get_logger().warn(
                 f'Gripper uses existing {prefix}/gripper/position_cmd only. '
@@ -204,6 +204,8 @@ class PickPlaceNode(Node):
                 'holding_state': self.runner.holding_state,
                 'last_error': self._last_error,
                 'tcp_length_at_6mm_mm': self.settings.tcp_length_at_6mm_mm,
+                'tcp_reference': 'joint_6_flange', 'flange_extension_mm': 160.0,
+                'width_dependent_tcp': False,
                 'gripper_feedback_received': False,
                 'grip_verified': False,
                 'gripper_transport': 'position_cmd' if self.parameters['backend'] == 'real' else self.parameters['backend'],

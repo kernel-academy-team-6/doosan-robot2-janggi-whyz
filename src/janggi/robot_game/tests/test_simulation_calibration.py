@@ -41,3 +41,15 @@ def test_height_matches_30mm_table_and_10mm_board_without_changing_hardware_cali
         p=T[:3,:3].T@(np.array(corner['base_xyz'])-T[:3,3])
         expected=[i['fx']*p[0]/p[2]+i['ppx'],i['fy']*p[1]/p[2]+i['ppy']]
         np.testing.assert_allclose(corner['pixel'],expected)
+
+
+def test_simulation_preserves_original_calibration_reference_separately_from_pick_offset():
+    from action.board import BoardGeometry
+    from simulation_calibration import ensure_simulation_calibration
+    path=ensure_simulation_calibration();data=yaml.safe_load(path.read_text())
+    hardware=yaml.safe_load(HARDWARE_CALIBRATION.read_text())
+    geometry=BoardGeometry.from_calibration(path)
+    np.testing.assert_array_equal(geometry.tcp_offset_mm,[0.,0.,222.])
+    for original,derived in zip(hardware['corners'],data['corners']):
+        delta=(np.array(derived['base_xyz'])-np.array(original['base_xyz']))*1000.
+        np.testing.assert_allclose(derived['robot_posx'][:3],np.array(original['robot_posx'][:3])+delta)

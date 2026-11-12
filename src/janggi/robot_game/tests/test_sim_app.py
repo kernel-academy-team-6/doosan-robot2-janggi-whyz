@@ -110,3 +110,14 @@ def test_setup_scene_failure_still_stops_scene_without_playing(monkeypatch, setu
     with pytest.raises(RuntimeError, match='Gazebo unavailable'):
         sim_app.main()
     assert 'run' not in events and events[-1] == 'stop'
+
+
+def test_default_observe_pose_matches_pick_place2_instead_of_unrelated_fallback(tmp_path,monkeypatch):
+    import session
+    import yaml
+    monkeypatch.setattr(session,'POSES_FILE',tmp_path/'missing.yaml')
+    params=yaml.safe_load((session.WS/'src/janggi_pick_place2/config/pick_place.yaml').read_text())['/janggi_pick_place2']['ros__parameters']
+    assert session.load_observe_joints()==params['home_joint_deg']
+    custom=tmp_path/'custom.yaml';custom.write_text('home_joint_deg: [1, 2, 3, 4, 5, 6]\n')
+    monkeypatch.setattr(session,'POSES_FILE',custom)
+    assert session.load_observe_joints()==[1.,2.,3.,4.,5.,6.]

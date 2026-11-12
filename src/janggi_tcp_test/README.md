@@ -1,3 +1,7 @@
+> 현재 프로젝트 TCP 기준: 컨트롤러=J6 플랜지 원점, 소프트웨어 연장=고정 160mm.
+> 말 폭에 따른 길이 보정을 제거했으므로 이 실험의 개도 변화에 따른 Z 보정량은 0이다.
+> 독립 실행 설치본은 `janggi_pick_place2`와 이 패키지를 다시 빌드한 뒤 사용한다.
+
 # janggi_tcp_test — 명령 기반 개폐 / Z 보정 시험
 
 초기 간격과 목표 간격 두 값을 받아 그리퍼를 움직이면서, 예상 개폐 프로파일에 맞춰 플랜지 Z를 보정하는 ROS 2 Jazzy 시험 액션입니다. 홈·XY 이동·자세 변경은 하지 않습니다.
@@ -108,7 +112,7 @@ L만 실행 시 변경하려면:
 
 ```bash
 ros2 launch janggi_tcp_test tcp_test.launch.py backend:=real \
-  tcp_length_at_6mm_mm:=170.0
+  tcp_length_at_6mm_mm:=160.0
 ```
 
 ## 가상 실행

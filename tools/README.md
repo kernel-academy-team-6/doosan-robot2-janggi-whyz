@@ -1,5 +1,11 @@
 # RealSense RGB-D 녹화 / 촬영
 
+그리퍼 개폐에 따른 실제 플랜지 높이 변화는 **[그리퍼 너비·높이 실측 보정 도구](GRIPPER_HEIGHT_CALIBRATION.md)**로 측정한다:
+
+```bash
+./tools/run_gripper_height_calibration.sh --backend real --ns dsr01
+```
+
 학습용 말 이미지 추출·정답 라벨링·Train 회전 증강은 **[장기말 데이터셋 제작 도구](PIECE_DATASET.md)**를 사용한다:
 
 ```bash

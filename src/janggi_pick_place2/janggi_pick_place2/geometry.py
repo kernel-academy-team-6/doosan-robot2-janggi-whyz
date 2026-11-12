@@ -31,15 +31,16 @@ def width_from_command(command):
     return max(6.0, min(106.0, w))
 
 
-def tcp_length(width_mm, reference_length_mm=160.0):
-    w = width(width_mm)
-    length = finite(reference_length_mm, 'tcp_length_at_6mm_mm')
-    if length <= 0:
-        raise ValueError('tcp_length_at_6mm_mm must be positive')
-    result = length - math.sqrt(3249.0 - 1.21) + math.sqrt(3249.0 - (w / 2 - 4.1) ** 2)
-    if result <= 0:
-        raise ValueError('calculated TCP length must be positive')
-    return result
+FLANGE_EXTENSION_MM = 160.0
+
+
+def tcp_length(width_mm, reference_length_mm=FLANGE_EXTENSION_MM):
+    """Exactly one fixed extension from joint-6 flange; jaw width changes no TCP."""
+    width(width_mm)  # Keep input validation; width affects jaw command only.
+    length = finite(reference_length_mm, 'flange_extension_mm')
+    if not math.isclose(length, FLANGE_EXTENSION_MM, abs_tol=1e-9, rel_tol=0.):
+        raise ValueError('This project requires a fixed 160 mm extension from the joint-6 flange')
+    return FLANGE_EXTENSION_MM
 
 
 def flange_pose(target, object_width_mm, reference_length_mm):
@@ -63,3 +64,27 @@ def orientation_error_deg(first, second):
     a, b = rotation_zyz(first), rotation_zyz(second)
     trace = sum(a[i][j] * b[i][j] for i in range(3) for j in range(3))
     return math.degrees(math.acos(max(-1.0, min(1.0, (trace - 1.0) / 2.0))))
+
+
+# Cartesian segments begin only after the measured flange orientation is aligned.
+CARTESIAN_ORIENTATION_TOLERANCE_DEG = 0.1
+
+
+def joint6_candidates(target, current, lower=-270., upper=270.):
+    """Equivalent endpoint angles, ordered by travel then distance from band centre."""
+    target, current = finite(target, 'J6 target'), finite(current, 'J6 current')
+    first = math.ceil((lower-target)/360.)
+    last = math.floor((upper-target)/360.)
+    centre = (lower+upper)/2.
+    return sorted((target+360.*k for k in range(first, last+1)),
+                  key=lambda angle: (round(abs(angle-current), 8), abs(angle-centre)))
+
+
+def local_z_turn_deg(current, target):
+    """Signed wrist rotation; reject a requested change of the flange Z axis."""
+    a, b = rotation_zyz(current), rotation_zyz(target)
+    axis_dot = sum(a[i][2]*b[i][2] for i in range(3))
+    if math.degrees(math.acos(max(-1., min(1., axis_dot)))) > CARTESIAN_ORIENTATION_TOLERANCE_DEG:
+        raise ValueError('J6-only alignment cannot change flange Z direction; orient the arm first')
+    return math.degrees(math.atan2(sum(a[i][1]*b[i][0] for i in range(3)),
+                                   sum(a[i][0]*b[i][0] for i in range(3))))

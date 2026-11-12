@@ -27,7 +27,8 @@ def generate_launch_description():
     robot = IncludeLaunchDescription(
         PythonLaunchDescriptionSource(os.path.join(pkg, "launch", "bringup.launch.py")),
         launch_arguments={"mode": "virtual", "host": "127.0.0.1", "port": "12345", "name": "dsr01",
-                          "rviz": LaunchConfiguration("rviz")}.items(),
+                          "rviz": LaunchConfiguration("rviz"),
+                          "gripper_mount_offset_mm": LaunchConfiguration("gripper_mount_offset_mm")}.items(),
     )
     gazebo = IncludeLaunchDescription(
         PythonLaunchDescriptionSource([FindPackageShare("ros_gz_sim"), "/launch/gz_sim.launch.py"]),
@@ -58,6 +59,8 @@ def generate_launch_description():
         condition=IfCondition(LaunchConfiguration("scene")), output="screen")
     return LaunchDescription([
         DeclareLaunchArgument("rviz", default_value="false"),
+        DeclareLaunchArgument("gripper_mount_offset_mm", default_value="13.766",
+                              description="Gripper mounting gap along flange link_6 local +Z [mm]"),
         DeclareLaunchArgument("world", default_value=os.path.join(here, "worlds", "janggi_camera.sdf")),
         DeclareLaunchArgument("camera_bridge", default_value="false", description="Enable ROS image bridge only for external ROS consumers; UI defaults to native Gazebo Transport"),
         DeclareLaunchArgument("scene", default_value="true", description="Create board/camera, dynamic pieces and force-driven robot"),

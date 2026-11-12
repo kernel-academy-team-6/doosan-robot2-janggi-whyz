@@ -1,0 +1,21 @@
+{
+  "schema_version": 1,
+  "description": "사용자가 제공한 RealSense Viewer RGB 설정. 자동 화이트밸런스 사용 시 white_balance는 고정하지 않음.",
+  "options": {
+    "enable_auto_exposure": 0,
+    "exposure": 70,
+    "gain": 6,
+    "power_line_frequency": 3,
+    "auto_exposure_priority": 0,
+    "global_time_enabled": 1,
+    "backlight_compensation": 0,
+    "brightness": 5,
+    "contrast": 64,
+    "gamma": 192,
+    "hue": 0,
+    "saturation": 80,
+    "sharpness": 65,
+    "enable_auto_white_balance": 1,
+    "white_balance": 5080
+  }
+}

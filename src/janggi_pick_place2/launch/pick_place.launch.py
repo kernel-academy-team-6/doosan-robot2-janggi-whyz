@@ -27,6 +27,6 @@ def generate_launch_description():
         DeclareLaunchArgument('backend', default_value='mock', choices=['mock', 'virtual', 'real']),
         DeclareLaunchArgument('robot_namespace', default_value='dsr01'),
         DeclareLaunchArgument('tcp_length_at_6mm_mm', default_value='',
-                              description='Override L at width 6 mm. Empty uses the YAML value.'),
+                              description='Compatibility override; only fixed 160 mm is allowed. Empty uses YAML.'),
         OpaqueFunction(function=launch_node),
     ])

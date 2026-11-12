@@ -44,7 +44,7 @@ def test_flange_pose_roundtrip():
     tip = g.tip_target(3, 7, 30.0)
     pose = g.flange_pose(tip)
     assert np.allclose(g.tip_from_posx(pose), tip)
-    assert pose[2] > tip[2] + 200  # 툴이 아래를 보므로 플랜지가 팁보다 ~222 mm 위
+    assert pose[2] > tip[2] + 200  # 보정 기준: 플랜지에서 원래 222mm 연장
 
 
 def test_height_along_normal():
@@ -71,3 +71,15 @@ def test_base_to_board_inverse_and_off_board():
         assert np.isclose(g.height_above(p), 12.0, atol=0.3)
     with pytest.raises(ValueError):
         g.board_to_base(-1.5, 0)
+
+
+def test_calibration_geometry_uses_original_offset_and_preserves_board_coordinates(tmp_path):
+    import yaml
+    source=Path(__file__).resolve().parents[2]/'calibration/config/calibration.yaml'
+    data=yaml.safe_load(source.read_text())
+    old_corners=np.array([c['base_xyz'] for c in data['corners']])*1000
+    data['robot']['tcp_offset_mm']=[0.,0.,222.]  # old recording/capture metadata
+    target=tmp_path/'calibration.yaml';target.write_text(yaml.safe_dump(data))
+    g=BoardGeometry.from_calibration(target)
+    np.testing.assert_array_equal(g.corners_mm,old_corners)
+    np.testing.assert_array_equal(g.tcp_offset_mm,[0.,0.,222.])

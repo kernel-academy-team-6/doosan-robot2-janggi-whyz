@@ -1,0 +1,15 @@
+true / predicted,blue_cha,blue_horse,blue_king,blue_po,blue_sa,blue_sang,blue_soldier,red_cha,red_horse,red_king,red_po,red_sa,red_sang,red_soldier
+blue_cha,9,0,0,0,0,1,0,0,0,0,0,0,0,0
+blue_horse,0,8,0,1,0,0,0,0,0,0,0,0,0,0
+blue_king,0,0,5,0,0,0,0,0,0,0,0,0,0,0
+blue_po,0,0,0,9,0,0,0,0,0,0,0,0,0,0
+blue_sa,0,0,0,0,8,0,0,0,0,0,0,1,0,0
+blue_sang,0,0,0,0,0,9,0,0,0,0,0,0,0,0
+blue_soldier,0,0,0,0,0,0,24,0,0,0,0,0,0,0
+red_cha,0,0,0,0,0,0,0,9,0,0,0,0,0,0
+red_horse,0,0,0,0,0,0,0,0,9,0,0,0,0,0
+red_king,0,0,0,0,0,0,0,0,0,5,0,0,0,0
+red_po,0,0,0,0,0,0,0,0,0,0,9,0,0,0
+red_sa,0,0,0,0,0,0,0,0,0,0,0,9,0,0
+red_sang,0,0,0,0,0,0,0,0,0,1,0,0,8,0
+red_soldier,0,0,0,0,0,0,0,0,0,0,0,0,0,24

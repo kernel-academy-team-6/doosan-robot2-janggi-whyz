@@ -38,7 +38,7 @@ def metrics_from_confusion(matrix, classes):
                 cho_sang_as_cha=int(matrix[classes.index('blue_sang'), classes.index('blue_cha')]) if {'blue_cha', 'blue_sang'} <= set(classes) else None)
 
 
-def load_datasets(path, size):
+def load_datasets(path, size, kind_only=None):
     info = json.loads((path/'dataset.json').read_text())
     if info.get('schema_version', 0) < 2 or not info.get('preprocessing', '').startswith('tight square'):
         raise ValueError('원본 프레임에서 회전 추출한 새 데이터셋을 내보내 주세요. 기존 회색 패딩 데이터셋은 지원하지 않습니다.')
@@ -67,6 +67,19 @@ def load_datasets(path, size):
             if digest in hashes and hashes[digest] != (split, label):
                 raise ValueError('완전히 동일한 이미지가 다른 split 또는 다른 정답에 있습니다.')
             hashes[digest] = (split, label)
+    if kind_only:
+        kinds = sorted(set(kind_only))
+        if len(kinds) < 2 or any(k not in {c.split('_',1)[1] for c in classes} for k in kinds):
+            raise ValueError('kind-only에는 데이터셋에 있는 종류를 최소 2개 지정하세요.')
+        for split, dataset in datasets.items():
+            samples = [(filename, kinds.index(classes[label].split('_',1)[1]))
+                       for filename,label in dataset.samples if classes[label].split('_',1)[1] in kinds]
+            if set(label for _,label in samples) != set(range(len(kinds))):
+                raise ValueError(f'{split}: 보조 분류 종류별 이미지가 부족합니다.')
+            dataset.samples = dataset.imgs = samples
+            dataset.targets = [label for _,label in samples]
+            dataset.classes, dataset.class_to_idx = kinds, {k:i for i,k in enumerate(kinds)}
+        info = dict(info, classes=kinds, source_classes=classes, kind_only=kinds)
     return datasets, info
 
 
@@ -104,7 +117,7 @@ def train(args):
     if device.startswith('cuda') and not torch.cuda.is_available():
         raise ValueError('현재 환경에서 CUDA GPU를 사용할 수 없습니다. --device cpu로 실행하세요.')
     data = args.dataset.resolve()
-    datasets, info = load_datasets(data, args.size)
+    datasets, info = load_datasets(data, args.size, getattr(args, 'kind_only', None))
     classes = info['classes']
     output = args.output.resolve()
     if output.exists() and any(output.iterdir()):
@@ -129,6 +142,7 @@ def train(args):
                   batch_size=args.batch_size, device=device, lr_head=.001, lr_backbone=.0001,
                   torch_version=str(torch.__version__), torchvision_version=str(__import__('torchvision').__version__),
                   augmentation='exported images only; no random crop, flips or additional rotation',
+                  kind_only=info.get('kind_only'), source_classes=info.get('source_classes'),
                   class_weight=weight.cpu().tolist())
     write_json(output/'config.json', config)
     optimizer = None
@@ -203,6 +217,7 @@ def main():
     parser.add_argument('--threads', type=int, default=4)
     parser.add_argument('--size', type=int, default=224)
     parser.add_argument('--seed', type=int, default=42)
+    parser.add_argument('--kind-only', nargs='+', help='진영을 합쳐 지정 종류만 학습. 예: --kind-only cha sang')
     train(parser.parse_args())
 
 

@@ -44,6 +44,7 @@ from classification_async import LatestClassification
 from piece_state import PieceTracker, StateStore, size_prior_metadata
 from piece_motion import PieceMotionMonitor, draw_piece_regions
 from count_log import CountLog  # noqa: E402
+from board_region import BoardRecognitionRegion
 from video_log import BoardRenderer, EvaluationVideos  # noqa: E402
 
 FONT_PATH = "/usr/share/fonts/opentype/noto/NotoSansCJK-Bold.ttc"
@@ -89,9 +90,9 @@ def parse_args():
     p.add_argument("--obstruction-motion", type=float, default=.03, help="방해 의심 움직임 면적 비율 (기본 0.03)")
     p.add_argument("--obstruction-window", type=float, default=2., help="검출 수 진동 확인 시간(초)")
     p.add_argument("--obstruction-settle", type=float, default=.8, help="안정 표시 전 대기 시간(초)")
-    p.add_argument("--conf", type=float, default=0.35, help="검출 신뢰도 임계값 (UI 슬라이더로 바꿀 수 있다)")
+    p.add_argument("--conf", type=float, default=0.6, help="검출 신뢰도 임계값 (기본 0.6, UI 슬라이더로 바꿀 수 있다)")
     p.add_argument("--full-frame", action="store_true", help="판 영역만 잘라 인식하지 않고 전체 프레임을 인식")
-    p.add_argument("--roi-margin", type=int, default=60, help="판 영역 인식 때 격자 바깥 여유 [px]")
+    p.add_argument("--roi-margin", type=int, default=30, help="판 사각형 경계 바깥 인식 여유 [원본 영상 px, 기본 30]")
     p.add_argument("--calibration", type=Path, default=None,
                    help="보정 파일 직접 지정; 생략 시 녹화 폴더의 보정/Gazebo 보정/실물 기본값 자동 선택")
     p.add_argument("--piece-height", type=float, default=5.0, help="말 높이 [mm] (시차 보정)")
@@ -105,9 +106,18 @@ def parse_args():
     g.add_argument("--robot", action="store_true", help="사람 ↔ 로봇 대국 패널을 켠다")
     g.add_argument("--human-side", choices=("blue", "red"), default="blue", help="사람 진영 (먼저 둔다)")
     g.add_argument("--movetime", type=int, default=1500, help="엔진 생각 시간 [ms]")
-    g.add_argument("--robot-vel", type=float, default=100.0, help="로봇 직선 속도 [mm/s]")
+    g.add_argument("--robot-vel", type=float, default=None, help="로봇 직선 속도 [mm/s]; 생략 시 pick_place2 YAML 설정")
     g.add_argument("--ns", default="dsr01", help="로봇 네임스페이스")
+    g.add_argument("--pick-place-config", type=Path, default=SRC_JANGGI.parent/"janggi_pick_place2/config/pick_place.yaml",
+                   help="janggi_pick_place2 집기·TCP·그리퍼 설정 파일")
+    g.add_argument("--pick-yaw", type=float, default=None, help="집기·놓기 yaw 강제 지정 [deg]; 생략하면 홈의 그리퍼 방향 유지")
     g.add_argument("--no-motion", action="store_true", help="로봇을 움직이지 않고 엔진 수와 집을 좌표만 표시")
+    g.add_argument('--adaptive-grasp', action=argparse.BooleanOptionalAction, default=None,
+                   help='주변 말과의 손가락 여유를 보고 집기/놓기 방향 선택 (기본 YAML)')
+    g.add_argument('--refresh-before-pick', action=argparse.BooleanOptionalAction, default=None,
+                   help='집기 직전 새 영상으로 목표 위치 재확인 (기본 YAML)')
+    g.add_argument('--auto-retry', action=argparse.BooleanOptionalAction, default=None,
+                   help='착수 관측 실패 시 한 번만 이동/놓기 재시도 (기본 YAML)')
     args = p.parse_args()
     from source_calibration import resolve_calibration, is_simulation_calibration
     try:
@@ -136,6 +146,12 @@ def parse_args():
     if (not all(np.isfinite(v) for v in (args.local_conf_drop, args.local_size_change, args.local_move_ratio))
             or not 0 < args.local_conf_drop <= 1 or args.local_size_change <= 0 or args.local_move_ratio <= 0):
         p.error("말 센서 신뢰도 하락 기준은 0~1, 크기/이동 변화 비율은 양수여야 한다")
+    if args.pick_yaw is not None and not np.isfinite(args.pick_yaw):
+        p.error("--pick-yaw는 유한한 각도여야 한다")
+    if args.robot_vel is not None and (not np.isfinite(args.robot_vel) or args.robot_vel <= 0):
+        p.error("--robot-vel은 양수인 유한한 숫자여야 한다")
+    if args.roi_margin < 0:
+        p.error("--roi-margin은 0 이상의 정수여야 한다")
     if args.classification_frames < 1:
         p.error("분류 프레임 간격은 양수여야 한다")
     if not np.isfinite(args.tracking_low_conf) or not 0 <= args.tracking_low_conf <= 1:
@@ -152,6 +168,8 @@ class RealSenseSource:
         import pyrealsense2 as rs
 
         self.rs, self.size = rs, (w, h, fps)
+        from realsense_exposure import ExposureControl
+        self.exposure_control = ExposureControl(rs.option)
         self.pipe = None
         self._open()
 
@@ -160,17 +178,23 @@ class RealSenseSource:
         w, h, fps = self.size
         pipe, cfg = rs.pipeline(), rs.config()
         cfg.enable_stream(rs.stream.color, w, h, rs.format.bgr8, fps)   # 인식에는 color만 쓴다
-        pipe.start(cfg)
+        profile = pipe.start(cfg)
         self.pipe = pipe
+        try:
+            self.exposure_control.bind(profile.get_device().first_color_sensor())
+        except (RuntimeError, ValueError) as exc:
+            self.exposure_control.unbind(str(exc))
 
     def read(self):
         try:
             if self.pipe is None:
                 self._open()
+            self.exposure_control.process_pending()
             f = self.pipe.wait_for_frames(1000).get_color_frame()
             return np.asanyarray(f.get_data()).copy() if f else None
         except RuntimeError:
             # USB가 잠깐 끊기면 파이프라인을 다시 연다
+            self.exposure_control.unbind('카메라 재연결 대기 중')
             try:
                 if self.pipe is not None:
                     self.pipe.stop()
@@ -181,6 +205,7 @@ class RealSenseSource:
             return None
 
     def close(self):
+        self.exposure_control.unbind()
         try:
             if self.pipe is not None:
                 self.pipe.stop()
@@ -295,6 +320,7 @@ class Worker:
         if mapper is not None:
             grid = mapper.grid_pixels()
             self.board_polygon = np.array([grid[0, 0], grid[0, -1], grid[-1, -1], grid[-1, 0]])
+        self.board_region = BoardRecognitionRegion(self.board_polygon) if self.board_polygon is not None else None
         self.classifier_worker = None
         self.tracker = None
         self.state_store = None
@@ -307,6 +333,7 @@ class Worker:
         self.expected_robot_move = None
         self._stable_gate = False
         self._visible_cells = None
+        self._robot_views = deque(maxlen=12)
         if hasattr(detector, 'detect_positions'):
             def validate_move(board, src, dst):
                 from rules import Position
@@ -392,23 +419,33 @@ class Worker:
                 if frame is None:
                     continue
                 roi = None
-                if self.use_roi and self.mapper is not None:
-                    roi = board_crop_box(self.mapper, frame.shape[1], frame.shape[0], self.args.roi_margin)
+                region = self.board_region if self.use_roi else None
+                margin = getattr(self.args, 'roi_margin', 30)
+                detector_frame = frame
+                if region is not None:
+                    detector_frame, roi = region.prepare(frame, margin)
                 positions_only = self.tracker is not None
                 detect = self.detector.detect_positions if positions_only else self.detector.detect
-                if positions_only and hasattr(self.detector, 'detect_tracking_positions'):
+                if roi is not None and (roi[2] <= roi[0] or roi[3] <= roi[1]):
+                    dets, tracking_candidates = [], []
+                elif positions_only and hasattr(self.detector, 'detect_tracking_positions'):
                     tracking_candidates = self.detector.detect_tracking_positions(
-                        frame, conf=self.args.conf, roi=roi, low_conf=getattr(self.args, 'tracking_low_conf', .1))
+                        detector_frame, conf=self.args.conf, roi=roi, low_conf=getattr(self.args, 'tracking_low_conf', .1))
+                    if region is not None:
+                        tracking_candidates = region.filter(tracking_candidates, margin)
                     dets = [d for d in tracking_candidates if d.conf >= self.args.conf]
                 else:
-                    dets = detect(frame, conf=self.args.conf, roi=roi)
+                    dets = detect(detector_frame, conf=self.args.conf, roi=roi)
                     tracking_candidates = None
+                if region is not None:
+                    dets = region.filter(dets, margin)
                 detected_at=time.perf_counter()
                 count_dets = list(dets)
                 raw = self.mapper.assign(dets, self.args.max_dist) if self.mapper else {}
                 unique_dets = (dets if positions_only and getattr(self.detector, 'positions_deduplicated', False)
                                else deduplicate_detections(dets))
-                context = (getattr(self.source, 'source_loop', None), self.args.conf, self.use_roi)
+                context = (getattr(self.source, 'source_loop', None), self.args.conf, self.use_roi,
+                           margin if region is not None else None)
                 if self.obstruction_reset.is_set() or context != self.monitor_context:
                     self.obstruction.reset()
                     self.obstruction_reset.clear()
@@ -458,6 +495,9 @@ class Worker:
                     stable = tracked_board if tracked_board is not None else self.stab.update(raw) if self.mapper else {}
                     self.center_hist.append({d.board: d.center for d in dets if d.board is not None})
                     self.latest = (frame, dets, raw, stable)
+                    self._robot_views.append(dict(stamp=frame_started, objects=[
+                        dict(piece_id=d.piece_id, cell=d.board, piece=(d.side,d.kind), pixel=d.center,
+                             confidence=d.conf) for d in dets]))
                     self.view_status = view_status
                     self.local_regions = local_regions
                     self.frames += 1
@@ -668,36 +708,35 @@ class Worker:
             return dict(self.view_status)
 
     def fresh_state(self, timeout: float = 10.0, new_game=False):
-        """기록을 비우고 새로 들어온 프레임 window개로 (판 상태, 칸별 박스 중심 픽셀)을 만든다.
-
-        로봇 팔이 비킨 뒤나 사람이 손을 뗀 뒤의 판만 보도록 한다 (robot_game vision 인터페이스).
-        """
-        from session import TurnError, median_centers
-
+        """Snapshot the currently displayed observations; never wait for a stable generation."""
         with self.lock:
-            self.stab.reset()
-            self.center_hist.clear()
-            start = self.frames
-            revision = self.tracker.revision if self.tracker is not None else None
-        t0 = time.time()
-        while (self.frames-start < self.args.window+1 or
-               self.tracker is not None and (self.tracker.revision <= revision or not self._stable_gate
-                                            or self.tracking_status != "확정 배치 갱신됨")):   # 비우는 순간 처리 중이던 프레임 하나는 버린다
             if self.error:
-                raise TurnError('인식 오류: '+self.error)
-            if time.time()-t0 > timeout:
-                raise TurnError('새로운 안정 배치를 확인하지 못했습니다: '+self.tracking_status if self.tracker is not None
-                                else '영상이 들어오지 않는다 (카메라 확인)')
-            time.sleep(0.03)
-        if (not new_game and self.tracker is not None and self.game_tracking_generation is not None
-                and self.game_tracking_generation != self.tracker.generation):
-            raise TurnError('배치 재인식으로 이전 대국과 연결이 끊겼습니다. 새 대국을 시작하세요.')
-        with self.lock:
-            board = self.tracker.board() if self.tracker is not None else self.stab.state()
-            hist = list(self.center_hist)
-        if getattr(self.detector, "classifier", None) is not None and any(side == 'unknown' for side, kind in board.values()):
-            raise TurnError("종류를 확정하지 못한 말이 있습니다. 분류 결과를 확인하세요.")
-        return board, median_centers(board, hist)
+                raise RuntimeError('인식 오류: '+self.error)
+            if self.latest is None:
+                return {}, {}
+            _, detections, _, visible = self.latest
+            board = {cell:piece for cell,piece in visible.items()
+                     if piece[0] in SIDE_KO and piece[1] in FULL_SET}
+            centers = {d.board:d.center for d in detections if d.board in board}
+            return board, centers
+
+    def robot_snapshot(self, *, samples=3, timeout=3., check=lambda:None):
+        """Only frames captured after this request; preserve IDs and off-grid centers."""
+        started=time.monotonic()
+        # frame_started uses perf_counter, which shares the monotonic clock on Linux.
+        barrier=time.perf_counter()
+        while True:
+            check()
+            with self.lock:
+                if self.error:
+                    raise RuntimeError('인식 오류: '+self.error)
+                views=[view for view in self._robot_views if view['stamp']>barrier]
+                if len(views)>=samples:
+                    return [dict(stamp=v['stamp'],objects=[dict(o) for o in v['objects']])
+                            for v in views[-samples:]]
+            if time.monotonic()-started>timeout:
+                raise RuntimeError('로봇 작업용 새 카메라 프레임을 받지 못했습니다.')
+            time.sleep(.02)
 
     def stop(self):
         self.running = False
@@ -887,10 +926,23 @@ class App:
         self._photo = None
         self.rg = None                 # robot_game.RobotGame (로봇 대국 중)
         self.robot_busy = False
+        self._motion_settings = None
+        self._motion_dialog = None
+        self._board_z_dialog = None
         self.robot_stop = False
         self._mover = None
         self._msgs = deque()           # 작업 스레드 → UI 기보 메시지
         self.robot_phase = "대국 시작 전: 판을 놓고 [대국 시작]"
+        if args.robot:
+            from dataclasses import replace
+            from action.pick_place2 import load_pick_place_settings
+            from manipulation import ManipulationOptions
+            _, parameters=load_pick_place_settings(args.pick_place_config)
+            self.manipulation_options=ManipulationOptions.from_parameters(parameters)
+            for arg,field in (('adaptive_grasp','adaptive_grasp_enabled'),
+                              ('refresh_before_pick','refresh_before_pick'),('auto_retry','retry_move_enabled')):
+                value=getattr(args,arg,None)
+                if value is not None: self.manipulation_options=replace(self.manipulation_options,**{field:value})
 
         sw, sh = self.root.winfo_screenwidth(), self.root.winfo_screenheight()
         self.scale = min(1.0, (sw - 760) / args.width, (sh - 140) / args.height)
@@ -926,9 +978,17 @@ class App:
         tk.Scale(row2, from_=0.05, to=0.9, resolution=0.05, orient="horizontal", length=220, variable=self.conf_var,
                  command=lambda v: setattr(self.args, "conf", float(v))).pack(side="left")
         self.roi_var = tk.BooleanVar(value=self.worker.use_roi)
-        tk.Checkbutton(row2, text="판 영역만 인식 (작은 말에 유리)", variable=self.roi_var,
+        tk.Checkbutton(row2, text="판 영역만 인식", variable=self.roi_var,
                        state=tk.NORMAL if self.mapper else tk.DISABLED,
                        command=lambda: setattr(self.worker, "use_roi", self.roi_var.get())).pack(side="left", padx=10)
+        tk.Label(row2, text='바깥 여유(px)').pack(side='left')
+        self.roi_margin_var = tk.StringVar(value=str(getattr(self.args, 'roi_margin', 30)))
+        margin_input = tk.Spinbox(row2, from_=0, to=300, increment=5, width=5,
+                                  textvariable=self.roi_margin_var, command=self._set_roi_margin,
+                                  state=tk.NORMAL if self.mapper else tk.DISABLED)
+        margin_input.pack(side='left')
+        margin_input.bind('<Return>', self._set_roi_margin)
+        margin_input.bind('<FocusOut>', self._set_roi_margin)
         tk.Button(row2, text="원본 프레임 저장", command=self.save_frame).pack(side="right")
         row3 = tk.Frame(left)
         row3.pack(fill="x", padx=6, pady=3)
@@ -938,6 +998,7 @@ class App:
         choice.bind('<<ComboboxSelected>>', lambda e: setattr(self.worker, 'box_label_mode', self.box_label_options[self.box_label_choice.get()]))
         tk.Label(row3, text="mm는 보정 기반 박스 추정 길이", fg="#666").pack(side="left", padx=4)
         tk.Button(row3, text="방해 기준 다시 잡기", command=self.worker.obstruction_reset.set).pack(side="right")
+        self._build_exposure_controls(left)
         sensor_row = tk.Frame(left)
         sensor_row.pack(fill='x', padx=6, pady=2)
         tk.Checkbutton(sensor_row, text='말별 방해 영역(실험)', variable=self.piece_motion_visible,
@@ -987,10 +1048,19 @@ class App:
         if self.args.robot:
             fr = tk.LabelFrame(side, text=f"로봇 대국 (사람 {SIDE_KO[self.args.human_side]})", padx=6, pady=4)
             fr.pack(fill="x", pady=(8, 0))
+            tk.Button(fr, text="로봇 속도·가속도 설정", command=self._open_motion_settings).pack(fill="x", pady=1)
+            tk.Button(fr, text="판 Z 높이 미세 보정", command=self._open_board_z_settings).pack(fill="x", pady=1)
+            tk.Button(fr, text="호밍 (J1 0°)", command=self.robot_home).pack(fill="x", pady=1)
             tk.Button(fr, text="대국 시작 (인식된 판)", command=self.robot_start).pack(fill="x", pady=1)
             tk.Button(fr, text="착수 완료 (Space)", command=self.robot_human_done, bg="#2e7d32", fg="white",
                       font=(FONT_FAMILY, 12, "bold")).pack(fill="x", pady=3)
             tk.Button(fr, text="로봇 정지", command=self.robot_halt, bg="#c62828", fg="white").pack(fill="x", pady=1)
+            self.manipulation_vars={}
+            for name,label in (('adaptive_grasp_enabled','주변 말 피해 회전'),
+                               ('refresh_before_pick','집기 직전 재인식'),('retry_move_enabled','착수 실패 1회 재시도')):
+                value=tk.BooleanVar(value=getattr(self.manipulation_options,name))
+                self.manipulation_vars[name]=value
+                tk.Checkbutton(fr,text=label,variable=value,command=self._set_manipulation_options).pack(anchor='w')
             self.lbl_robot = tk.Label(fr, anchor="w", justify="left", wraplength=220, font=(FONT_FAMILY, 10))
             self.lbl_robot.pack(fill="x")
         tk.Label(side, text="기보", anchor="w").pack(fill="x", pady=(8, 0))
@@ -999,33 +1069,141 @@ class App:
         self.lbl_count = tk.Label(side, anchor="w", justify="left", font=(FONT_FAMILY, 10))
         self.lbl_count.pack(fill="x", pady=6)
 
+    def _set_roi_margin(self, event=None):
+        try:
+            value = int(self.roi_margin_var.get())
+            if value < 0:
+                raise ValueError
+        except ValueError:
+            self.roi_margin_var.set(str(getattr(self.args, 'roi_margin', 30)))
+            return
+        self.args.roi_margin = value
+
+    def _build_exposure_controls(self, parent):
+        self.exposure_control = getattr(self.worker.source, 'exposure_control', None)
+        if self.exposure_control is None:
+            return
+        state = self.exposure_control.snapshot()
+        self._exposure_input_error = ''
+        self._exposure_limits = None
+        self.exposure_auto = tk.BooleanVar(value=state['auto'])
+        self.exposure_value = tk.StringVar(value=f"{state['exposure']:g}" if state['exposure'] is not None else '')
+        row = tk.Frame(parent)
+        row.pack(fill='x', padx=6, pady=3)
+        tk.Label(row, text='RGB 노출').pack(side='left')
+        self.exposure_auto_button = tk.Checkbutton(row, text='자동', variable=self.exposure_auto,
+                                                   command=self._queue_exposure)
+        self.exposure_auto_button.pack(side='left')
+        self.exposure_spin = tk.Spinbox(row, textvariable=self.exposure_value, width=9)
+        self.exposure_spin.pack(side='left', padx=3)
+        self.exposure_spin.bind('<Return>', lambda event:self._queue_exposure())
+        self.exposure_apply = tk.Button(row, text='적용', command=self._queue_exposure)
+        self.exposure_apply.pack(side='left')
+        self.lbl_exposure = tk.Label(row, anchor='w', fg='#555')
+        self.lbl_exposure.pack(side='left', padx=5)
+        buttons = tk.Frame(parent)
+        buttons.pack(fill='x', padx=6, pady=2)
+        tk.Button(buttons, text='RGB 카메라 설정…', command=self._open_camera_settings).pack(side='left')
+        tk.Button(buttons, text='저장값 적용', command=self._apply_saved_camera_settings).pack(side='left', padx=4)
+        self.lbl_camera_settings = tk.Label(buttons, text='', anchor='w', fg='#555')
+        self.lbl_camera_settings.pack(side='left', padx=4)
+        self._camera_settings_dialog = None
+        self._camera_preset_pending = False
+        self._refresh_exposure()
+
+    def _open_camera_settings(self):
+        if self._camera_settings_dialog is not None:
+            self._camera_settings_dialog.window.lift()
+            return
+        from realsense_settings_ui import CameraSettingsDialog
+        self._camera_settings_dialog = CameraSettingsDialog(
+            self.root, self.exposure_control,
+            on_close=lambda:setattr(self,'_camera_settings_dialog',None))
+
+    def _apply_saved_camera_settings(self):
+        from realsense_settings import apply_saved
+        try:
+            values = apply_saved(self.exposure_control)
+            if 'enable_auto_exposure' in values:self.exposure_auto.set(bool(values['enable_auto_exposure']))
+            if 'exposure' in values:self.exposure_value.set(f"{values['exposure']:g}")
+            if self._camera_settings_dialog is not None:
+                self._camera_settings_dialog.set_form(values)
+                self._camera_settings_dialog.awaiting = True
+            self._camera_preset_pending = True
+            self._exposure_input_error = ''
+        except (OSError, ValueError, RuntimeError) as exc:
+            self._exposure_input_error = str(exc)
+        self._refresh_exposure()
+
+    def _queue_exposure(self):
+        try:
+            automatic = self.exposure_auto.get()
+            value = None if automatic else float(self.exposure_value.get())
+            value = self.exposure_control.request(automatic, value)
+            if value is not None:
+                self.exposure_value.set(f'{value:g}')
+            self._exposure_input_error = ''
+        except (ValueError, RuntimeError) as exc:
+            self._exposure_input_error = str(exc)
+        self._refresh_exposure()
+
+    def _refresh_exposure(self):
+        control = getattr(self, 'exposure_control', None)
+        if control is None:
+            return
+        state = control.snapshot()
+        if not state['pending']:
+            self.exposure_auto.set(state['auto'])
+            if state['auto'] and state['exposure'] is not None:
+                self.exposure_value.set(f"{state['exposure']:g}")
+        enabled = state['connected'] and state['supported']
+        automatic = self.exposure_auto.get()
+        self.exposure_auto_button.config(state=tk.NORMAL if state['connected'] and state['auto_supported'] else tk.DISABLED)
+        manual_state = tk.NORMAL if enabled and not automatic and not state['pending'] else tk.DISABLED
+        self.exposure_spin.config(state=manual_state)
+        self.exposure_apply.config(state=manual_state)
+        limits = (state['minimum'], state['maximum'], state['step'])
+        if enabled and limits != self._exposure_limits:
+            self.exposure_spin.config(from_=limits[0], to=limits[1], increment=limits[2])
+            self._exposure_limits = limits
+        error = self._exposure_input_error or state['error']
+        if error:
+            text, colour = '카메라: '+error, '#b42318'
+        elif not state['connected']:
+            text, colour = '카메라 연결 대기', '#a06000'
+        elif not state['supported']:
+            text, colour = '이 센서는 노출 조절 미지원', '#777'
+        else:
+            mode = '적용 대기' if state['pending'] else '자동' if state['auto'] else '수동'
+            text = f"{mode} · 현재 {state['exposure']:g} · 범위 {limits[0]:g}~{limits[1]:g} (센서 단위)"
+            colour = '#555'
+        self.lbl_exposure.config(text=text, fg=colour)
+        if getattr(self,'_camera_preset_pending',False):
+            if state['error']:
+                self.lbl_camera_settings.config(text='저장값 적용 실패', fg='#b42318')
+                self._camera_preset_pending = False
+            elif state['pending']:
+                self.lbl_camera_settings.config(text='저장값 적용 대기…', fg='#555')
+            else:
+                suffix=f" · 미지원 {len(state['skipped'])}개 제외" if state['skipped'] else ''
+                self.lbl_camera_settings.config(text='저장값 적용 완료'+suffix, fg='#20733c')
+                self._camera_preset_pending = False
+
     # ------------------------------------------------------------------ 모드 / 게임 조작
     def on_mode(self):
         if self.mode.get() == "game" and self.game is None:
             self.new_game()
         self.cancel_select()
 
-    def classification_ready(self, new_game=False):
-        if not self.worker.tracking_ready(new_game):
-            messagebox.showwarning('판 확인 중', '안정된 이동/포획을 확인 중이거나 배치를 재인식했습니다. 재인식 후에는 새 게임을 시작하세요.', parent=self.root)
-            return False
-        if any(side == 'unknown' for side, kind in self.stable.values()):
-            messagebox.showwarning("종류 미확정", "종류를 확정하지 못한 말이 있습니다. 인식 결과를 확인하세요.", parent=self.root)
-            return False
-        return True
+    def _recognized_board(self):
+        return {cell:piece for cell,piece in self.stable.items()
+                if piece[0] in SIDE_KO and piece[1] in FULL_SET}
 
     def new_game(self):
         if self.position_only:
             self.mode.set("live")
             return
-        if not self.stable:
-            messagebox.showwarning("새 게임", "인식된 말이 없다. 카메라와 보정 파일을 확인한다.", parent=self.root)
-            self.mode.set("live")
-            return
-        if not self.classification_ready(new_game=True):
-            self.mode.set("live")
-            return
-        board = dict(self.stable)
+        board = self._recognized_board()
         self.game = Game(board, top_side=detect_top_side(board), turn=self.first.get())
         self.worker.mark_game_generation()
         self.last_move = None
@@ -1038,9 +1216,8 @@ class App:
         """게임 진행(차례·기보)은 두고 판만 인식 결과로 덮어쓴다 (인식 오류를 손으로 고친 뒤 등)."""
         if self.game is None:
             return self.new_game()
-        if not self.classification_ready():
-            return
-        self.game.board = dict(self.stable)
+        self.game.board = self._recognized_board()
+        self.game.top_side = detect_top_side(self.game.board, default=self.game.top_side)
         self.log.insert("end", "판을 인식 결과로 맞춤")
         self.cancel_select()
 
@@ -1048,18 +1225,13 @@ class App:
         """실제 판에서 사람이 둔 수를 인식 결과와의 차이로 읽어 게임에 반영한다."""
         if self.game is None:
             return
-        if not self.classification_ready():
-            return
-        mv = infer_move(self.game.board, self.stable, self.game.turn)
-        if mv is None:
-            diff = self.diff_cells()
-            messagebox.showinfo("수 읽기", f"{SIDE_KO[self.game.turn]}의 한 수로 읽을 수 없다 (다른 칸 {len(diff)}개).\n"
-                                "말이 가려졌거나 인식이 흔들리면 잠시 뒤 다시 누른다.", parent=self.root)
-            return
-        try:
-            self.play(*mv)
-        except ValueError as e:
-            messagebox.showwarning("수 읽기", f"규칙상 둘 수 없는 수다: {e}", parent=self.root)
+        observed = self._recognized_board()
+        mv = infer_move(self.game.board, observed, self.game.turn)
+        self.game.board = observed
+        self.game.top_side = detect_top_side(observed, default=self.game.top_side)
+        self.game.turn = other(self.game.turn)
+        self.log.insert("end", "현재 인식된 판으로 갱신" + (f" · {mv[0]}→{mv[1]}" if mv else ""))
+        self.cancel_select()
 
     def play(self, src, dst):
         rec = self.game.move(src, dst)
@@ -1099,45 +1271,26 @@ class App:
         self.cancel_select()
 
     def on_press(self, cell, e):
-        if self._gazebo_human_input():
-            if self.sel and cell in self.game.legal_moves(self.sel):
-                self._move_gazebo_piece(self.sel, cell)
-            elif cell in self.game.board and self.game.board[cell][0] == self.game.turn:
-                self.sel, self.drag_xy = cell, (e.x, e.y)
-            else:
-                self.cancel_select()
-            return
-        if self.mode.get() != "game" or self.game is None or self.rg is not None:
-            return
-        if self.sel and cell in self.game.legal_moves(self.sel):
-            self.play(self.sel, cell)
-            self.cancel_select()
-            return
-        if cell and cell in self.game.board and self.game.board[cell][0] == self.game.turn:
-            self.sel = cell
-            self.drag_xy = (e.x, e.y)
-        else:
-            self.cancel_select()
+        # Board clicks are annotations only, including real/Gazebo robot games.
+        board = self.stable if self.mode.get() == "live" or self.game is None else self.game.board
+        piece = board.get(cell)
+        self.sel = (None if self.sel == cell else cell) if piece and piece[0] in SIDE_KO and piece[1] in FULL_SET else None
+        self.drag_xy = None
 
     def on_drag(self, e):
-        if self.sel:
-            self.drag_xy = (e.x, e.y)
+        pass
 
     def on_release(self, cell, e):
-        if self.args.source == "gazebo" and self.rg is not None and not self._gazebo_human_input():
+        self.drag_xy = None
+        if getattr(self, 'robot_busy', False):
             self.cancel_select()
-            return
-        if self._gazebo_human_input():
-            if self.sel and cell and cell != self.sel and cell in self.game.legal_moves(self.sel):
-                self._move_gazebo_piece(self.sel, cell)
-            else:
-                self.drag_xy = None
-            return
-        if self.sel and cell and cell != self.sel and cell in self.game.legal_moves(self.sel):
-            self.play(self.sel, cell)
-            self.cancel_select()
-            return
-        self.drag_xy = None   # 같은 칸에서 놓으면 선택 유지 → 다음 클릭으로 둔다
+
+    def selection_moves(self, board):
+        from rules import Position
+        known = {cell:piece for cell,piece in board.items()
+                 if piece[0] in SIDE_KO and piece[1] in FULL_SET}
+        top = detect_top_side(known, default=self.game.top_side if self.game else 'red')
+        return Position(known, top).legal_moves(self.sel) if self.sel in known else []
 
     def cancel_select(self):
         self.sel, self.drag_xy = None, None
@@ -1149,7 +1302,83 @@ class App:
         return {c for c in set(b) | set(s) if b.get(c) != s.get(c)}
 
     # ------------------------------------------------------------------ 로봇 대국
-    def _robot_job(self, phase, fn):
+    def _set_manipulation_options(self):
+        from dataclasses import replace
+        if self.robot_busy:
+            for name,var in self.manipulation_vars.items(): var.set(getattr(self.manipulation_options,name))
+            self._msgs.append('[집기 설정] 동작이 끝난 뒤 변경하세요.')
+            return
+        self.manipulation_options=replace(self.manipulation_options,
+                                         **{name:var.get() for name,var in self.manipulation_vars.items()})
+        if self.rg is not None: self.rg.cfg.manipulation=self.manipulation_options
+        self._msgs.append('[집기 설정] '+str(self.manipulation_options))
+
+    def _get_motion_settings(self):
+        from dataclasses import replace
+        from action.pick_place2 import load_pick_place_settings
+        saved = getattr(self, '_motion_settings', None)
+        if saved is not None:
+            return saved
+        settings, _ = load_pick_place_settings(self.args.pick_place_config)
+        velocity = getattr(self.args, 'robot_vel', None)
+        if velocity is not None:
+            settings = replace(settings, linear_velocity_mm_s=velocity,
+                               linear_acceleration_mm_s2=velocity * 2).validate()
+        return replace(settings, joint_velocity_deg_s=settings.angular_velocity_deg_s,
+                       joint_acceleration_deg_s2=settings.angular_acceleration_deg_s2).validate()
+
+    def _open_motion_settings(self):
+        from robot_motion_ui import RobotMotionDialog
+        if self._motion_dialog is not None:
+            self._motion_dialog.window.lift()
+            return
+        self._motion_dialog = RobotMotionDialog(
+            self.root, self._get_motion_settings(), self._apply_motion_settings,
+            lambda:setattr(self, '_motion_dialog', None))
+
+    def _apply_motion_settings(self, settings):
+        from dataclasses import replace
+        current = getattr(self, '_motion_settings', None)
+        if current is not None:
+            fields = ('linear_velocity_mm_s', 'linear_acceleration_mm_s2', 'angular_velocity_deg_s',
+                      'angular_acceleration_deg_s2', 'joint_velocity_deg_s', 'joint_acceleration_deg_s2')
+            settings = replace(current, **{name:getattr(settings,name) for name in fields})
+        self._install_robot_settings(settings)
+        self._msgs.append(f'[속도 설정] 직선 {settings.linear_velocity_mm_s:g} mm/s, '
+                          f'{settings.linear_acceleration_mm_s2:g} mm/s² · '
+                          f'회전·관절 {settings.angular_velocity_deg_s:g} °/s, '
+                          f'{settings.angular_acceleration_deg_s2:g} °/s² · 다음 동작부터 적용')
+
+    def _open_board_z_settings(self):
+        from action.board import BoardGeometry
+        from board_z_ui import BoardZDialog
+        if self._board_z_dialog is not None:
+            self._board_z_dialog.window.lift()
+            return
+        self._board_z_dialog = BoardZDialog(
+            self.root, BoardGeometry.from_calibration(self.args.calibration), self._get_motion_settings(),
+            self._apply_board_z_settings, lambda:setattr(self, '_board_z_dialog', None))
+
+    def _apply_board_z_settings(self, settings):
+        from dataclasses import replace
+        from board_z_ui import Z_FIELDS
+        settings = replace(self._get_motion_settings(), **{name:getattr(settings,name) for name in Z_FIELDS})
+        self._install_robot_settings(settings)
+        self._msgs.append(f'[판 Z 보정] 사용={settings.board_z_compensation_enabled} · '
+                          f'전체 {settings.board_z_offset_mm:+g}mm · 모서리 추가 {settings.board_z_corner_offsets_mm}')
+
+    def _install_robot_settings(self, settings):
+        # Both this callback and _robot_job's busy transition run on the Tk thread.
+        if self.robot_busy:
+            raise RuntimeError('로봇 동작이 끝난 뒤 적용하세요. 진행 중인 이동은 변경하지 않습니다.')
+        settings.validate()
+        if self.rg is not None:
+            if self.rg.picker is not None:
+                self.rg.picker.set_motion_settings(settings)
+            self.rg.cfg.command_settings = settings
+        self._motion_settings = settings
+
+    def _robot_job(self, phase, fn, *, done_phase=None):
         """fn을 작업 스레드에서 돌린다 (엔진·로봇 동작이 UI를 막지 않게)."""
         if self.robot_busy:
             return
@@ -1160,7 +1389,7 @@ class App:
         def run():
             try:
                 fn()
-                self.robot_phase = self._human_phase()
+                self.robot_phase = done_phase if done_phase is not None else self._human_phase()
             except TurnError as e:
                 self._msgs.append(f"! {e}")
                 self.robot_phase = f"다시 확인: {e}"
@@ -1174,15 +1403,7 @@ class App:
         threading.Thread(target=run, daemon=True).start()
 
     def _human_phase(self):
-        g = self.rg.game if self.rg else None
-        if g is None:
-            return "대국 시작 전"
-        if not self.rg.has_moves(g.turn):
-            return f"대국 끝: {SIDE_KO[other(g.turn)]} 승"
-        st = g.status()
-        if g.turn == self.rg.robot_side:
-            return "로봇 차례: [착수 완료]를 누르면 로봇이 둔다"
-        return "사람 차례: 판에 두고 [착수 완료]" + (f"  ({st}!)" if st else "")
+        return "현재 판을 기준으로 [착수 완료]를 누르면 로봇이 둡니다"
 
     def _ensure_robot(self):
         if self.position_only:
@@ -1191,7 +1412,8 @@ class App:
             return
         from session import RobotGame, RobotGameConfig
 
-        from action import BoardGeometry, BoardMover, PickConfig, PiecePicker
+        from action import BoardGeometry, BoardMover
+        from action.pick_place2 import BoardPickPlace2
         from engine import JanggiEngine
         from piece_detection import CameraToBase
 
@@ -1204,26 +1426,59 @@ class App:
         engine = JanggiEngine()
         geom = BoardGeometry.from_calibration(self.args.calibration)
         cam = CameraToBase.from_calibration(self.args.calibration)
+        settings = self._get_motion_settings()
         picker = None
         if not self.args.no_motion:
             self.robot_phase = "로봇 드라이버 연결 중"
-            v = self.args.robot_vel
-            self._mover = BoardMover(self.args.ns, self.args.calibration, vel=(v, 30.0), acc=(v * 2, 60.0))
-            picker = PiecePicker(self._mover, PickConfig())
+            v = settings.linear_velocity_mm_s
+            a = settings.linear_acceleration_mm_s2
+            self._mover = BoardMover(self.args.ns, self.args.calibration,
+                                    vel=(v, settings.angular_velocity_deg_s),
+                                    acc=(a, settings.angular_acceleration_deg_s2))
+            try:
+                picker = BoardPickPlace2(self._mover, self.args.pick_place_config,
+                                         virtual=self.args.source == 'gazebo',
+                                         stop_check=lambda: self.robot_stop,
+                                         log=self._msgs.append, yaw=self.args.pick_yaw,
+                                         trace_path=(self.worker.state_store.directory if self.worker.state_store is not None
+                                                     else self.args.state_dir/f'robot_session_{time.time_ns()}')/'robot_commands.jsonl')
+                picker.set_motion_settings(settings)
+            except Exception:
+                self._mover.close()
+                self._mover = None
+                raise
         cfg = RobotGameConfig(human_side=self.args.human_side, movetime_ms=self.args.movetime,
-                              piece_height_mm=self.args.piece_height)
+                              piece_height_mm=self.args.piece_height, command_settings=settings,
+                              manipulation=getattr(self,'manipulation_options',None))
         self.rg = RobotGame(engine, cam, geom, picker, cfg, log=self._msgs.append)
+        self.rg.vision=self.worker
         if not self.args.no_motion:
             self.rg.on_move_planned = self.worker.expect_robot_move
+
+    def robot_home(self):
+        """Explicit home button: no board read, game start, or gripper command."""
+        def job():
+            self._ensure_robot()
+            from action.pick_place2 import load_pick_place_settings
+            settings, _ = load_pick_place_settings(self.args.pick_place_config)
+            joints = list(settings.home_joint_deg)
+            self._msgs.append('[호밍] 목표 관절각 [deg]: '+str(joints))
+            if not self.args.no_motion:
+                self.worker.robot_motion = True
+                motion = getattr(self.rg.picker, 'settings', None)
+                self.rg.picker.go_observe(
+                    joints, motion.joint_velocity_deg_s if motion else self.rg.cfg.observe_vel,
+                    motion.joint_acceleration_deg_s2 if motion else self.rg.cfg.observe_vel)
+        self._robot_job('호밍 중 (J1 0°)', job,
+                        done_phase='호밍 완료 · [대국 시작]을 누르세요' if not self.args.no_motion
+                        else '호밍 목표 표시 완료 · --no-motion')
 
     def robot_start(self):
         def job():
             self._ensure_robot()
             self.robot_phase = "판 읽는 중"
             board, _ = self.worker.fresh_state(new_game=True)
-            self.robot_phase = "관찰 자세로 이동 중"
-            self.worker.robot_motion = True
-            self.game = self.rg.start(board)
+            self.game = self.rg.start(board, observe=False)
             self.worker.mark_game_generation()
             self.last_move = None
         self.log.delete(0, "end")
@@ -1231,28 +1486,22 @@ class App:
         self._robot_job("대국 준비 중", job)
 
     def robot_human_done(self):
-        """착수 완료: 판 읽기 → 사람 수 반영 → 엔진 → 로봇 → 관찰 자세 → 사람 차례."""
-        if self.rg is None or self.rg.game is None:
-            messagebox.showinfo("로봇 대국", "먼저 [대국 시작]을 누른다.", parent=self.root)
-            return
-
+        """Replace the game with the current observations, then plan and execute."""
         def job():
+            self._ensure_robot()
             rg = self.rg
-            self.robot_phase = "판 읽는 중"
+            self.robot_phase = "현재 판 읽는 중"
             board, centers = self.worker.fresh_state()
-            if rg.game.turn != rg.robot_side:
-                rg.apply_human_move(board)
-            self.robot_phase = "엔진 생각 중 / 로봇 두는 중"
+            if rg.game is None:
+                self.game = rg.start(board, observe=False)
+            rg.apply_human_move(board)
+            self.game = rg.game
+            self.robot_phase = "현재 판 기준 엔진 생각 중 / 로봇 두는 중"
+            self.worker.robot_motion = not self.args.no_motion
             plan = rg.robot_turn(centers, stop_check=lambda: self.robot_stop)
-            self.worker.robot_motion = False
             if plan.src is not None and not plan.is_pass:
                 self.last_move = (plan.src, plan.dst)
-                if not self.args.no_motion:
-                    from session import TurnError
-                    self.robot_phase = '로봇 착수 결과 확인 중'
-                    observed, _ = self.worker.fresh_state()
-                    if observed != rg.game.board:
-                        raise TurnError('로봇 명령 후 관측한 판이 계획 결과와 다릅니다. 실제 판을 확인하세요.')
+        self.mode.set("game")
         self._robot_job("판 읽는 중", job)
 
     def robot_halt(self):
@@ -1300,7 +1549,7 @@ class App:
                 title, color = '판단 불가 · 영상 지연', '#b42318'
             self.worker.game_turn = self.game.turn if self.game is not None and self.mode.get() == 'game' else None
             self.lbl_tracking.config(text=(f'종류 {self.worker.visual_counts[1]}/{self.worker.visual_counts[0]} · 개별 보류 {self.worker.visual_counts[2]} · '
-                                           +self.worker.tracking_status) if self.worker.tracker is not None else '')
+                                           +'현재 인식 판으로 진행') if self.worker.tracker is not None else '')
             self.lbl_obstruction.config(text=f"화면 방해: {title} · {status['reason']} · 움직임 {status['motion']*100:.1f}%", fg=color)
             assigned = sum(1 for d in dets if d.board is not None)
             unique = count_unique_detections(dets)
@@ -1310,6 +1559,7 @@ class App:
             self.log.see("end")
         if self.args.robot:
             self.lbl_robot.config(text=("⏳ " if self.robot_busy else "") + self.robot_phase)
+        self._refresh_exposure()
         try:
             self.draw_board()
         except RuntimeError:   # 작업 스레드가 게임 판을 바꾸는 중 (다음 tick에 다시 그린다)
@@ -1350,9 +1600,9 @@ class App:
                     bv.draw_piece(c, side, kind, ghost=True)
                 else:
                     bv.draw_piece(c, side, kind)
-        if not live and self.sel:
+        if self.sel is not None:
             bv.mark(self.sel, "#6a1b9a", r=28, width=3)
-            for c in self.game.legal_moves(self.sel):
+            for c in self.selection_moves(board):
                 if c in board:
                     bv.mark(c, "#6a1b9a", r=26, width=3, dash=(3, 2))
                 else:
@@ -1394,6 +1644,14 @@ class App:
         print(f"[저장] {out / stamp}.png")
 
     def quit(self):
+        z_dialog = getattr(self, '_board_z_dialog', None)
+        if z_dialog is not None:
+            z_dialog.close()
+        motion_dialog = getattr(self, '_motion_dialog', None)
+        if motion_dialog is not None:
+            motion_dialog.close()
+        dialog = getattr(self, '_camera_settings_dialog', None)
+        if dialog is not None:dialog.close()
         if self._after is not None:
             self.root.after_cancel(self._after)
             self._after = None
