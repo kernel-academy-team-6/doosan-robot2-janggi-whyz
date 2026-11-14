@@ -1,0 +1,8 @@
+{
+  "base": "best.pt",
+  "experts": [
+    {"path": "expert_cha_sang/best.pt", "classes": ["cha", "sang"], "threshold": 0.9, "strength": 0.7},
+    {"path": "expert_soldier_po/best.pt", "classes": ["soldier", "po"], "threshold": 0.9, "strength": 0.7}
+  ],
+  "colour_strength": 1.0
+}

@@ -11,6 +11,15 @@ class OperationCancelled(Exception):
     pass
 
 
+class GripperCommandError(RuntimeError):
+    pass
+
+
+class PlaceReleaseFailed(RuntimeError):
+    """Release command failed, but the arm successfully retreated above board."""
+    recoverable_release_failure = True
+
+
 @dataclass(frozen=True)
 class Settings:
     tcp_length_at_6mm_mm: float = 132.6717
@@ -288,11 +297,16 @@ class PickPlaceExecutor:
         self.robot.move(destination, check)
         self._step('place/release', .60, check, report)
         self.holding_state = 'unknown'
-        self.gripper.open_to(grasp.release_width_mm, grasp.current_ma, check)
-        self.held = None
-        self.holding_state = 'empty_unverified'
+        release_error=None
+        try:self.gripper.open_to(grasp.release_width_mm, grasp.current_ma, check)
+        except (TimeoutError,GripperCommandError) as exc:release_error=exc
+        else:
+            self.held = None
+            self.holding_state = 'empty_unverified'
         self._step('place/retreat', .80, check, report)
         self.robot.move(above, check)
+        if release_error is not None:
+            raise PlaceReleaseFailed(f'그리퍼 놓기 명령 실패, 상단 복귀 완료: {release_error}') from release_error
 
     def drop_at_height(self, flange_xyz, grasp, check, report):
         """Release a captured piece at home flange height; never descend to board.

@@ -62,6 +62,15 @@
     virtual_gripper_delay_sec: 0.4
     # Gazebo-only: wait for actual physical arm/jaw settling. No real serial ACK wait.
     virtual_physics_feedback: true
+    # Gazebo-only arrival tolerances (was 0.35 deg / 2 deg/s / 0.1 s; jaws 3 mm / 0.02 rad/s).
+    # Joint error per axis, joint speed, simulation-time hold, jaw gap and jaw speed.
+    virtual_settle_position_deg: 1.0
+    virtual_settle_velocity_deg_s: 5.0
+    virtual_settle_hold_sec: 0.05
+    virtual_settle_gripper_mm: 5.0
+    virtual_settle_gripper_velocity_rad_s: 0.06
+    # Gazebo-only: wall-clock cap on settle waiting (s). Past it the step continues anyway.
+    virtual_settle_max_wait_sec: 3.0
     service_timeout_sec: 5.0
     motion_timeout_sec: 60.0
     # Existing gripper_service_node owns serial/torque/position commands.

@@ -71,7 +71,7 @@ setup.sh → 전용 venv → 공식 아카이브 ONNX 모델 + F1 → generate.p
 - `get_voice_style(voice_name='F1')`, `synthesize(..., lang='ko')`로 실제 합성했다.
   별도 SDK 수정이나 모델 변환 없이 ONNX 4개, 설정·문자 인덱스, F1 스타일이 호환된다.
 - 생성 설정: 10 steps, speed 1.05, seed 42, CPU 4 threads.
-- 출력: **44,100Hz, 모노, PCM16 WAV**. 총 48개, 약 116.47초, 약 9MB.
+- 출력: **44,100Hz, 모노, PCM16 WAV**. 총 49개, 약 122.32초, 약 9MB.
 
 공식 근거: [Python SDK와 한국어/F1 사용법](https://github.com/supertone-oss-archive/supertonic-py),
 [아카이브 모델](https://huggingface.co/supertone-oss-archive/supertonic-3).
@@ -113,7 +113,7 @@ SDK는 MIT, 모델은 OpenRAIL-M이며 내려받은 모델 폴더에 원본 LICE
 |---|---|
 | `tools/.venv-supertonic/` | 음성 생성 전용 Python 3.12 환경, 약 203MB |
 | `tools/tts/model/` | 고정 리비전 모델·F1 스타일·라이선스, 약 381MB |
-| `janggi/realtime_ui/assets/speech/ko_F1/` | 재사용 WAV 48개와 `manifest.json`, 약 9MB |
+| `janggi/realtime_ui/assets/speech/ko_F1/` | 재사용 WAV 49개와 `manifest.json`, 약 9MB |
 | `tools/tts/setup.sh` | 독립 환경 설치와 다운로드·생성 실행 |
 | `tools/tts/generate.py` | 누락·손상·설정 변경 파일 생성, 원자적 저장과 해시 기록 |
 | `tools/tts/play_test.py` | 게임과 동일한 비동기 플레이어로 실제 출력 검증 |
@@ -134,13 +134,13 @@ SoundFile 0.14.0, Hugging Face Hub 2.4.0이다. 전부 생성 전용 환경에�
 
 ## 검증 결과
 
-- 공식 아카이브에서 실제 모델·F1 스타일 다운로드 및 한국어 48문장 생성 성공.
-- WAV 48개 모두 해시 일치, PCM16/모노/44.1kHz 형식 확인.
+- 공식 아카이브에서 실제 모델·F1 스타일 다운로드 및 한국어 49문장 생성 성공.
+- WAV 49개 모두 해시 일치, PCM16/모노/44.1kHz 형식 확인.
 - 실제 호스트 오디오 출력 장치에서 볼륨 60%로 다음 세 문장 재생 완료:
   “장기 음성 안내 테스트입니다.” / “초 진영 장군입니다.” / “한 승리입니다.”
   재생 프로세스 정상 종료를 확인했다. 사람의 청취에 의한 음질 평가는 별도다.
 - 샘플 피크 PCM 값은 각각 13057 / 11289 / 8346으로, 무음이나 PCM 포화 출력이 아니다.
-- 일반 Python에서 `generate.py --offline`을 재실행해 **48개 재사용, 모델 로딩·다운로드·합성 없음** 확인.
+- 일반 Python에서 `generate.py --offline`을 재실행해 **49개 재사용, 모델 로딩·다운로드·합성 없음** 확인.
 - 소켓 사용을 차단하고 ML 라이브러리가 없는 Python `-S` 프로세스에서도 게임 음성 경로 재생 검증.
 - 실제 UI 안내 함수 → 장군 판정 → 해당 WAV 순차 재생 및 볼륨 콜백 검증.
 - 음소거·비동기 진행·볼륨 샘플 변환·손상 파일·플레이어 실패 후 복구 검증.
@@ -169,3 +169,5 @@ PYTHONPATH=src/janggi_pick_place2:src/janggi/robot_game:janggi/realtime_ui:$PYTH
 그리퍼 통신 오류라고 단정하는 안내는 하지 않는다. 현재 감지는 홈에서 본 말 위치에 기반한다.
 음성이 꺼져 있으면 재생하지 않으며, 콜백이나 오디오 오류가 발생해도 기존 재시도는 진행한다.
 기존 WAV 45개를 재사용하고 추가 3개만 오프라인 생성했다.
+
+영상 자동 복구 안내도 추가했다: “영상 확인이 지연되어 홈으로 복귀한 뒤 말 위치를 다시 확인하겠습니다.” 기존 음성 재생 경로와 음소거·볼륨 설정을 따른다.

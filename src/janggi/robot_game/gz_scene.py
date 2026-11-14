@@ -104,6 +104,20 @@ class GzScene:
         req.allow_renaming = False
         name = ET.fromstring(sdf).find('model').get('name')
         if not self._svc("create/blocking", req, EntityFactory, timeout=30000):
+            # The reply can time out while the entity is still being created: the
+            # first rendering sensor initialises the render engine (slower with
+            # PRIME offload). Failing here killed this process, and with it the
+            # robot target loop. Accept the entity once it actually exists.
+            deadline = time.monotonic()+90.
+            while time.monotonic() < deadline:
+                try:
+                    self._refresh_existing_models()
+                except Exception:  # noqa: BLE001  (world not queryable: report the creation failure)
+                    break
+                if name in self._existing_models:
+                    print(f"[gz] {name}: 생성 응답은 시간 초과였지만 모델이 생성되어 계속 진행", flush=True)
+                    return True
+                time.sleep(1.)
             raise RuntimeError(f"Gazebo model creation failed: {name}")
         self._existing_models.add(name)
         return True

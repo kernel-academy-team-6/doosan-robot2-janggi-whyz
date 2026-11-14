@@ -35,6 +35,7 @@ for p in (SRC, VISION, VISION / "realtime_ui"):
         sys.path.insert(0, str(p))
 
 from rules import Game, Position, detect_top_side, infer_move, other  # noqa: E402
+from observations import TargetNotFound
 
 SIDE_KO = {"blue": "초", "red": "한"}
 KIND_KO = {"king": "궁", "cha": "차", "po": "포", "horse": "마", "sang": "상", "sa": "사", "soldier": "졸"}
@@ -201,7 +202,7 @@ class RobotGame:
             return point
         uv = centers.get(cell)
         if uv is None:
-            raise RuntimeError(f"{cell}: 집을 말의 검출 중심이 없습니다. 격자점으로 대체하지 않습니다.")
+            raise TargetNotFound(f"{cell}: 집을 말의 검출 중심이 없습니다. 격자점으로 대체하지 않습니다.")
         top_height = (self.picker.piece_height_for_kind(kind) if kind is not None
                       and hasattr(self.picker,'piece_height_for_kind') else
                       settings.piece_thicknesses_mm[group] if settings is not None and group is not None else
@@ -349,11 +350,26 @@ class RobotGame:
         return bool(self.engine.perft_moves(g.board, g.top_side, side))
 
     # ------------------------------------------------------------------ 한 턴 전체
+    def plan_with_recovery(self, centers, stop_check):
+        for attempt in range(3):
+            self._check_stop(stop_check)
+            try:return self.plan(centers)
+            except TargetNotFound:
+                vision=getattr(self,'vision',None)
+                if attempt==2 or self.picker is None or vision is None:raise
+                from manipulation import ManipulationCoordinator, ManipulationOptions
+                coordinator=ManipulationCoordinator(self,vision,self.cfg.manipulation or ManipulationOptions(),
+                                                     lambda:self._check_stop(stop_check))
+                self.log(f'[계획 영상 복구 {attempt+1}/2] 홈 복귀 후 검출 중심을 다시 읽습니다.')
+                coordinator.notify_retry('vision')
+                coordinator.observe_home()
+                _,centers=vision.fresh_state()
+
     def robot_turn(self, centers, stop_check=lambda: False) -> RobotPlan:
         if getattr(self,'winner',None) is not None:
             return RobotPlan(None,score='대국 종료')
         t0 = time.time()
-        plan = self.plan(centers)
+        plan = self.plan_with_recovery(centers,stop_check)
         self.last_plan = plan
         if plan.src is not None and not plan.is_pass:
             callback = getattr(self, 'on_move_planned', None)

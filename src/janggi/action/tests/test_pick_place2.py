@@ -364,3 +364,31 @@ def test_stop_after_first_grave_open_prevents_second_command():
     with pytest.raises(OperationCancelled):p.discard()
     assert len(calls)==1 and p.discarded==0
     assert p.runner.held is not None
+
+
+def test_failed_place_release_retreats_and_preserves_measured_grasp_for_release_only_retry():
+    from janggi_pick_place2.executor import PlaceReleaseFailed
+    p,events,arm,hand=picker();p.set_piece_kind('king');p.pick_abs([400.,0.,-18.])
+    original=hand.open_to
+    def fail(*args):raise TimeoutError('release command timeout')
+    hand.open_to=fail
+    with pytest.raises(PlaceReleaseFailed):p.place(4,4)
+    assert p._last_place[0].width_mm==32. and p._last_place[1]==2.
+    assert not arm.stopped and p.runner.held is not None
+    assert arm.pose[2]>0.  # Retreat succeeded before recoverable error surfaced.
+    before=sum(e[0]=='grasp' for e in events)
+    hand.open_to=original;p.retry_place(4,4)
+    assert sum(e[0]=='grasp' for e in events)==before
+    assert p.runner.held is None and p.held_grasp_height_mm is None
+
+
+def test_place_retreat_failure_after_release_error_is_not_marked_recoverable():
+    from janggi_pick_place2.executor import PlaceReleaseFailed
+    p,events,arm,hand=picker();p.pick_abs([400.,0.,-18.])
+    def fail(*args):
+        def failed_retreat(*args):raise RuntimeError('retreat motion failed')
+        arm.move=failed_retreat
+        raise TimeoutError('release timeout')
+    hand.open_to=fail
+    with pytest.raises(RuntimeError,match='retreat motion failed') as caught:p.place(4,4)
+    assert not isinstance(caught.value,PlaceReleaseFailed) and arm.stopped

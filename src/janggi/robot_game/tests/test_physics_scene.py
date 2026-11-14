@@ -261,3 +261,23 @@ def test_arm_links_are_filtered_from_pieces_but_gripper_side_links_are_not():
         assert int(contact.findtext('collide_bitmask'))==ARM_COLLIDE
     # Wrist / gripper keep the default (unfiltered) groups so they still touch pieces.
     assert model.find("link[@name='link_6']/collision/surface/contact") is None
+
+
+def test_create_accepts_entity_that_appears_after_reply_timeout(monkeypatch):
+    """A timed-out create/blocking reply must not kill the scene (and robot loop) if the model exists."""
+    import gz_scene
+    scene=object.__new__(GzScene);scene.gz_world='empty';scene._existing_models=set()
+    monkeypatch.setattr(scene,'_svc',lambda *a,**k:False,raising=False)
+    calls=[0]
+    def refresh():
+        calls[0]+=1
+        if calls[0]>=2:scene._existing_models={'intel_realsense_d455f'}
+    monkeypatch.setattr(scene,'_refresh_existing_models',refresh,raising=False)
+    monkeypatch.setattr(gz_scene.time,'sleep',lambda s:None)
+    assert scene._create('<sdf version="1.9"><model name="intel_realsense_d455f"/></sdf>')
+    # A model that never appears still fails loudly.
+    scene._existing_models=set();calls[0]=-10**9
+    clock=[0.]
+    monkeypatch.setattr(gz_scene.time,'monotonic',lambda:clock.__setitem__(0,clock[0]+10.) or clock[0])
+    with pytest.raises(RuntimeError):
+        scene._create('<sdf version="1.9"><model name="missing"/></sdf>')

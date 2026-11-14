@@ -1,6 +1,38 @@
 """Observation-only human move countdown. No robot calls, threads, or Tk state."""
 from dataclasses import dataclass
-from rules import infer_move
+
+
+def observed_move(before, after, side):
+    """Infer one physical move from occupancy, retaining known piece identity.
+
+    Stationary CNN kind changes are not moves. Captures need replacement by
+    the human side at one previously enemy-occupied destination, not just a
+    missing piece. Unrelated vacancies/additions remain ambiguous.
+    """
+    removed=set(before)-set(after)
+    added=set(after)-set(before)
+    if len(removed)!=1:
+        return None
+    src=next(iter(removed))
+    if before[src][0]!=side:
+        return None
+    if len(added)==1:
+        dst=next(iter(added))
+        # One departure and one arrival identify the same physical piece;
+        # retain its prior side as well as its kind if CNN reclassifies it.
+        # A separate enemy-to-human replacement would be a second change.
+        if any(before[c][0] not in (side,'unknown') and after[c][0]==side
+               for c in set(before)&set(after)):
+            return None
+    elif not added:
+        targets=[c for c in set(before)&set(after)
+                 if before[c][0] not in (side,'unknown') and after[c][0]==side]
+        if len(targets)!=1:
+            return None
+        dst=targets[0]
+    else:
+        return None
+    return src,dst
 
 
 @dataclass(frozen=True)
@@ -10,6 +42,7 @@ class AutoTurnState:
     move: tuple | None = None
     fire: bool = False
     deadline: float | None = None
+    board: dict | None = None
 
 
 class AutomaticTurn:
@@ -32,6 +65,12 @@ class AutomaticTurn:
         self.reset()
         if board:
             self.baseline = dict(board)
+
+    def moved_board(self, move):
+        board=dict(self.baseline)
+        src,dst=move
+        board[dst]=board.pop(src)
+        return {c:p for c,p in board.items() if p[0] in ('blue','red') and p[1]!='piece'}
 
     def update(self, board, side, *, now, stamp, clear, epoch):
         if self._fired:
@@ -60,16 +99,23 @@ class AutomaticTurn:
             elif fresh and now-self._baseline_since >= self.baseline_settle_sec:
                 self.baseline = dict(board)
             return AutoTurnState('사람 이동·포획 대기' if self.baseline is not None else '기준 판 확인 중')
-        move = infer_move(self.baseline, board, side)
+        # Resolve previously unknown occupants without rewriting already known
+        # identities or absorbing an actual movement into the reference board.
+        for cell in set(self.baseline)&set(board):
+            if (self.baseline[cell][0]=='unknown' or self.baseline[cell][1]=='piece') and board[cell][0] in ('blue','red'):
+                self.baseline[cell]=board[cell]
+        move = observed_move(self.baseline, board, side)
         if move is None:
             self.cancel_countdown()
             return AutoTurnState('사람 이동·포획 대기')
-        if self._candidate != board:
-            self._candidate, self._since = dict(board), now
+        if self._candidate != move:
+            self._candidate, self._since = move, now
         elif self._since is None:
             self._since = now
         remaining = max(0., self._since+self.delay_sec-now)
         if fresh and remaining == 0.:
             self._fired = True
-            return AutoTurnState('자동 착수 실행', 0., move, True)
-        return AutoTurnState('이동·포획 감지', remaining, move, deadline=self._since+self.delay_sec)
+            return AutoTurnState('자동 착수 실행', 0., move, True, board=self.moved_board(move))
+        text='포획 감지' if move[1] in self.baseline else '이동 감지'
+        return AutoTurnState(text, remaining, move, deadline=self._since+self.delay_sec,
+                             board=self.moved_board(move))

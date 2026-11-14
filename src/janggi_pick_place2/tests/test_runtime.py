@@ -90,13 +90,13 @@ def test_cartesian_preflight_is_reused_for_matching_state_but_rechecked_after_dr
 def test_gazebo_feedback_is_shared_only_by_virtual_backend(monkeypatch):
     import janggi_pick_place2.simulation_feedback as simulation_feedback
     feedback=object()
-    monkeypatch.setattr(simulation_feedback,'SimulationFeedback',lambda *args:feedback)
+    monkeypatch.setattr(simulation_feedback,'SimulationFeedback',lambda *args,**kwargs:feedback)
     monkeypatch.setattr(runtime,'VirtualRobotClient',lambda *args:SimpleNamespace())
     monkeypatch.setattr(runtime,'VirtualGripperClient',lambda *args:SimpleNamespace())
     params=dict(service_timeout_sec=5.,motion_timeout_sec=60.,virtual_gripper_delay_sec=.4,virtual_physics_feedback=True)
     arm,hand=runtime.create_clients('node','/dsr01',Settings(),params,'virtual')
     assert arm.physics_feedback is hand.physics_feedback is feedback
-    monkeypatch.setattr(simulation_feedback,'SimulationFeedback',lambda *args:pytest.fail('real backend must not use Gazebo feedback'))
+    monkeypatch.setattr(simulation_feedback,'SimulationFeedback',lambda *args,**kwargs:pytest.fail('real backend must not use Gazebo feedback'))
     monkeypatch.setattr(runtime,'RobotClient',lambda *args:SimpleNamespace())
     monkeypatch.setattr(runtime,'GripperClient',lambda *args:SimpleNamespace())
     arm,hand=runtime.create_clients('node','/dsr01',Settings(),params,'real')

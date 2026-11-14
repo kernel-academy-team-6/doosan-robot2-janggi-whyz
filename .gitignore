@@ -14,3 +14,7 @@ __pycache__/
 /tools/.venv-supertonic/
 /tools/tts/model/
 /janggi/realtime_ui/assets/speech/ko_F1/
+
+# cnn2 regenerated training cache (tools/cnn2/README.md: extract_video_tracks.py / build_index.py)
+/tools/cnn2/videos/
+/tools/cnn2/index.json

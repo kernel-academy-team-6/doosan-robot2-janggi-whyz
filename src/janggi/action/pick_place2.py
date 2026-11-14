@@ -22,7 +22,7 @@ DEFAULT_PICK_PLACE_CONFIG = PACKAGE_ROOT/'config/pick_place.yaml'
 # Import source modules so changes to the requested package are used immediately.
 if str(PACKAGE_ROOT) not in sys.path:
     sys.path.insert(0, str(PACKAGE_ROOT))
-from janggi_pick_place2.executor import PickPlaceExecutor, Settings, OperationCancelled
+from janggi_pick_place2.executor import PickPlaceExecutor, Settings, OperationCancelled, PlaceReleaseFailed
 
 PIECE_GROUPS = dict(sa=0, soldier=0, cha=1, horse=1, sang=1, po=1, king=2)
 PIECE_WIDTHS_MM = {kind:(20.,26.,32.)[group] for kind,group in PIECE_GROUPS.items()}
@@ -199,6 +199,10 @@ class BoardPickPlace2:
             self.runner.run(operation, self._target(target), grasp, self._check,
                             lambda stage, progress:self.log(f'집기/놓기: {stage}'))
             return np.asarray(target, float)
+        except PlaceReleaseFailed:
+            # Executor has already completed retreat. Preserve the release
+            # context for observation and one bounded place-only retry.
+            raise
         except BaseException:
             self.runner.robot.stop()
             raise
@@ -282,6 +286,7 @@ class BoardPickPlace2:
             self.held_grasp_height_mm = self.grasp_height_for_kind(self.piece_kind)
         point[2] = self.mover.board.command_surface_z(point, self.settings, virtual=self.backend == 'virtual') + self.held_grasp_height_mm
         released = (self.runner.held,self.held_grasp_height_mm,(x,y))
+        self._last_place = released
         result = self._run('place', point)
         self._last_place = released
         self.held_grasp_height_mm = None
@@ -299,6 +304,13 @@ class BoardPickPlace2:
     def mark_holding_unknown(self):
         self.runner.holding_state = 'unknown'
         self.record_motion('holding_unknown_after_visual_check',dict(grip_verified=False))
+
+    def mark_place_observed(self):
+        """Clear stale command bookkeeping after visual placement confirmation."""
+        self.runner.held=None
+        self.runner.holding_state='empty_unverified'
+        self.held_grasp_height_mm=None
+        self.record_motion('placement_observed',dict(grip_verified=False))
 
     def discard_spot(self, index=None):
         # Same drop location every time: midpoint of (0,4)/(0,5), base +Y 70mm.

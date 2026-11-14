@@ -248,3 +248,80 @@ def test_failed_retry_notice_does_not_stop_robot_retry():
     c.scenes=lambda:[[] if p.pos is None else [piece(p.pos)]]*3
     c.execute(SimpleNamespace(piece=('blue','soldier'),pick_mm=np.zeros(3),dst=(1,0),captured=None))
     assert sum(e[0]=='pick' for e in p.events)==2
+
+
+def test_piece_seen_off_board_with_empty_source_and_destination_can_retry_place():
+    held=piece(150);held.cell=None
+    assert move_evidence([[held]]*3,'own',held.piece,np.zeros(3),np.array([50.,0.,0.]),12)=='missing'
+    held.cell=(2,2)
+    assert move_evidence([[held]]*3,'own',held.piece,np.zeros(3),np.array([50.,0.,0.]),12)=='uncertain'
+
+
+def test_full_move_retry_can_be_followed_by_separate_place_only_retry():
+    p=FakePicker('unchanged');notices=[]
+    original=p.place
+    def place(*dst):
+        original(*dst)
+        if p.attempts==2:p.pos=None  # Second pick succeeded, second release failed.
+    p.place=place
+    g=SimpleNamespace(picker=p,log=lambda *_:None,go_observe=lambda:None,
+        on_manipulation_retry=notices.append,geom=SimpleNamespace(board_to_base=lambda *dst:np.array([50.,0.,0.])))
+    c=ManipulationCoordinator(g,None,ManipulationOptions(refresh_before_pick=False),lambda:None)
+    c.scenes=lambda:[[] if p.pos is None else [piece(p.pos)]]*3
+    c.execute(SimpleNamespace(piece=('blue','soldier'),pick_mm=np.zeros(3),dst=(1,0),captured=None))
+    assert notices==['move','place']
+    assert len([e for e in p.events if e[0]=='pick'])==2
+    assert len([e for e in p.events if e[0]=='retry_place'])==1 and p.pos==50.
+
+
+def test_uncertain_placement_is_reobserved_before_release_retry():
+    p=FakePicker('missing');notices=[];calls=[]
+    g=SimpleNamespace(picker=p,log=lambda *_:None,go_observe=lambda:None,
+        on_manipulation_retry=notices.append,geom=SimpleNamespace(board_to_base=lambda *dst:np.array([50.,0.,0.])))
+    c=ManipulationCoordinator(g,None,ManipulationOptions(refresh_before_pick=False),lambda:None)
+    def scenes():
+        calls.append(True)
+        if len(calls)==1:return [[piece()]]*3
+        if len(calls)==2:return [[piece(50,pid='other',label=('unknown','piece'))]]*3
+        return [[] if p.pos is None else [piece(p.pos)]]*3
+    c.scenes=scenes
+    c.execute(SimpleNamespace(piece=('blue','soldier'),pick_mm=np.zeros(3),dst=(1,0),captured=None))
+    assert notices==['vision','place'] and p.pos==50.
+    assert len([e for e in p.events if e[0]=='pick'])==1
+
+
+@pytest.mark.parametrize('already_placed',[False,True])
+def test_release_command_exception_enters_visual_place_recovery_without_picking_again(already_placed):
+    from janggi_pick_place2.executor import PlaceReleaseFailed
+    p=FakePicker('missing');notices=[]
+    def place(*dst):
+        p.events.append(('place',dst))
+        if already_placed:p.pos=50.
+        raise PlaceReleaseFailed('release failed after retreat')
+    p.place=place
+    p.mark_place_observed=lambda:p.events.append(('observed',))
+    g=SimpleNamespace(picker=p,log=lambda *_:None,go_observe=lambda:None,
+        on_manipulation_retry=notices.append,geom=SimpleNamespace(board_to_base=lambda *dst:np.array([50.,0.,0.])))
+    c=ManipulationCoordinator(g,None,ManipulationOptions(refresh_before_pick=False),lambda:None)
+    c.scenes=lambda:[[] if p.pos is None else [piece(p.pos)]]*3
+    c.execute(SimpleNamespace(piece=('blue','soldier'),pick_mm=np.zeros(3),dst=(1,0),captured=None))
+    assert notices==([] if already_placed else ['place']) and p.pos==50.
+    assert len([e for e in p.events if e[0]=='pick'])==1
+    assert len([e for e in p.events if e[0]=='observed'])==1
+
+
+def test_repeated_place_failure_is_bounded_and_motion_errors_are_not_retried():
+    from janggi_pick_place2.executor import PlaceReleaseFailed
+    p=FakePicker('missing');notices=[]
+    def retry(*dst):p.events.append(('retry_place',dst));raise PlaceReleaseFailed('still failed')
+    p.retry_place=retry
+    g=SimpleNamespace(picker=p,log=lambda *_:None,go_observe=lambda:None,
+        on_manipulation_retry=notices.append,geom=SimpleNamespace(board_to_base=lambda *dst:np.array([50.,0.,0.])))
+    c=ManipulationCoordinator(g,None,ManipulationOptions(refresh_before_pick=False),lambda:None)
+    c.scenes=lambda:[[] if p.pos is None else [piece(p.pos)]]*3
+    c.execute(SimpleNamespace(piece=('blue','soldier'),pick_mm=np.zeros(3),dst=(1,0),captured=None))
+    assert notices==['place'] and len([e for e in p.events if e[0]=='retry_place'])==1
+    def motion_error():raise RuntimeError('arm path failed')
+    with pytest.raises(RuntimeError,match='arm path failed'):c.attempt_place(motion_error)
+    c.o=replace(c.o,retry_move_enabled=False)
+    with pytest.raises(PlaceReleaseFailed):c.attempt_place(lambda:retry(1,0))

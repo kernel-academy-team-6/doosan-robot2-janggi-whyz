@@ -32,7 +32,8 @@ def armed():
 @pytest.mark.parametrize('capture',[False,True])
 def test_move_and_capture_fire_once_after_three_seconds(capture):
     m=armed();board=moved(capture)
-    assert update(m,board,1.).remaining==3.
+    initial=update(m,board,1.)
+    assert initial.remaining==3. and initial.text==('포획 감지' if capture else '이동 감지')
     assert not update(m,board,3.99).fire
     result=update(m,board,4.)
     assert result.fire and result.move==((0,6),(0,5) if capture else (1,6))
@@ -145,7 +146,7 @@ def test_stop_button_disables_automatic_mode_without_starting_motion(monkeypatch
     update(ui.auto_turn,BASE,.1);update(ui.auto_turn,BASE,.5);update(ui.auto_turn,moved(),1.)
     clock[0]=3.5;ui.robot_halt()
     assert ui.robot_stop and not enabled[0]
-    assert ui.auto_turn.baseline is None and not calls
+    assert ui.auto_turn.baseline==BASE and ui.auto_turn._since is None and not calls
 
 
 def test_robot_job_rebases_only_from_frames_after_home_return(monkeypatch):
@@ -188,5 +189,95 @@ def test_home_baseline_rejects_old_views_and_uses_measured_cells():
         {'cell':(0,6),'piece':('blue','soldier')},
         {'cell':(3,3),'piece':('unknown','piece')},
         {'cell':None,'piece':('red','king')}]}
-    assert worker.automatic_home_baseline(4.)=={(0,6):('blue','soldier')}
+    assert worker.automatic_home_baseline(4.)=={(0,6):('blue','soldier'),(3,3):('unknown','piece')}
     assert worker.automatic_home_baseline(5.) is None
+
+
+@pytest.mark.parametrize('capture',[False,True])
+def test_stationary_kind_flicker_and_moved_piece_reclassification_do_not_cancel_move(capture):
+    m=armed();board=moved(capture);dst=(0,5) if capture else (1,6)
+    board[dst]=('blue','sa')  # Same physical mover, wrong CNN kind.
+    board[(4,1)]=('red','horse')
+    assert update(m,board,1.).remaining==3.
+    board[(4,1)]=('red','sa');board[dst]=('blue','cha')
+    assert update(m,board,2.).remaining==2.
+    result=update(m,board,4.)
+    assert result.fire and result.board==moved(capture)
+    assert m.baseline==BASE
+
+
+def test_unknown_still_occupies_cell_and_is_not_a_false_departure():
+    m=armed();board=dict(BASE);board[(0,6)]=('unknown','piece')
+    assert update(m,board,1.).move is None
+    assert update(m,board,4.).move is None
+    board=moved();board[(4,1)]=('unknown','piece')
+    assert update(m,board,5.).remaining==3.
+    assert update(m,board,8.).fire
+
+
+@pytest.mark.parametrize('label',[('unknown','piece'),('red','sa')])
+def test_normal_move_can_complete_before_new_destination_kind_is_classified(label):
+    m=armed();board=moved();board[(1,6)]=label
+    assert update(m,board,1.).remaining==3.
+    result=update(m,board,4.)
+    assert result.fire and result.board==moved()
+
+
+def test_unknown_baseline_occupant_can_resolve_without_absorbing_human_move():
+    m=AutomaticTurn();base=dict(BASE);base[(4,1)]=('unknown','piece');m.set_baseline(base)
+    board=moved()
+    assert update(m,board,1.).remaining==3.
+    result=update(m,board,4.)
+    assert result.fire and result.board==moved()
+
+
+@pytest.mark.parametrize('capture',[False,True])
+def test_enabling_auto_after_human_move_compares_remembered_game_not_new_frame(monkeypatch,capture):
+    ui,clock,board,calls=make_ui(monkeypatch)
+    # Current camera already shows the human move when the button is enabled.
+    board[0]=moved(capture);ui._toggle_auto_move()
+    assert ui.auto_turn.baseline==BASE
+    clock[0]=1.;ui._tick_auto_move()
+    clock[0]=4.;ui._tick_auto_move()
+    assert calls[0]['snapshot'][0]==moved(capture)
+
+
+def test_toggling_mode_preserves_actual_home_board_instead_of_predicted_game(monkeypatch):
+    ui,clock,board,calls=make_ui(monkeypatch)
+    actual=moved(True);ui.auto_turn.set_baseline(actual)
+    ui._toggle_auto_move()
+    assert ui.auto_turn.baseline==actual and ui.rg.game.board==BASE
+
+
+def test_ui_uses_unknown_occupancy_and_remembered_identity_in_engine_snapshot(monkeypatch):
+    ui,clock,board,calls=make_ui(monkeypatch)
+    ui.auto_turn.set_baseline(BASE)
+    visible=moved();visible[(1,6)]=('unknown','piece');visible[(4,1)]=('red','horse')
+    ui.worker.automatic_state=lambda:dict(board={k:v for k,v in visible.items() if v[0]!='unknown'},
+        observed_board=dict(visible),centers={'actual':(123,456)},stamp=clock[0],clear=True,epoch=0)
+    clock[0]=1.;ui._tick_auto_move();clock[0]=4.;ui._tick_auto_move()
+    assert calls==[{'snapshot':(moved(),{'actual':(123,456)})}]
+
+
+def test_missing_capture_target_without_arrival_never_triggers():
+    m=armed();board=dict(BASE);board.pop((0,5))
+    assert update(m,board,1.).remaining is None
+    assert not update(m,board,4.).fire
+
+
+def test_physical_home_job_saves_reference_before_fast_human_move(monkeypatch):
+    ui,clock,board,calls=make_ui(monkeypatch);home=[None]
+    ui._human_phase=lambda:'사람 차례'
+    ui.worker.automatic_home_baseline=lambda since:home[0]
+    def snapshot(**kwargs):
+        kwargs['check']();home[0]=dict(BASE)
+    ui.worker.robot_snapshot=snapshot
+    class ImmediateThread:
+        def __init__(self,target,**kwargs):self.target=target
+        def start(self):self.target()
+    monkeypatch.setattr('app.threading.Thread',ImmediateThread)
+    def physical_home():ui.worker.robot_motion=True
+    clock[0]=5.;ui._robot_job('홈',physical_home)
+    assert ui.auto_turn.baseline==BASE
+    board[0]=moved();clock[0]=5.1;ui._tick_auto_move()
+    clock[0]=8.1;ui._tick_auto_move();assert len(calls)==1

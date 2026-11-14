@@ -36,6 +36,12 @@ EXTRA_DEFAULTS = {
     'mock_step_delay_sec': 0.05,
     'virtual_gripper_delay_sec': 0.4,
     'virtual_physics_feedback': False,
+    'virtual_settle_position_deg': 1.0,
+    'virtual_settle_velocity_deg_s': 5.0,
+    'virtual_settle_hold_sec': 0.05,
+    'virtual_settle_gripper_mm': 5.0,
+    'virtual_settle_gripper_velocity_rad_s': 0.06,
+    'virtual_settle_max_wait_sec': 3.0,
 }
 
 

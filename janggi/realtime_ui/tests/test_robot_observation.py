@@ -23,7 +23,7 @@ def test_manipulation_observations_use_only_new_frames_and_preserve_unassigned_o
             for _ in range(3):
                 worker._robot_views.append(dict(stamp=time.perf_counter(),objects=[
                     dict(piece_id='p1',cell=None,piece=('unknown','piece'),pixel=(100,200),confidence=.9)]))
-    result=worker.robot_snapshot(check=check)
+    result=worker.robot_snapshot(check=check,settle_sec=0.)
     assert len(result)==3 and all(v['objects'][0]['cell'] is None for v in result)
     result[0]['objects'][0]['piece_id']='changed'
     assert worker._robot_views[1]['objects'][0]['piece_id']=='p1'

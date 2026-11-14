@@ -1,0 +1,40 @@
+{
+ "output": "models/piece_classifier_cnn2/expert_soldier_po",
+ "train_groups": [
+  "video_20261109",
+  "photos_20261112",
+  "video_20261113_23043",
+  "video_20261113_23055"
+ ],
+ "group_share": [],
+ "pair_classes": [
+  "soldier",
+  "po"
+ ],
+ "epochs": 20,
+ "samples_per_epoch": 6000,
+ "batch_size": 64,
+ "lr": 0.0006,
+ "size": 224,
+ "workers": 3,
+ "seed": 0,
+ "device": "cuda:0",
+ "classes": [
+  "po",
+  "soldier"
+ ],
+ "group_counts": {
+  "video_20261109|po": 54,
+  "video_20261109|soldier": 127,
+  "photos_20261112|po": 76,
+  "photos_20261112|soldier": 190,
+  "video_20261113_23043|soldier": 6140,
+  "video_20261113_23043|po": 2456,
+  "video_20261113_23055|soldier": 1920,
+  "video_20261113_23055|po": 768
+ },
+ "augmentation": "rotation 0-360, box scale .90-1.14 shift +-7%, brightness .65-1.4, contrast .75-1.25, saturation .7-1.3, blur p.25, glare p.2",
+ "optimizer": "AdamW wd1e-4, 1 epoch warmup + cosine, label smoothing .05, AMP",
+ "pretrained": "IMAGENET1K_V1",
+ "architecture": "mobilenet_v3_small"
+}

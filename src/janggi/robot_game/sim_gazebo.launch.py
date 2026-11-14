@@ -64,7 +64,7 @@ def generate_launch_description():
         ("__NV_PRIME_RENDER_OFFLOAD", "1"), ("__GLX_VENDOR_LIBRARY_NAME", "nvidia"),
         ("__EGL_VENDOR_LIBRARY_FILENAMES", "/usr/share/glvnd/egl_vendor.d/10_nvidia.json"))]
     return LaunchDescription([
-        DeclareLaunchArgument("gpu", default_value="nvidia", description="nvidia: RTX via PRIME offload | default: system OpenGL (Intel iGPU)"),
+        DeclareLaunchArgument("gpu", default_value="default", description="default: system OpenGL (Intel iGPU) | nvidia: RTX via PRIME offload (same RTF measured; slower render-engine start)"),
         *nvidia_env,
         DeclareLaunchArgument("rviz", default_value="false"),
         DeclareLaunchArgument("gripper_mount_offset_mm", default_value="13.766",

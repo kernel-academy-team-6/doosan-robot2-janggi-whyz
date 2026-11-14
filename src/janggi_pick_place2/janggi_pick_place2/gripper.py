@@ -6,6 +6,7 @@ from collections import deque
 
 from std_msgs.msg import Int32, Int64MultiArray, String
 from .geometry import command_from_width, width_from_command
+from .executor import GripperCommandError
 
 
 def raw_position(value):
@@ -55,7 +56,7 @@ class GripperClient:
                 results=[r for r in self._results if r['position']==position and r['request_id']==issued_ns]
             if results:
                 if not results[-1]['success']:
-                    raise RuntimeError('그리퍼 노드가 명령 처리 실패를 반환했습니다.')
+                    raise GripperCommandError('그리퍼 노드가 명령 처리 실패를 반환했습니다.')
                 return
             if time.monotonic()>=deadline:
                 raise TimeoutError('그리퍼 명령 처리 응답이 없습니다. gripper_service_node를 다시 빌드/실행하세요.')

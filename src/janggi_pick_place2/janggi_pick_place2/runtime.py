@@ -17,7 +17,14 @@ def create_clients(node, prefix, settings, parameters, backend):
         gripper = VirtualGripperClient(node, prefix, parameters['virtual_gripper_delay_sec'])
         if parameters.get('virtual_physics_feedback', False):
             from .simulation_feedback import SimulationFeedback
-            feedback = SimulationFeedback(node, prefix, parameters['motion_timeout_sec'])
+            feedback = SimulationFeedback(
+                node, prefix, parameters['motion_timeout_sec'],
+                position_deg=float(parameters.get('virtual_settle_position_deg', 1.0)),
+                velocity_deg_s=float(parameters.get('virtual_settle_velocity_deg_s', 5.0)),
+                hold_sec=float(parameters.get('virtual_settle_hold_sec', .05)),
+                gripper_mm=float(parameters.get('virtual_settle_gripper_mm', 5.0)),
+                gripper_velocity_rad_s=float(parameters.get('virtual_settle_gripper_velocity_rad_s', .06)),
+                max_wait_sec=float(parameters.get('virtual_settle_max_wait_sec', 3.0)))
             robot.physics_feedback = gripper.physics_feedback = feedback
     else:
         gripper = GripperClient(node, prefix, parameters)

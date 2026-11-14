@@ -5,6 +5,7 @@ Pure geometry and injected vision/picker interfaces; no ROS calls at import time
 from dataclasses import dataclass, fields
 import math
 import numpy as np
+from observations import SnapshotTimeout, TargetNotFound
 
 
 @dataclass(frozen=True)
@@ -103,7 +104,7 @@ def locate(scene, token, expected, point, max_shift):
     candidates.sort(key=lambda o:float(np.linalg.norm(o.point[:2]-point[:2])))
     if not candidates or (len(candidates)>1 and
             np.linalg.norm(candidates[1].point[:2]-point[:2])-np.linalg.norm(candidates[0].point[:2]-point[:2])<8.):
-        raise RuntimeError('집을 말의 새 위치를 유일하게 확인하지 못했습니다. 이전 좌표로 집지 않습니다.')
+        raise TargetNotFound('집을 말의 새 위치를 유일하게 확인하지 못했습니다. 이전 좌표로 집지 않습니다.')
     return candidates[0]
 
 
@@ -121,7 +122,7 @@ def move_evidence(scenes, token, expected, source, destination, tolerance):
         occupied=any(np.linalg.norm(o.point[:2]-destination[:2])<=tolerance for o in scene)
         if dst and not src: outcomes.append('placed')
         elif src and not occupied: outcomes.append('unchanged')
-        elif (not src and not occupied and not matching
+        elif (not src and not occupied and (not matching or all(o.cell is None for o in matching))
               and not any(np.linalg.norm(o.point[:2]-source[:2])<=tolerance for o in scene)):
             outcomes.append('missing')
         else: outcomes.append('uncertain')
@@ -143,7 +144,7 @@ class ManipulationCoordinator:
 
     def scenes(self):
         frames=self.vision.robot_snapshot(samples=self.o.verification_frames,
-                                          timeout=self.o.verification_timeout_sec,check=self.check)
+                                          timeout=getattr(self,'_snapshot_timeout',self.o.verification_timeout_sec),check=self.check)
         scenes=[]
         for frame in frames:
             scene=[]
@@ -185,15 +186,34 @@ class ManipulationCoordinator:
 
     def observe_home(self):
         """Acquire only frames captured after homing has completed."""
-        self.check()
-        self.g.go_observe()
-        return self.scenes()
+        for attempt in range(3):
+            self.check()
+            self.g.go_observe()  # Motion errors/cancellation are not vision retries.
+            self._snapshot_timeout=self.o.verification_timeout_sec*(attempt+1)
+            try:return self.scenes()
+            except SnapshotTimeout as exc:
+                if attempt==2:raise
+                self.g.log(f'[영상 자동 복구 {attempt+1}/2] {exc} · 홈 복귀 후 안정화·재인식')
+                self.notify_retry('vision')
+
+    def find_at_home(self, frames, expected, point, token=None):
+        for attempt in range(3):
+            self.check()
+            try:return self.target(frames[-1],expected,point,token),frames
+            except TargetNotFound as exc:
+                if attempt==2:raise
+                self.g.log(f'[위치 자동 복구 {attempt+1}/2] {exc} · 홈에서 다시 확인')
+                self.notify_retry('vision')
+                frames=self.observe_home()
 
     def pick(self, expected, point, token=None, *, home_scenes=None):
         self.check(); self.p.set_piece_kind(expected[1])
         frames=self.observe_home() if home_scenes is None else home_scenes
         scene=frames[-1]
-        seen=self.target(scene,expected,point,token) if self.o.refresh_before_pick else None
+        if self.o.refresh_before_pick:
+            seen,frames=self.find_at_home(frames,expected,point,token)
+            scene=frames[-1]
+        else:seen=None
         target=seen.point.copy() if seen else np.asarray(point).copy()
         token=seen.piece_id if seen and seen.piece_id else token
         self.orient(scene,target,expected[1],token)
@@ -210,7 +230,7 @@ class ManipulationCoordinator:
     def capture_only(self, expected, point, *, frames=None):
         """Physical capture -> grave -> HOME observation, including the usual retry."""
         frames=self.observe_home() if frames is None else frames
-        captured=self.target(frames[-1],expected,point)
+        captured,frames=self.find_at_home(frames,expected,point)
         for attempt in range(2 if self.o.retry_move_enabled else 1):
             self.pick(expected,captured.point,captured.piece_id,home_scenes=frames)
             self.p.discard()
@@ -227,7 +247,9 @@ class ManipulationCoordinator:
     def execute(self, plan):
         frames=self.observe_home()
         initial=frames[-1]
-        own=self.target(initial,plan.piece,plan.pick_mm) if self.o.refresh_before_pick else None
+        if self.o.refresh_before_pick:
+            own,frames=self.find_at_home(frames,plan.piece,plan.pick_mm)
+        else:own=None
         token=own.piece_id if own else None
         source=own.point if own else plan.pick_mm
         if plan.captured:
@@ -237,30 +259,48 @@ class ManipulationCoordinator:
                 self.g._execution_observed=True
                 return False
         token,source=self.pick(plan.piece,source,token,home_scenes=frames)
-        self.place(plan,token,frames[-1])
+        self.attempt_place(lambda:self.place(plan,token,frames[-1]))
         frames=self.observe_home()
         if self.o.retry_move_enabled:
             destination=self.g.geom.board_to_base(*plan.dst)
-            state=move_evidence(frames,token,plan.piece,source,destination,self.o.verification_tolerance_mm)
-            self.g.log(f'[착수 확인] {state}')
-            if state=='unchanged':
-                self.g.log('[이동 재시도 1/1] 원위치에 남은 말 · 집기부터 다시 수행')
-                self.notify_retry('move')
-                token,source=self.pick(plan.piece,source,token,home_scenes=frames)
-                self.place(plan,token,frames[-1])
-                frames=self.observe_home()
-            elif state=='missing':
-                self.g.log('[놓기 재시도 1/1] 미놓임 추정 (파지 확인 아님) · 놓기만 다시 수행')
-                self.notify_retry('place')
-                self.orient(frames[-1],destination,plan.piece[1],token)
-                self.p.retry_place(*plan.dst)
-                frames=self.observe_home()
-            elif state!='placed':
-                self.g.log('[착수 확인] 관측 모호 · 추가 재시도 없이 계속 진행합니다.')
-            if state in ('unchanged','missing'):
-                final=move_evidence(frames,token,plan.piece,source,destination,self.o.verification_tolerance_mm)
-                self.g.log(f'[재시도 결과] {final}')
-                if final!='placed':
+            move_retries=place_retries=0
+            reobserved=False
+            while True:
+                self.check()
+                state=move_evidence(frames,token,plan.piece,source,destination,self.o.verification_tolerance_mm)
+                self.g.log(f'[착수 확인] {state}')
+                if state=='placed':
+                    if hasattr(self.p,'mark_place_observed'):self.p.mark_place_observed()
+                    break
+                if state=='unchanged' and move_retries<1:
+                    move_retries+=1
+                    self.g.log('[이동 재시도 1/1] 원위치에 남은 말 · 집기부터 다시 수행')
+                    self.notify_retry('move')
+                    token,source=self.pick(plan.piece,source,token,home_scenes=frames)
+                    self.attempt_place(lambda:self.place(plan,token,frames[-1]))
+                elif state=='missing' and place_retries<1:
+                    place_retries+=1
+                    self.g.log('[놓기 재시도 1/1] 미놓임 추정 (파지 확인 아님) · 놓기만 다시 수행')
+                    self.notify_retry('place')
+                    self.orient(frames[-1],destination,plan.piece[1],token)
+                    self.attempt_place(lambda:self.p.retry_place(*plan.dst))
+                elif state=='uncertain' and not reobserved:
+                    reobserved=True
+                    self.g.log('[착수 재확인] 판단 모호 · 홈에서 안정 영상을 다시 확인합니다.')
+                    self.notify_retry('vision')
+                else:
                     self.g.log('[재시도 확인] 착수 미확인 · 더 반복하지 않고 계속 진행합니다.')
+                    break
+                frames=self.observe_home()
         self.g._execution_observed=True
         return True
+
+    def attempt_place(self, action):
+        try:return action()
+        except Exception as exc:
+            # Only a failed gripper release with a completed retreat is
+            # recoverable here. Never retry robot motion errors/cancellation.
+            if not getattr(exc,'recoverable_release_failure',False) or not self.o.retry_move_enabled:
+                raise
+            self.check()
+            self.g.log(f'[놓기 명령 실패] {exc} · 홈 관측 후 필요한 재시도만 수행합니다.')

@@ -39,6 +39,7 @@ from piece_detection import BoardMapper, BoardStabilizer, piece_char  # noqa: E4
 from piece_detection.board_mapping import DEFAULT_CALIBRATION  # noqa: E402
 from piece_detection.detector import DEFAULT_MODEL, count_unique_detections, deduplicate_detections  # noqa: E402
 from rules import COLS, ROWS, Game, detect_top_side, infer_move, other  # noqa: E402
+from observations import SnapshotTimeout, stable_views
 from diagnostics import ObstructionMonitor, BoxSizeEstimator, box_label
 from classification_async import LatestClassification
 from piece_state import PieceTracker, StateStore, size_prior_metadata
@@ -340,7 +341,7 @@ class Worker:
         self.expected_robot_move = None
         self._stable_gate = False
         self._visible_cells = None
-        self._robot_views = deque(maxlen=12)
+        self._robot_views = deque(maxlen=120)  # retain a stability window even at 60–90 FPS
         if hasattr(detector, 'detect_positions'):
             def validate_move(board, src, dst):
                 from rules import Position
@@ -502,7 +503,7 @@ class Worker:
                     stable = tracked_board if tracked_board is not None else self.stab.update(raw) if self.mapper else {}
                     self.center_hist.append({d.board: d.center for d in dets if d.board is not None})
                     self.latest = (frame, dets, raw, stable)
-                    self._robot_views.append(dict(stamp=frame_started, objects=[
+                    self._robot_views.append(dict(stamp=frame_started, clear=view_status['state']=='stable', objects=[
                         dict(piece_id=d.piece_id, cell=d.board, piece=(d.side,d.kind), pixel=d.center,
                              confidence=d.conf) for d in dets]))
                     self.view_status = view_status
@@ -725,8 +726,10 @@ class Worker:
             _,detections,_,visible = self.latest
             board = {cell:piece for cell,piece in visible.items()
                      if piece[0] in SIDE_KO and piece[1] in FULL_SET}
-            centers = {d.board:d.center for d in detections if d.board in board}
-            return dict(board=board, centers=centers, stamp=self._auto_frame_stamp,
+            # Unknown classifications still occupy a cell; do not turn them
+            # into false vacancies during automatic move inference.
+            centers = {d.board:d.center for d in detections if d.board in visible}
+            return dict(board=board, observed_board=dict(visible), centers=centers, stamp=self._auto_frame_stamp,
                         clear=self.view_status['state']=='stable', epoch=self._auto_obstruction_epoch)
 
     def automatic_home_baseline(self, since):
@@ -735,7 +738,7 @@ class Worker:
             if view is None or view['stamp'] <= since:
                 return None
             return {o['cell']:o['piece'] for o in view['objects'] if o['cell'] is not None
-                    and o['piece'][0] in SIDE_KO and o['piece'][1] in FULL_SET}
+                    and o['piece'][0] in (*SIDE_KO,'unknown')}
 
     def fresh_state(self, timeout: float = 10.0, new_game=False):
         """Snapshot the currently displayed observations; never wait for a stable generation."""
@@ -750,7 +753,7 @@ class Worker:
             centers = {d.board:d.center for d in detections if d.board in board}
             return board, centers
 
-    def robot_snapshot(self, *, samples=3, timeout=3., check=lambda:None):
+    def robot_snapshot(self, *, samples=3, timeout=3., check=lambda:None, settle_sec=.3):
         """Only frames captured after this request; preserve IDs and off-grid centers."""
         started=time.monotonic()
         # frame_started uses perf_counter, which shares the monotonic clock on Linux.
@@ -760,15 +763,15 @@ class Worker:
             with self.lock:
                 if self.error:
                     raise RuntimeError('인식 오류: '+self.error)
-                views=[view for view in self._robot_views if view['stamp']>barrier]
-                if len(views)>=samples:
+                views=stable_views([view for view in self._robot_views if view['stamp']>barrier],samples,settle_sec)
+                if views:
                     # The manipulation coordinator requests these views at HOME.
                     # Retain the measured post-robot board before a fast human move.
                     self._auto_home_view = views[-1]
                     return [dict(stamp=v['stamp'],objects=[dict(o) for o in v['objects']])
                             for v in views[-samples:]]
             if time.monotonic()-started>timeout:
-                raise RuntimeError('로봇 작업용 새 카메라 프레임을 받지 못했습니다.')
+                raise SnapshotTimeout('안정된 로봇 작업용 새 카메라 프레임을 받지 못했습니다.')
             time.sleep(.02)
 
     def stop(self):
@@ -1465,6 +1468,27 @@ class App:
         def run():
             try:
                 fn()
+                # Homing and non-coordinated moves may not request a HOME
+                # snapshot themselves. Save one before yielding to the human,
+                # so a quick human move cannot become the new reference.
+                home_baseline=getattr(self.worker,'automatic_home_baseline',None)
+                snapshot=getattr(self.worker,'robot_snapshot',None)
+                if (self.worker.robot_motion and home_baseline is not None and snapshot is not None
+                        and home_baseline(job_started) is None and not self.robot_stop):
+                    def check_home_snapshot():
+                        if self.robot_stop:raise RuntimeError('정지')
+                    try:
+                        try:snapshot(check=check_home_snapshot)
+                        except SnapshotTimeout:
+                            # Reuse the bounded recovery path for explicit HOME
+                            # jobs as well as the coordinated pick/place path.
+                            if self.rg is None or not hasattr(self.rg,'go_observe'):raise
+                            from manipulation import ManipulationCoordinator, ManipulationOptions
+                            coordinator=ManipulationCoordinator(self.rg,self.worker,
+                                self.rg.cfg.manipulation or ManipulationOptions(),check_home_snapshot)
+                            coordinator.notify_retry('vision')
+                            coordinator.observe_home()
+                    except Exception as exc:self._msgs.append(f'[자동 착수 기준 판] 홈 영상 저장 실패: {exc}')
                 self.robot_phase = done_phase if done_phase is not None else self._human_phase()
             except TurnError as e:
                 self._msgs.append(f"! {e}")
@@ -1633,7 +1657,12 @@ class App:
         self._announce('로봇 정지 요청을 보냈습니다.', replace=True)
 
     def _toggle_auto_move(self):
-        self.auto_turn.reset()
+        # Mode toggling must not absorb an already completed human move as a
+        # new baseline. Prefer the retained actual home/start board.
+        baseline=self.auto_turn.baseline
+        if baseline is None and self.rg is not None and self.rg.game is not None:
+            baseline=self.rg.game.board
+        self.auto_turn.set_baseline(baseline)
         self._auto_resume_after = time.monotonic()
         self._auto_speech_key = None
         self._show_auto_status('기준 판 확인 대기' if self.auto_move_enabled.get() else '자동 착수 꺼짐')
@@ -1678,6 +1707,8 @@ class App:
         self.speech.set_volume(float(value))
 
     def _announce_robot_retry(self, kind):
+        if kind=='vision':
+            self.robot_phase='영상 자동 복구 · 홈 복귀 후 안정화·말 위치 재인식'
         self._announce(RETRY_MESSAGES[kind], replace=True)
 
     def _test_speech(self):
@@ -1743,7 +1774,7 @@ class App:
             self.auto_turn.cancel_countdown()
             self._show_auto_status('홈 복귀 후 새 영상 대기')
             return
-        result = self.auto_turn.update(state['board'], self.args.human_side, now=time.monotonic(),
+        result = self.auto_turn.update(state.get('observed_board',state['board']), self.args.human_side, now=time.monotonic(),
                                        stamp=state['stamp'], clear=state['clear'], epoch=state['epoch'])
         text = result.text
         if result.move is not None:
@@ -1752,7 +1783,8 @@ class App:
         if result.remaining is not None:
             text += f' · {result.remaining:.1f}초'
         self._show_auto_status(text, result.remaining)
-        key, announcement = automatic_notice(result, self.auto_turn.baseline or {}, state['board'])
+        detected_board=result.board if result.board is not None else state['board']
+        key, announcement = automatic_notice(result, self.auto_turn.baseline or {}, detected_board)
         old_key = getattr(self, '_auto_speech_key', None)
         if announcement and key != old_key and result.remaining <= self.auto_turn.delay_sec-.2:
             self._auto_speech_key = key
@@ -1764,8 +1796,9 @@ class App:
                            '방해가 감지되어 카운트를 초기화합니다.' if '방해' in result.text else
                            '착수 인식이 취소되었습니다.', replace=True)
         if result.fire:
-            self._msgs.append(f'[자동 착수] 사람 이동 {result.move[0]}→{result.move[1]} · 방해 없이 3초 경과')
-            self.robot_human_done(snapshot=(dict(state['board']),dict(state['centers'])))
+            kind='포획' if result.move[1] in self.auto_turn.baseline else '이동'
+            self._msgs.append(f'[자동 착수] 사람 {kind} {result.move[0]}→{result.move[1]} · 방해 없이 3초 경과')
+            self.robot_human_done(snapshot=(dict(detected_board),dict(state['centers'])))
 
     # ------------------------------------------------------------------ 그리기
     def tick(self):

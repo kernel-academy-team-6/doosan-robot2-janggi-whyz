@@ -7,6 +7,7 @@ DEFAULT_AUDIO_DIR = Path(__file__).resolve().parent / 'assets' / 'speech' / 'ko_
 MODEL_REPO = 'supertone-oss-archive/supertonic-3'
 MODEL_REVISION = 'aafc6e32416a594460b32413efc49d7fe4ce6d46'
 RETRY_MESSAGES = {
+    'vision': '영상 확인이 지연되어 홈으로 복귀한 뒤 말 위치를 다시 확인하겠습니다.',
     'move': '말이 이동하지 않아 다시 집어 옮기겠습니다.',
     'place': '말을 놓지 못한 것으로 보여 놓기를 다시 시도하겠습니다.',
     'capture': '포획할 말이 남아 있어 다시 집어 치우겠습니다.',

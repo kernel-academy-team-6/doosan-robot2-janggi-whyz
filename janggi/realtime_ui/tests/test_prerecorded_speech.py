@@ -158,7 +158,7 @@ def test_ui_check_notice_and_volume_use_cached_async_player(bank):
     finally:service.close()
 
 
-@pytest.mark.parametrize('kind',['move','place','capture'])
+@pytest.mark.parametrize('kind',['move','place','capture','vision'])
 def test_robot_retry_event_plays_matching_f1_wav_and_honors_mute(bank,kind):
     from app import App
     from speech_catalog import RETRY_MESSAGES
@@ -170,6 +170,7 @@ def test_robot_retry_event_plays_matching_f1_wav_and_honors_mute(bank,kind):
         ui._announce_robot_retry(kind)
         assert service.wait_idle(1)
         assert played==[clip_name(RETRY_MESSAGES[kind])]
+        if kind=='vision':assert '영상 자동 복구' in ui.robot_phase
         service.set_enabled(False);ui._announce_robot_retry(kind)
         assert service.wait_idle(1) and len(played)==1
     finally:service.close()

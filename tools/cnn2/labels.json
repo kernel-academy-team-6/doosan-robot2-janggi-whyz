@@ -1,0 +1,19 @@
+{
+  "_note": "Manual glyph labels per static track (tracks.json ids). video_20261113_230434 is the opening setup; 230554 track 32 is a board hinge (excluded). 230554 track 26: glyph = sang; red already has two cha (30, 13).",
+  "video_20261113_230434_569447": {
+    "28": "blue_cha", "29": "blue_cha", "2": "blue_horse", "20": "blue_horse", "24": "blue_sang", "21": "blue_sang",
+    "11": "blue_sa", "7": "blue_sa", "19": "blue_king", "25": "blue_po", "14": "blue_po",
+    "9": "blue_soldier", "5": "blue_soldier", "1": "blue_soldier", "23": "blue_soldier", "18": "blue_soldier",
+    "22": "red_cha", "4": "red_cha", "27": "red_horse", "0": "red_horse", "31": "red_sang", "16": "red_sang",
+    "30": "red_sa", "26": "red_sa", "8": "red_king", "6": "red_po", "13": "red_po",
+    "17": "red_soldier", "3": "red_soldier", "10": "red_soldier", "12": "red_soldier", "15": "red_soldier"
+  },
+  "video_20261113_230554_430911": {
+    "3": "blue_cha", "16": "blue_cha", "31": "blue_horse", "0": "blue_horse", "19": "blue_sang", "14": "blue_sang",
+    "21": "blue_sa", "9": "blue_sa", "24": "blue_king", "23": "blue_po", "25": "blue_po",
+    "8": "blue_soldier", "18": "blue_soldier", "7": "blue_soldier", "4": "blue_soldier", "10": "blue_soldier",
+    "30": "red_cha", "13": "red_cha", "5": "red_horse", "20": "red_horse", "15": "red_sang", "26": "red_sang",
+    "17": "red_sa", "11": "red_sa", "29": "red_king", "28": "red_po", "6": "red_po",
+    "2": "red_soldier", "1": "red_soldier", "12": "red_soldier", "27": "red_soldier", "22": "red_soldier"
+  }
+}
