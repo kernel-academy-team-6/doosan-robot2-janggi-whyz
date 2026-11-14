@@ -1,0 +1,20 @@
+{
+  "Before": {
+    "joint_1_ripple_rms_deg": 0.041538735955171414,
+    "joint_2_ripple_rms_deg": 0.023369790659970812,
+    "joint_3_ripple_rms_deg": 0.01855890027281546,
+    "joint_4_ripple_rms_deg": 0.07803798725828354,
+    "joint_5_ripple_rms_deg": 0.034763020110197294,
+    "joint_6_ripple_rms_deg": 0.1367995139194342,
+    "disturbance_peak_deg": 1.1630113203517032
+  },
+  "After": {
+    "joint_1_ripple_rms_deg": 0.001364857460248957,
+    "joint_2_ripple_rms_deg": 0.0009273723182720542,
+    "joint_3_ripple_rms_deg": 0.0004736420636615789,
+    "joint_4_ripple_rms_deg": 0.0016203105003452815,
+    "joint_5_ripple_rms_deg": 0.0007276527301212266,
+    "joint_6_ripple_rms_deg": 0.002597916353079132,
+    "disturbance_peak_deg": 0.5825157797169599
+  }
+}

@@ -3,7 +3,7 @@
     backend: mock
     robot_namespace: dsr01
     expected_flange_tcp_name: ''
-    tcp_length_at_6mm_mm: 160.0
+    tcp_length_at_6mm_mm: 132.6717
     # Explicit model conversion assumption; calibrate against actual position traces.
     position_unit_deg: 0.088
     # MODEL ONLY: position_cmd does not change actual gripper speed/acceleration.

@@ -1,0 +1,68 @@
+{
+  "partition": "janggi_gripper_width_83110",
+  "measurements": [
+    {
+      "command": 0,
+      "desired_width_mm": 105.89999955703884,
+      "measured_gap_mm": 105.51948853935356,
+      "gap_error_mm": -0.3805110176852793,
+      "gap_swing_mm": 0.0036605792693507055,
+      "target_joint_rad": 0.017742363708454723,
+      "samples": 49
+    },
+    {
+      "command": 200,
+      "desired_width_mm": 84.3664980411637,
+      "measured_gap_mm": 83.90190973917379,
+      "gap_error_mm": -0.46458830198990597,
+      "gap_swing_mm": 0.005026693588590092,
+      "target_joint_rad": 0.31550761869427446,
+      "samples": 49
+    },
+    {
+      "command": 400,
+      "desired_width_mm": 55.92786750740445,
+      "measured_gap_mm": 55.510925489436545,
+      "gap_error_mm": -0.4169420179679051,
+      "gap_swing_mm": 0.00402507257095408,
+      "target_joint_rad": 0.6152214535822428,
+      "samples": 49
+    },
+    {
+      "command": 619,
+      "desired_width_mm": 19.958576404790648,
+      "measured_gap_mm": 19.72102970631705,
+      "gap_error_mm": -0.23754669847359722,
+      "gap_swing_mm": 0.0030140769205182494,
+      "target_joint_rad": 0.9438678725324322,
+      "samples": 50
+    },
+    {
+      "command": 700,
+      "desired_width_mm": 6.129353399605171,
+      "measured_gap_mm": 5.982821024397269,
+      "gap_error_mm": -0.14653237520790263,
+      "gap_swing_mm": 0.0020061712462293713,
+      "target_joint_rad": 1.065361708816515,
+      "samples": 49
+    },
+    {
+      "command": 350,
+      "desired_width_mm": 63.5513174644212,
+      "measured_gap_mm": 63.14359206445282,
+      "gap_error_mm": -0.40772539996838475,
+      "gap_swing_mm": 0.004012025669617003,
+      "target_joint_rad": 0.5402183992422981,
+      "samples": 49
+    },
+    {
+      "command": 0,
+      "desired_width_mm": 105.89999955703884,
+      "measured_gap_mm": 105.57357166814054,
+      "gap_error_mm": -0.3264278888982943,
+      "gap_swing_mm": 0.0030731189796995295,
+      "target_joint_rad": 0.017742363708454723,
+      "samples": 49
+    }
+  ]
+}

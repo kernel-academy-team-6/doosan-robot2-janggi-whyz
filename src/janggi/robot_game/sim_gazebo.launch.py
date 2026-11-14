@@ -1,6 +1,6 @@
 """Virtual Doosan driver + physically simulated Gazebo robot and pieces.
 
-The emulator supplies joint targets. Gazebo PID controllers apply bounded torques;
+The emulator supplies joint targets. Gazebo joint feedback controllers apply bounded torques;
 contact, gravity and friction determine the pieces' actual motion. No pose mirror.
 """
 
@@ -8,9 +8,9 @@ import os
 import yaml
 
 from launch import LaunchDescription
-from launch.actions import DeclareLaunchArgument, IncludeLaunchDescription, ExecuteProcess
+from launch.actions import DeclareLaunchArgument, IncludeLaunchDescription, ExecuteProcess, SetEnvironmentVariable
 from launch.launch_description_sources import PythonLaunchDescriptionSource
-from launch.substitutions import LaunchConfiguration
+from launch.substitutions import LaunchConfiguration, PythonExpression
 from launch_ros.substitutions import FindPackageShare
 from launch_ros.actions import Node
 from launch.conditions import IfCondition
@@ -32,7 +32,7 @@ def generate_launch_description():
     )
     gazebo = IncludeLaunchDescription(
         PythonLaunchDescriptionSource([FindPackageShare("ros_gz_sim"), "/launch/gz_sim.launch.py"]),
-        launch_arguments={"gz_args": ["-r -v 2 ", LaunchConfiguration("world")]}.items(),
+        launch_arguments={"gz_args": ["-r -v 2 --physics-engine gz-physics-bullet-featherstone-plugin ", LaunchConfiguration("world")]}.items(),
     )
     camera_bridge = Node(
         package="ros_gz_bridge", executable="parameter_bridge", name="janggi_camera_bridge",
@@ -57,7 +57,15 @@ def generate_launch_description():
     scene = ExecuteProcess(
         cmd=["/usr/bin/python3", os.path.join(here, "gazebo_scene.py"), "--wait-for-gui", "--ns", LaunchConfiguration("name")],
         condition=IfCondition(LaunchConfiguration("scene")), output="screen")
+    # PRIME render offload: Gazebo server (camera) and GUI render on the NVIDIA GPU.
+    # Measured 2026-11-14: same RTF as the Intel iGPU (physics is the bottleneck).
+    use_nvidia = IfCondition(PythonExpression(["'", LaunchConfiguration("gpu"), "' == 'nvidia'"]))
+    nvidia_env = [SetEnvironmentVariable(name, value, condition=use_nvidia) for name, value in (
+        ("__NV_PRIME_RENDER_OFFLOAD", "1"), ("__GLX_VENDOR_LIBRARY_NAME", "nvidia"),
+        ("__EGL_VENDOR_LIBRARY_FILENAMES", "/usr/share/glvnd/egl_vendor.d/10_nvidia.json"))]
     return LaunchDescription([
+        DeclareLaunchArgument("gpu", default_value="nvidia", description="nvidia: RTX via PRIME offload | default: system OpenGL (Intel iGPU)"),
+        *nvidia_env,
         DeclareLaunchArgument("rviz", default_value="false"),
         DeclareLaunchArgument("gripper_mount_offset_mm", default_value="13.766",
                               description="Gripper mounting gap along flange link_6 local +Z [mm]"),

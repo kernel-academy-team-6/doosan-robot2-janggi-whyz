@@ -62,6 +62,7 @@ def main():
         call(FlangeSerialOpen, 'open', port=args.port, baudrate=args.baudrate,
              bytesize=8, parity=0, stopbits=1)
         opened = True
+        time.sleep(0.3)  # 시리얼 초기화 대기: 첫 write 전에 포트 안정화.
         body = bytes([args.slave, 3, 0, 0, 0, 1])
         request = list(body + crc16(body).to_bytes(2, 'little'))
         print('Model-register read only. No motion commands. Request: ' + str(request), flush=True)

@@ -120,8 +120,8 @@ class GripperClient:
     def set_position(self, position, check):
         position = raw_position(position)
         result = self._command(width_from_command(position),100,check,position_override=position)
-        # Width here is only an estimate from the old model, not a measurement.
-        result['width_source'] = 'legacy_formula_estimate'
+        # Width here is an estimate from the calibrated circle/angle model, not live feedback.
+        result['width_source'] = 'circle_angle_model_estimate'
         return result
 
     def close_session(self):
@@ -160,15 +160,16 @@ class MockGripper:
         position = raw_position(position);check()
         self.calls.append(('raw_position',position))
         self.last_command = command_state(width_from_command(position),100,'mock_raw_position')
-        self.last_command.update(commanded_position=position,wait_completed=True,width_source='legacy_formula_estimate')
+        self.last_command.update(commanded_position=position,wait_completed=True,width_source='circle_angle_model_estimate')
         return dict(self.last_command)
 
 
 class VirtualGripperClient(MockGripper):
-    """Commanded-gap animation without claiming physical contact."""
+    """Force-servo setpoints; travel-time allowance is not contact feedback."""
     def __init__(self, node, prefix, delay_sec):
         super().__init__()
         self.node, self.delay_sec = node, delay_sec
+        self._last_position = None  # a new client does not know the existing opening
         self.topic = prefix+'/gripper/stroke'
         self.stroke = node.create_publisher(Int32, prefix+'/gripper/stroke', 10)
         self.state = node.create_publisher(String, '~/gripper/state', 10)
@@ -178,19 +179,30 @@ class VirtualGripperClient(MockGripper):
         self.last_command['source'] = 'virtual_command_only'
         self.last_command['stamp_ns'] = self.node.get_clock().now().nanoseconds
         self.last_command['wait_completed'] = False
+        position = self.last_command['commanded_position']
+        # Match the bounded 8 stroke-units / 20 ms joint publisher. Waiting only
+        # 0.4 s let the arm lift before a large close/open had finished.
+        travel = 700 if self._last_position is None else abs(position-self._last_position)
+        wait_sec = max(self.delay_sec, travel/400. + .2)
+        self._last_position = None  # cancellation leaves the opening uncertain
+        self.last_command['travel_wait_sec'] = wait_sec
         observer = getattr(self, 'command_observer', None)
         if observer:
-            observer('gripper_command', dict(topic=self.topic,
-                                            position=self.last_command['commanded_position'],
+            observer('gripper_command', dict(topic=self.topic, position=position,
                                             width_mm=self.last_command['commanded_width_mm'],
-                                            wait_sec=self.delay_sec))
-        self.stroke.publish(Int32(data=self.last_command['commanded_position']))
+                                            wait_sec=wait_sec))
+        self.stroke.publish(Int32(data=position))
         self.state.publish(String(data=json.dumps(self.last_command)))
-        deadline = time.monotonic()+self.delay_sec
+        deadline = time.monotonic()+wait_sec
         while time.monotonic() < deadline:
             check()
             time.sleep(min(.02, max(0., deadline-time.monotonic())))
         check()
+        feedback = getattr(self, 'physics_feedback', None)
+        if feedback is not None:
+            feedback.gripper(self.last_command['commanded_width_mm'], check)
+            self.last_command['physical_settled'] = True
+        self._last_position = position
         self.last_command['wait_completed'] = True
         self.state.publish(String(data=json.dumps(self.last_command)))
         return dict(self.last_command)

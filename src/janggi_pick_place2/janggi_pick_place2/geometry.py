@@ -16,31 +16,51 @@ def width(value):
     return value
 
 
-def command_from_width(width_mm):
-    w = width(width_mm)
-    angle_deg = math.degrees(math.acos((w - 8.2) / 114.0))
-    return max(0, min(700, int(round((angle_deg - 30.331197) / 0.086670))))
+# User-specified circle/angle calibration, 2026-11-13. theta is radians.
+CIRCLE_HALF_WIDTH_CENTER_MM = 4.446124
+CIRCLE_Z_CENTER_FROM_OPEN_MM = -28.589039
+CIRCLE_RADIUS_MM = 56.302390
+THETA_0_RAD = 0.532602
+THETA_PER_COMMAND_RAD = 0.00151819
+# Fixed parameter (102.6717 + 30). H(c) is ADDED at evaluation time.
+FLANGE_EXTENSION_MM = 132.6717
+
+
+def gripper_theta(command):
+    c = finite(command, 'position')
+    if not 0 <= c <= 700:
+        raise ValueError(f'position must be in [0, 700], got {c}')
+    return THETA_0_RAD + THETA_PER_COMMAND_RAD*c
 
 
 def width_from_command(command):
-    u = finite(command, 'position')
-    if not 0 <= u <= 700:
-        raise ValueError(f'position must be in [0, 700], got {u}')
-    w = 8.2 + 114.0 * math.cos(math.radians(30.331197 + 0.086670 * u))
-    # Quantization/calibration may put the endpoint just outside the domain.
-    return max(6.0, min(106.0, w))
+    """W(c), model estimate only; not measured gripper feedback."""
+    return 2*(CIRCLE_HALF_WIDTH_CENTER_MM+CIRCLE_RADIUS_MM*math.cos(gripper_theta(command)))
 
 
-FLANGE_EXTENSION_MM = 160.0
+def height_from_command(command):
+    """H(c), added directly to the fixed baseline; no 700-reference subtraction."""
+    return CIRCLE_Z_CENTER_FROM_OPEN_MM+CIRCLE_RADIUS_MM*math.sin(gripper_theta(command))
+
+
+def command_from_width(width_mm):
+    w = width(width_mm)
+    cosine = (w/2-CIRCLE_HALF_WIDTH_CENTER_MM)/CIRCLE_RADIUS_MM
+    c = (math.acos(max(-1., min(1., cosine)))-THETA_0_RAD)/THETA_PER_COMMAND_RAD
+    return max(0, min(700, int(round(c))))
+
+
+def tcp_length_from_command(command, reference_length_mm=FLANGE_EXTENSION_MM):
+    """Effective extension: fixed baseline + H(c), never mutate parameters."""
+    baseline = finite(reference_length_mm, 'flange_baseline_mm')
+    if not math.isclose(baseline, FLANGE_EXTENSION_MM, abs_tol=1e-9, rel_tol=0.):
+        raise ValueError('This project requires a fixed 132.6717 mm baseline plus H(c)')
+    return baseline + height_from_command(command)
 
 
 def tcp_length(width_mm, reference_length_mm=FLANGE_EXTENSION_MM):
-    """Exactly one fixed extension from joint-6 flange; jaw width changes no TCP."""
-    width(width_mm)  # Keep input validation; width affects jaw command only.
-    length = finite(reference_length_mm, 'flange_extension_mm')
-    if not math.isclose(length, FLANGE_EXTENSION_MM, abs_tol=1e-9, rel_tol=0.):
-        raise ValueError('This project requires a fixed 160 mm extension from the joint-6 flange')
-    return FLANGE_EXTENSION_MM
+    """Invert desired width to the actual integer command, then add its H(c)."""
+    return tcp_length_from_command(command_from_width(width_mm), reference_length_mm)
 
 
 def flange_pose(target, object_width_mm, reference_length_mm):

@@ -12,13 +12,15 @@ def main():
     parser.add_argument('--output',type=Path,default=Path(__file__).resolve().parent/'calibrations/gripper_height'/datetime.now().strftime('%Y%m%d_%H%M%S_%f'))
     parser.add_argument('--resume',type=Path,help='중단한 measurements.csv로 재개')
     parser.add_argument('--fit',type=Path,help='GUI/ROS 없이 measurements.csv 피팅 및 리포트 생성')
-    parser.add_argument('--velocity',type=float,default=10.,help='이 도구의 직선 속도 mm/s')
-    parser.add_argument('--acceleration',type=float,default=20.,help='직선 가속도 mm/s²')
-    parser.add_argument('--angular-velocity',type=float,default=10.,help='회전/홈 속도 °/s')
-    parser.add_argument('--angular-acceleration',type=float,default=20.,help='회전/홈 가속도 °/s²')
+    parser.add_argument('--velocity',type=float,default=120.,help='XY 직선 속도 mm/s (기본 120)')
+    parser.add_argument('--acceleration',type=float,default=240.,help='XY 직선 가속도 mm/s² (기본 240)')
+    parser.add_argument('--angular-velocity',type=float,default=60.,help='회전/홈 속도 °/s (기본 60)')
+    parser.add_argument('--angular-acceleration',type=float,default=120.,help='회전/홈 가속도 °/s² (기본 120)')
+    parser.add_argument('--z-velocity',type=float,default=10.,help='Z 미세 이동 속도 mm/s (기본 10)')
+    parser.add_argument('--z-acceleration',type=float,default=20.,help='Z 미세 이동 가속도 mm/s² (기본 20)')
     args=parser.parse_args()
     from gripper_height.model import number
-    for field in ('velocity','acceleration','angular_velocity','angular_acceleration'):
+    for field in ('velocity','acceleration','angular_velocity','angular_acceleration','z_velocity','z_acceleration'):
         if number(getattr(args,field),field)<=0:parser.error('속도·가속도는 양수여야 합니다.')
     if args.fit:
         from gripper_height.model import MeasurementSession

@@ -1,0 +1,47 @@
+{
+  "label": "before",
+  "partition": "janggi_dynamics_101571",
+  "samples": 9564,
+  "joints": {
+    "joint_1": {
+      "hold_error_deg": -0.00013160451448968697,
+      "hold_peak_to_peak_deg": 0.0067520567052063996
+    },
+    "joint_2": {
+      "hold_error_deg": 0.3282229195688579,
+      "hold_peak_to_peak_deg": 0.010802599080022271
+    },
+    "joint_3": {
+      "hold_error_deg": 0.9065038726050497,
+      "hold_peak_to_peak_deg": 0.031236294611116096
+    },
+    "joint_4": {
+      "hold_error_deg": -0.045571164534231726,
+      "hold_peak_to_peak_deg": 0.029146319334053733
+    },
+    "joint_5": {
+      "hold_error_deg": -0.09636562095010184,
+      "hold_peak_to_peak_deg": 0.03607391957852508
+    },
+    "joint_6": {
+      "hold_error_deg": -3.07451879889202,
+      "hold_peak_to_peak_deg": 0.22500052621653688
+    },
+    "gripper_rh_l1": {
+      "hold_error_deg": -1.0486275643476886,
+      "hold_peak_to_peak_deg": 0.012994704223729408
+    },
+    "gripper_rh_l2": {
+      "hold_error_deg": -4.5016025580314745,
+      "hold_peak_to_peak_deg": 0.09104134734375983
+    },
+    "gripper_rh_r1": {
+      "hold_error_deg": -1.0520543067765977,
+      "hold_peak_to_peak_deg": 0.019879534987493962
+    },
+    "gripper_rh_r2": {
+      "hold_error_deg": -4.615835264821344,
+      "hold_peak_to_peak_deg": 0.08866061314807058
+    }
+  }
+}

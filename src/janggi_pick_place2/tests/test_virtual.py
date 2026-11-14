@@ -81,3 +81,37 @@ def test_virtual_arm_accepts_virtual_system_and_checks_tcp(monkeypatch):
     robot.check_tcp(lambda: None)
     robot.stop()
     assert called == ['tcp', 'stop']
+
+
+@pytest.mark.parametrize('first_position', [0, 700])
+def test_virtual_full_travel_waits_for_the_servo_and_preserves_cancel(monkeypatch, first_position):
+    import janggi_pick_place2.gripper as module
+    clock=[0.]
+    monkeypatch.setattr(module.time,'monotonic',lambda:clock[0])
+    monkeypatch.setattr(module.time,'sleep',lambda seconds:clock.__setitem__(0,clock[0]+seconds))
+    gripper=VirtualGripperClient(Node(),'/isolated',.4)
+    result=gripper.set_position(first_position,lambda:None)
+    assert result['travel_wait_sec']==pytest.approx(1.95)
+    assert clock[0]>=1.95
+    assert not result['grip_verified']  # a time allowance is not grasp sensing
+    result=gripper.set_position(40 if first_position==0 else 660,lambda:None)
+    assert result['travel_wait_sec']==pytest.approx(.4)
+
+
+def test_virtual_cancelled_travel_does_not_assume_commanded_opening(monkeypatch):
+    import janggi_pick_place2.gripper as module
+    clock=[0.]
+    monkeypatch.setattr(module.time,'monotonic',lambda:clock[0])
+    monkeypatch.setattr(module.time,'sleep',lambda seconds:clock.__setitem__(0,clock[0]+seconds))
+    gripper=VirtualGripperClient(Node(),'/isolated',.4)
+    gripper.set_position(0,lambda:None)
+    cancel_at=clock[0]+.1
+    def cancelled_during_wait():
+        if clock[0]>=cancel_at:
+            raise OperationCancelled()
+    with pytest.raises(OperationCancelled):
+        gripper.set_position(700,cancelled_during_wait)
+    assert not gripper.last_command['wait_completed']
+    # Retrying the same goal must allow a full travel, not just the 0.4 s minimum.
+    result=gripper.set_position(700,lambda:None)
+    assert result['travel_wait_sec']==pytest.approx(1.95)

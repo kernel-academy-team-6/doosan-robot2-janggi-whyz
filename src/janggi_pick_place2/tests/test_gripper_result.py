@@ -61,4 +61,4 @@ def test_raw_command_does_not_round_trip_through_width_formula(command):
     h.position_cmd.publish=publish
     result=h.set_position(command,lambda:None)
     assert sent==[command] and result['commanded_position']==command
-    assert result['width_source']=='legacy_formula_estimate'
+    assert result['width_source']=='circle_angle_model_estimate'

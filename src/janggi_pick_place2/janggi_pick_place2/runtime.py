@@ -15,6 +15,10 @@ def create_clients(node, prefix, settings, parameters, backend):
         # Joint targets feed the Gazebo force controllers. This never moves or
         # attaches a piece; contact and gravity still determine its motion.
         gripper = VirtualGripperClient(node, prefix, parameters['virtual_gripper_delay_sec'])
+        if parameters.get('virtual_physics_feedback', False):
+            from .simulation_feedback import SimulationFeedback
+            feedback = SimulationFeedback(node, prefix, parameters['motion_timeout_sec'])
+            robot.physics_feedback = gripper.physics_feedback = feedback
     else:
         gripper = GripperClient(node, prefix, parameters)
     return robot, gripper

@@ -1,4 +1,4 @@
-"""Fresh-vision grasp direction selection and bounded, evidence-based retries.
+"""Home-only vision targets, fixed grasp attitude, and bounded visual retries.
 
 Pure geometry and injected vision/picker interfaces; no ROS calls at import time.
 """
@@ -9,7 +9,7 @@ import numpy as np
 
 @dataclass(frozen=True)
 class ManipulationOptions:
-    adaptive_grasp_enabled: bool = True
+    adaptive_grasp_enabled: bool = False
     refresh_before_pick: bool = True
     retry_move_enabled: bool = True
     verification_frames: int = 3
@@ -22,7 +22,8 @@ class ManipulationOptions:
 
     @classmethod
     def from_parameters(cls, parameters):
-        result=cls(**{f.name:parameters[f.name] for f in fields(cls) if f.name in parameters})
+        result=cls(**{f.name:parameters[f.name] for f in fields(cls)
+                      if f.name in parameters and f.name!='adaptive_grasp_enabled'})
         for name in ('adaptive_grasp_enabled','refresh_before_pick','retry_move_enabled'):
             if not isinstance(getattr(result,name),bool): raise ValueError(f'{name} must be boolean')
         if not isinstance(result.verification_frames,int) or not 1<=result.verification_frames<=6:
@@ -72,6 +73,27 @@ def choose_yaw(point, neighbors, grip_width, open_width, preferred, options):
     return best[1],best[2]
 
 
+def choose_orthogonal_direction(point,neighbors,grip_width,open_width,home_yaw,options):
+    """Count pieces in the two jaw swept corridors; choose only 0/90deg.
+
+    Counts are a preference, never a clearance constraint or a stop condition.
+    A tie retains the original flat direction. Far-away pieces do not vote.
+    """
+    counts=[]
+    for offset in (0.,90.):
+        angle=math.radians(home_yaw+offset);c,s=math.cos(angle),math.sin(angle)
+        count=0
+        for neighbor in neighbors:
+            dx,dy=neighbor.point[:2]-np.asarray(point)[:2]
+            x,y=dx*c+dy*s,-dx*s+dy*c
+            a=grip_width/2;b=open_width/2+options.finger_depth_mm
+            distance=min(rectangle_distance(x,y,a,b,options.finger_half_width_mm),
+                         rectangle_distance(-x,y,a,b,options.finger_half_width_mm))
+            if distance<=neighbor.radius+options.neighbor_clearance_mm:count+=1
+        counts.append(count)
+    return (90. if counts[1]<counts[0] else 0.),tuple(counts)
+
+
 def locate(scene, token, expected, point, max_shift):
     candidates=[o for o in scene if o.piece==expected and np.linalg.norm(o.point[:2]-point[:2])<=max_shift]
     if token is not None:
@@ -111,6 +133,14 @@ class ManipulationCoordinator:
         self.g,self.vision,self.o,self.check=game,vision,options,check
         self.p=game.picker
 
+    def notify_retry(self, kind):
+        """Optional nonblocking UI notice; audio failure cannot stop manipulation."""
+        callback=getattr(self.g,'on_manipulation_retry',None)
+        if callback is not None:
+            try:callback(kind)
+            except Exception as exc:
+                self.g.log(f'[재시도 안내 오류] {exc}')
+
     def scenes(self):
         frames=self.vision.robot_snapshot(samples=self.o.verification_frames,
                                           timeout=self.o.verification_timeout_sec,check=self.check)
@@ -135,92 +165,102 @@ class ManipulationCoordinator:
         return locate(scene,token,expected,np.asarray(point),self.o.pick_refresh_max_shift_mm)
 
     def orient(self, scene, point, kind, token=None):
-        if not self.o.adaptive_grasp_enabled:
-            self.p.set_operation_yaw(None); return
+        self.p.set_operation_yaw(None)
+        if getattr(self.p,'yaw',None) is not None:
+            return  # Explicit absolute-yaw CLI remains an operator override.
         group=2 if kind=='king' else 0 if kind in ('sa','soldier') else 1
-        width=self.p.settings.piece_grip_widths_mm[group]
-        opening=width+max(self.p.settings.default_opening_allowance_mm,self.p.settings.release_extra_width_mm)
+        settings=getattr(self.p,'settings',None)
+        width=settings.piece_grip_widths_mm[group] if settings else (20.,26.,32.)[group]
+        allowance=max(settings.default_opening_allowance_mm,settings.release_extra_width_mm) if settings else 10.
         neighbors=[o for o in scene if not (token and o.piece_id==token)
                    and np.linalg.norm(o.point[:2]-np.asarray(point)[:2])>2.]
-        yaw,clearance=choose_yaw(point,neighbors,width,opening,self.p.current_yaw(),self.o)
-        if clearance<0:
-            raise RuntimeError(f'주변 말과 손가락 사이 여유가 부족합니다 (최선 {clearance:.1f}mm).')
-        self.g.log(f'[집기 방향] yaw={yaw:.1f}° · 최소 추정 여유={clearance:.1f}mm')
-        self.p.set_operation_yaw(yaw)
+        home_yaw=self.p.home_grasp_yaw() if hasattr(self.p,'home_grasp_yaw') else 0.
+        offset,counts=choose_orthogonal_direction(point,neighbors,width,width+allowance,home_yaw,self.o)
+        self.g.log(f'[집기 방향] 기본 방향 주변 {counts[0]}개 · 직교 방향 {counts[1]}개 · 선택 +{offset:g}°')
+        if offset:
+            if hasattr(self.p,'set_orthogonal_grasp'):
+                self.p.set_orthogonal_grasp(offset)
+            else:
+                self.p.set_operation_yaw(home_yaw+offset)
 
-    def pick(self, expected, point, token=None):
+    def observe_home(self):
+        """Acquire only frames captured after homing has completed."""
+        self.check()
+        self.g.go_observe()
+        return self.scenes()
+
+    def pick(self, expected, point, token=None, *, home_scenes=None):
         self.check(); self.p.set_piece_kind(expected[1])
-        scene=self.scenes()[-1]
+        frames=self.observe_home() if home_scenes is None else home_scenes
+        scene=frames[-1]
         seen=self.target(scene,expected,point,token) if self.o.refresh_before_pick else None
-        target=seen.point if seen else np.asarray(point)
+        target=seen.point.copy() if seen else np.asarray(point).copy()
         token=seen.piece_id if seen and seen.piece_id else token
         self.orient(scene,target,expected[1],token)
-        actual=[np.asarray(target).copy()]
-        def refresh():
-            nonlocal token
-            fresh=self.scenes()[-1]
-            try: updated=self.target(fresh,expected,actual[0],token)
-            except RuntimeError:
-                # The wrist can occlude the piece. Retract and re-image once;
-                # never silently substitute the original planned coordinate.
-                self.g.log('[집기 재인식] 가림/위치 불명확 · 관찰 자세에서 다시 확인')
-                self.g.go_observe(); fresh=self.scenes()[-1]
-                updated=self.target(fresh,expected,actual[0],token)
-            actual[0]=updated.point
-            if updated.piece_id is not None: token=updated.piece_id
-            self.orient(fresh,actual[0],expected[1],token)
-            self.g.log(f'[집기 직전 위치] {np.round(actual[0][:2],2).tolist()}mm')
-            return actual[0]
-        self.p.pick_abs(target,refresh=refresh if self.o.refresh_before_pick else None)
-        return token,actual[0]
+        self.g.log(f'[홈에서 집기 위치 확인] {np.round(target[:2],2).tolist()}mm')
+        # No callback / camera lookup after the arm leaves home.
+        self.p.pick_abs(target)
+        return token,target
 
     def place(self, plan, token, scene):
         point=self.g.geom.board_to_base(*plan.dst)
-        if any((not token or o.piece_id!=token) and np.linalg.norm(o.point[:2]-point[:2])<=self.o.verification_tolerance_mm for o in scene):
-            raise RuntimeError('놓을 위치에 다른 말이 관측되어 플레이스를 실행하지 않았습니다.')
         self.orient(scene,point,plan.piece[1],token)
         self.p.place(*plan.dst)
 
+    def capture_only(self, expected, point, *, frames=None):
+        """Physical capture -> grave -> HOME observation, including the usual retry."""
+        frames=self.observe_home() if frames is None else frames
+        captured=self.target(frames[-1],expected,point)
+        for attempt in range(2 if self.o.retry_move_enabled else 1):
+            self.pick(expected,captured.point,captured.piece_id,home_scenes=frames)
+            self.p.discard()
+            frames=self.observe_home()
+            remains=any(np.linalg.norm(o.point[:2]-captured.point[:2])<=self.o.verification_tolerance_mm
+                        for o in frames[-1])
+            if not remains:return frames,True
+            if attempt==0 and self.o.retry_move_enabled:
+                self.g.log('[포획 재시도] 상대 말이 남아 있어 한 번 더 치웁니다.')
+                self.notify_retry('capture')
+        self.g.log('[포획 확인] 말이 남아 보입니다.')
+        return frames,False
+
     def execute(self, plan):
-        initial=self.scenes()[-1]
+        frames=self.observe_home()
+        initial=frames[-1]
         own=self.target(initial,plan.piece,plan.pick_mm) if self.o.refresh_before_pick else None
         token=own.piece_id if own else None
         source=own.point if own else plan.pick_mm
         if plan.captured:
-            captured=self.target(initial,plan.captured,plan.capture_mm)
-            for attempt in range(2 if self.o.retry_move_enabled else 1):
-                self.pick(plan.captured,captured.point,captured.piece_id)
-                self.p.discard(); self.g.go_observe()
-                clear=self.scenes()[-1]
-                if not any(np.linalg.norm(o.point[:2]-captured.point[:2])<=self.o.verification_tolerance_mm for o in clear): break
-                if attempt==0 and self.o.retry_move_enabled:
-                    self.g.log('[포획 재시도] 상대 말이 남아 있어 한 번 더 치웁니다.')
-                else: raise RuntimeError('포획 말이 남아 있어 자기 말 착수를 진행하지 않았습니다.')
-        token,source=self.pick(plan.piece,source,token)
-        self.place(plan,token,self.scenes()[-1])
-        self.g.go_observe()
+            frames,cleared=self.capture_only(plan.captured,plan.capture_mm,frames=frames)
+            if not cleared and plan.captured[1]=='king':
+                self.g.log('[궁 포획 미확인] 승리를 선언하지 않습니다. 현재 판에서 다시 시도하세요.')
+                self.g._execution_observed=True
+                return False
+        token,source=self.pick(plan.piece,source,token,home_scenes=frames)
+        self.place(plan,token,frames[-1])
+        frames=self.observe_home()
         if self.o.retry_move_enabled:
             destination=self.g.geom.board_to_base(*plan.dst)
-            state=move_evidence(self.scenes(),token,plan.piece,source,destination,self.o.verification_tolerance_mm)
+            state=move_evidence(frames,token,plan.piece,source,destination,self.o.verification_tolerance_mm)
             self.g.log(f'[착수 확인] {state}')
             if state=='unchanged':
                 self.g.log('[이동 재시도 1/1] 원위치에 남은 말 · 집기부터 다시 수행')
-                token,source=self.pick(plan.piece,source,token)
-                self.place(plan,token,self.scenes()[-1]); self.g.go_observe()
+                self.notify_retry('move')
+                token,source=self.pick(plan.piece,source,token,home_scenes=frames)
+                self.place(plan,token,frames[-1])
+                frames=self.observe_home()
             elif state=='missing':
                 self.g.log('[놓기 재시도 1/1] 미놓임 추정 (파지 확인 아님) · 놓기만 다시 수행')
-                scene=self.scenes()[-1]
-                if any(np.linalg.norm(o.point[:2]-destination[:2])<=self.o.verification_tolerance_mm for o in scene):
-                    raise RuntimeError('재시도 전에 목표 위치에 말이 관측되어 놓기를 반복하지 않았습니다.')
-                self.orient(scene,destination,plan.piece[1],token)
-                self.p.retry_place(*plan.dst); self.g.go_observe()
+                self.notify_retry('place')
+                self.orient(frames[-1],destination,plan.piece[1],token)
+                self.p.retry_place(*plan.dst)
+                frames=self.observe_home()
             elif state!='placed':
-                if hasattr(self.p,'mark_holding_unknown'): self.p.mark_holding_unknown()
-                raise RuntimeError('착수 관측이 모호하여 자동 재시도하지 않았습니다.')
+                self.g.log('[착수 확인] 관측 모호 · 추가 재시도 없이 계속 진행합니다.')
             if state in ('unchanged','missing'):
-                final=move_evidence(self.scenes(),token,plan.piece,source,destination,self.o.verification_tolerance_mm)
+                final=move_evidence(frames,token,plan.piece,source,destination,self.o.verification_tolerance_mm)
                 self.g.log(f'[재시도 결과] {final}')
                 if final!='placed':
-                    if final!='unchanged' and hasattr(self.p,'mark_holding_unknown'): self.p.mark_holding_unknown()
-                    raise RuntimeError('한 번 재시도 후에도 착수를 확인하지 못했습니다.')
+                    self.g.log('[재시도 확인] 착수 미확인 · 더 반복하지 않고 계속 진행합니다.')
         self.g._execution_observed=True
+        return True

@@ -9,3 +9,8 @@ __pycache__/
 /models/piece_classifier/
 /.vscode/browse.vc.db*
 /tools/calibrations/gripper_height/
+
+# Offline Supertonic generation environment/model; never version external weights.
+/tools/.venv-supertonic/
+/tools/tts/model/
+/janggi/realtime_ui/assets/speech/ko_F1/

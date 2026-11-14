@@ -1,0 +1,273 @@
+<sdf version="1.11"><world name="isolated_dynamics"><physics name="1ms" type="ignored"><max_step_size>.001</max_step_size><real_time_factor>1</real_time_factor></physics><plugin filename="gz-sim-physics-system" name="gz::sim::systems::Physics"><engine><filename>gz-physics-bullet-featherstone-plugin</filename></engine></plugin><model name="janggi_physics_robot">
+    <joint name="world_fixed" type="fixed">
+      <pose relative_to="__model__">0 0 0.40000000000000002 3.1415926535897931 1.224646799147353e-16 3.1415926535897931</pose>
+      <parent>world</parent>
+      <child>gripper_rh_p12_rn_base</child>
+    </joint>
+    <link name="gripper_rh_p12_rn_base">
+      <pose relative_to="world_fixed">0 0 0 0 0 0</pose>
+      <inertial>
+        <pose>-3.1080792683800001e-19 4.7384320541200001e-08 0.031926173034799998 0 0 0</pose>
+        <mass>0.32000000000000001</mass>
+        <inertia>
+          <ixx>0.00022629134200600001</ixx>
+          <ixy>-1.78182823855e-21</ixy>
+          <ixz>-2.3690812008600001e-20</ixz>
+          <iyy>0.00014967901358699999</iyy>
+          <iyz>8.2562953672300002e-10</iyz>
+          <izz>0.000228019272015</izz>
+        </inertia>
+      </inertial>
+      <collision name="gripper_rh_p12_rn_base_collision">
+        <pose>0 0 0 0 0 0</pose>
+        <geometry>
+          <mesh optimization="convex_decomposition">
+            <scale>0.001 0.001 0.001</scale>
+            <uri>file:///home/cse/doosan_janggi_ws/install/rh_p12_rn_a_description/share/rh_p12_rn_a_description/meshes/base.stl</uri>
+          <convex_decomposition><max_convex_hulls>1</max_convex_hulls><voxel_resolution>10000</voxel_resolution></convex_decomposition></mesh>
+        </geometry>
+      <surface><friction><ode><mu>1.0</mu><mu2>1.0</mu2></ode><bullet><friction>1.0</friction><friction2>1.0</friction2></bullet></friction></surface></collision>
+      <visual name="gripper_rh_p12_rn_base_visual">
+        <pose>0 0 0 0 0 0</pose>
+        <geometry>
+          <mesh>
+            <scale>0.001 0.001 0.001</scale>
+            <uri>file:///home/cse/doosan_janggi_ws/install/rh_p12_rn_a_description/share/rh_p12_rn_a_description/meshes/base.stl</uri>
+          </mesh>
+        </geometry>
+        <material>
+          <diffuse>0.25 0.25 0.25 1</diffuse>
+          <ambient>0.25 0.25 0.25 1</ambient>
+        </material>
+      </visual>
+    </link>
+    <joint name="gripper_rh_l1" type="revolute">
+      <pose relative_to="gripper_rh_p12_rn_base">0 -0.0080000000000000002 0.048000000000000001 0 0 0</pose>
+      <parent>gripper_rh_p12_rn_base</parent>
+      <child>gripper_rh_p12_rn_l1</child>
+      <axis>
+        <xyz>-1 0 0</xyz>
+        <limit>
+          <lower>0</lower>
+          <upper>1.1191891257090001</upper>
+          <effort>2</effort>
+          <velocity>0.65000000000000002</velocity>
+        </limit>
+        <dynamics>
+          <damping>0.02</damping>
+          <friction>0</friction>
+          <spring_reference>0</spring_reference>
+          <spring_stiffness>0</spring_stiffness>
+        </dynamics>
+      <mimic joint="gripper_rh_r1" axis="axis"><multiplier>1</multiplier></mimic></axis>
+    </joint>
+    <link name="gripper_rh_p12_rn_l1">
+      <pose relative_to="gripper_rh_l1">0 0 0 0 0 0</pose>
+      <inertial>
+        <pose>5.4711988534599997e-21 -0.034267772940499999 0.0041913991546299999 0 0 0</pose>
+        <mass>0.068000000000000005</mass>
+        <inertia>
+          <ixx>3.6308235427199998e-05</ixx>
+          <ixy>3.7186342187400002e-22</ixy>
+          <ixz>-1.0109185654100001e-21</ixz>
+          <iyy>2.00318984375e-05</iyy>
+          <iyz>6.6582934839000001e-06</iyz>
+          <izz>2.3937670323e-05</izz>
+        </inertia>
+      </inertial>
+      <collision name="gripper_rh_p12_rn_l1_collision">
+        <pose>0 0 0 0 0 0</pose>
+        <geometry>
+          <mesh optimization="convex_decomposition">
+            <scale>0.001 0.001 0.001</scale>
+            <uri>file:///home/cse/doosan_janggi_ws/install/rh_p12_rn_a_description/share/rh_p12_rn_a_description/meshes/l1.stl</uri>
+          <convex_decomposition><max_convex_hulls>1</max_convex_hulls><voxel_resolution>10000</voxel_resolution></convex_decomposition></mesh>
+        </geometry>
+      <surface><friction><ode><mu>1.0</mu><mu2>1.0</mu2></ode><bullet><friction>1.0</friction><friction2>1.0</friction2></bullet></friction></surface></collision>
+      <visual name="gripper_rh_p12_rn_l1_visual">
+        <pose>0 0 0 0 0 0</pose>
+        <geometry>
+          <mesh>
+            <scale>0.001 0.001 0.001</scale>
+            <uri>file:///home/cse/doosan_janggi_ws/install/rh_p12_rn_a_description/share/rh_p12_rn_a_description/meshes/l1.stl</uri>
+          </mesh>
+        </geometry>
+        <material>
+          <diffuse>0.25 0.25 0.25 1</diffuse>
+          <ambient>0.25 0.25 0.25 1</ambient>
+        </material>
+      </visual>
+    </link>
+    <joint name="gripper_rh_l2" type="revolute">
+      <pose relative_to="gripper_rh_p12_rn_l1">0 -0.049363400000000002 0.028500000000000001 0 0 0</pose>
+      <parent>gripper_rh_p12_rn_l1</parent>
+      <child>gripper_rh_p12_rn_l2</child>
+      <axis>
+        <xyz>1 0 0</xyz>
+        <limit>
+          <lower>0</lower>
+          <upper>1.1191891257090001</upper>
+          <effort>2</effort>
+          <velocity>0.65000000000000002</velocity>
+        </limit>
+        <dynamics>
+          <damping>0.02</damping>
+          <friction>0</friction>
+          <spring_reference>0</spring_reference>
+          <spring_stiffness>0</spring_stiffness>
+        </dynamics>
+      <mimic joint="gripper_rh_r1" axis="axis"><multiplier>1</multiplier></mimic></axis>
+    </joint>
+    <link name="gripper_rh_p12_rn_l2">
+      <pose relative_to="gripper_rh_l2">0 0 0 0 0 0</pose>
+      <inertial>
+        <pose>6.3206661291399998e-19 -0.0064215055087899998 0.011245596762600001 0 0 0</pose>
+        <mass>0.021999999999999999</mass>
+        <inertia>
+          <ixx>4.9140037206500002e-06</ixx>
+          <ixy>-4.3335887542099999e-23</ixy>
+          <ixz>-2.1045367910499999e-22</ixz>
+          <iyy>5.4966278762399999e-06</iyy>
+          <iyz>-8.3394619362699997e-07</iyz>
+          <izz>1.8960425110699999e-06</izz>
+        </inertia>
+      </inertial>
+      <collision name="gripper_rh_p12_rn_l2_collision">
+        <pose>0 0 0 0 0 0</pose>
+        <geometry>
+          <mesh optimization="convex_decomposition">
+            <scale>0.001 0.001 0.001</scale>
+            <uri>file:///home/cse/doosan_janggi_ws/install/rh_p12_rn_a_description/share/rh_p12_rn_a_description/meshes/l2.stl</uri>
+          <convex_decomposition><max_convex_hulls>1</max_convex_hulls><voxel_resolution>10000</voxel_resolution></convex_decomposition></mesh>
+        </geometry>
+      <surface><friction><ode><mu>1.0</mu><mu2>1.0</mu2></ode><bullet><friction>1.0</friction><friction2>1.0</friction2></bullet></friction></surface></collision>
+      <visual name="gripper_rh_p12_rn_l2_visual">
+        <pose>0 0 0 0 0 0</pose>
+        <geometry>
+          <mesh>
+            <scale>0.001 0.001 0.001</scale>
+            <uri>file:///home/cse/doosan_janggi_ws/install/rh_p12_rn_a_description/share/rh_p12_rn_a_description/meshes/l2.stl</uri>
+          </mesh>
+        </geometry>
+        <material>
+          <diffuse>0.25 0.25 0.25 1</diffuse>
+          <ambient>0.25 0.25 0.25 1</ambient>
+        </material>
+      </visual>
+    </link>
+    <joint name="gripper_rh_r1" type="revolute">
+      <pose relative_to="gripper_rh_p12_rn_base">0 0.0080000000000000002 0.048000000000000001 0 0 0</pose>
+      <parent>gripper_rh_p12_rn_base</parent>
+      <child>gripper_rh_p12_rn_r1</child>
+      <axis>
+        <xyz>1 0 0</xyz>
+        <limit>
+          <lower>0</lower>
+          <upper>1.1191891257090001</upper>
+          <effort>2</effort>
+          <velocity>0.65000000000000002</velocity>
+        </limit>
+        <dynamics>
+          <damping>0.02</damping>
+          <friction>0</friction>
+          <spring_reference>0</spring_reference>
+          <spring_stiffness>0</spring_stiffness>
+        </dynamics>
+      </axis>
+    </joint>
+    <link name="gripper_rh_p12_rn_r1">
+      <pose relative_to="gripper_rh_r1">0 0 0 0 0 0</pose>
+      <inertial>
+        <pose>1.8944026030100001e-19 0.034267772940499999 0.0041913991546299999 0 0 0</pose>
+        <mass>0.068000000000000005</mass>
+        <inertia>
+          <ixx>3.6308235427199998e-05</ixx>
+          <ixy>3.20348029546e-21</ixy>
+          <ixz>1.2153787219900001e-21</ixz>
+          <iyy>2.00318984375e-05</iyy>
+          <iyz>-6.6582934839000001e-06</iyz>
+          <izz>2.3937670323e-05</izz>
+        </inertia>
+      </inertial>
+      <collision name="gripper_rh_p12_rn_r1_collision">
+        <pose>0 0 0 0 0 0</pose>
+        <geometry>
+          <mesh optimization="convex_decomposition">
+            <scale>0.001 0.001 0.001</scale>
+            <uri>file:///home/cse/doosan_janggi_ws/install/rh_p12_rn_a_description/share/rh_p12_rn_a_description/meshes/r1.stl</uri>
+          <convex_decomposition><max_convex_hulls>1</max_convex_hulls><voxel_resolution>10000</voxel_resolution></convex_decomposition></mesh>
+        </geometry>
+      <surface><friction><ode><mu>1.0</mu><mu2>1.0</mu2></ode><bullet><friction>1.0</friction><friction2>1.0</friction2></bullet></friction></surface></collision>
+      <visual name="gripper_rh_p12_rn_r1_visual">
+        <pose>0 0 0 0 0 0</pose>
+        <geometry>
+          <mesh>
+            <scale>0.001 0.001 0.001</scale>
+            <uri>file:///home/cse/doosan_janggi_ws/install/rh_p12_rn_a_description/share/rh_p12_rn_a_description/meshes/r1.stl</uri>
+          </mesh>
+        </geometry>
+        <material>
+          <diffuse>0.25 0.25 0.25 1</diffuse>
+          <ambient>0.25 0.25 0.25 1</ambient>
+        </material>
+      </visual>
+    </link>
+    <joint name="gripper_rh_r2" type="revolute">
+      <pose relative_to="gripper_rh_p12_rn_r1">0 0.049363400000000002 0.028500000000000001 0 0 0</pose>
+      <parent>gripper_rh_p12_rn_r1</parent>
+      <child>gripper_rh_p12_rn_r2</child>
+      <axis>
+        <xyz>-1 0 0</xyz>
+        <limit>
+          <lower>0</lower>
+          <upper>1.1191891257090001</upper>
+          <effort>2</effort>
+          <velocity>0.65000000000000002</velocity>
+        </limit>
+        <dynamics>
+          <damping>0.02</damping>
+          <friction>0</friction>
+          <spring_reference>0</spring_reference>
+          <spring_stiffness>0</spring_stiffness>
+        </dynamics>
+      <mimic joint="gripper_rh_r1" axis="axis"><multiplier>1</multiplier></mimic></axis>
+    </joint>
+    <link name="gripper_rh_p12_rn_r2">
+      <pose relative_to="gripper_rh_r2">0 0 0 0 0 0</pose>
+      <inertial>
+        <pose>-7.9593573477900001e-19 0.0064215055087700002 0.011245596762600001 0 0 0</pose>
+        <mass>0.021999999999999999</mass>
+        <inertia>
+          <ixx>4.9140037206400001e-06</ixx>
+          <ixy>-1.23710327649e-22</ixy>
+          <ixz>3.0696347916899997e-23</ixz>
+          <iyy>5.4966278762299999e-06</iyy>
+          <iyz>8.3394619362399999e-07</iyz>
+          <izz>1.8960425110699999e-06</izz>
+        </inertia>
+      </inertial>
+      <collision name="gripper_rh_p12_rn_r2_collision">
+        <pose>0 0 0 0 0 0</pose>
+        <geometry>
+          <mesh optimization="convex_decomposition">
+            <scale>0.001 0.001 0.001</scale>
+            <uri>file:///home/cse/doosan_janggi_ws/install/rh_p12_rn_a_description/share/rh_p12_rn_a_description/meshes/r2.stl</uri>
+          <convex_decomposition><max_convex_hulls>1</max_convex_hulls><voxel_resolution>10000</voxel_resolution></convex_decomposition></mesh>
+        </geometry>
+      <surface><friction><ode><mu>1.0</mu><mu2>1.0</mu2></ode><bullet><friction>1.0</friction><friction2>1.0</friction2></bullet></friction></surface></collision>
+      <visual name="gripper_rh_p12_rn_r2_visual">
+        <pose>0 0 0 0 0 0</pose>
+        <geometry>
+          <mesh>
+            <scale>0.001 0.001 0.001</scale>
+            <uri>file:///home/cse/doosan_janggi_ws/install/rh_p12_rn_a_description/share/rh_p12_rn_a_description/meshes/r2.stl</uri>
+          </mesh>
+        </geometry>
+        <material>
+          <diffuse>0.25 0.25 0.25 1</diffuse>
+          <ambient>0.25 0.25 0.25 1</ambient>
+        </material>
+      </visual>
+    </link>
+  <static>false</static><self_collide>false</self_collide><plugin filename="gz-sim-joint-position-controller-system" name="gz::sim::systems::JointPositionController"><joint_name>gripper_rh_r1</joint_name><topic>/janggi_sim/physics/gripper_rh_r1/target</topic><use_velocity_commands>false</use_velocity_commands><p_gain>5.0</p_gain><i_gain>0.1</i_gain><d_gain>0.03</d_gain><i_max>1</i_max><i_min>-1</i_min><cmd_max>2.0</cmd_max><cmd_min>-2.0</cmd_min></plugin><plugin filename="gz-sim-joint-state-publisher-system" name="gz::sim::systems::JointStatePublisher"><topic>/janggi_sim/physics/joint_states</topic></plugin></model>
+<model name="contact_piece"><static>true</static><pose>0 0 0.2535 0 0 0</pose><link name="piece"><collision name="piece"><geometry><cylinder><radius>.0135</radius><length>.007</length></cylinder></geometry></collision></link></model></world></sdf>

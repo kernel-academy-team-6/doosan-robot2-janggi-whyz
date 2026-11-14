@@ -7,7 +7,7 @@ not an assertion that the motor rotor and finger-link angles are identical.
 from dataclasses import dataclass
 import math
 
-from janggi_pick_place2.geometry import finite, width, command_from_width, width_from_command, tcp_length
+from janggi_pick_place2.geometry import finite, width, command_from_width, width_from_command, tcp_length, tcp_length_from_command
 
 
 @dataclass(frozen=True)
@@ -86,7 +86,7 @@ def endpoints(initial_width_mm, target_width_mm):
 
 
 class CompensationPlan:
-    def __init__(self, profile, initial_pose, reference_length_mm=160.):
+    def __init__(self, profile, initial_pose, reference_length_mm=132.6717):
         if len(initial_pose) != 6:
             raise ValueError('initial flange pose must have six values')
         self.pose = [finite(v, 'flange pose') for v in initial_pose]
@@ -94,13 +94,13 @@ class CompensationPlan:
         self.axis_z = math.cos(math.radians(self.pose[4]))
         if self.axis_z > -math.cos(math.radians(2.)):
             raise ValueError('flange Z must point down within two degrees; orient it before testing')
-        self.initial_length = tcp_length(width_from_command(profile.initial_u), reference_length_mm)
+        self.initial_length = tcp_length_from_command(profile.initial_u, reference_length_mm)
         self.tip_z = self.pose[2]+self.axis_z*self.initial_length
 
     def sample(self, t):
         u = self.profile.position(t)
         w = width_from_command(u)
-        length = tcp_length(w, self.length_reference)
+        length = tcp_length_from_command(u, self.length_reference)
         z = self.tip_z-self.axis_z*length
         return {'model_u': u, 'model_width_mm': w, 'model_length_mm': length,
                 'desired_flange_z_mm': z, 'predicted_tip_z_mm': z+self.axis_z*length}

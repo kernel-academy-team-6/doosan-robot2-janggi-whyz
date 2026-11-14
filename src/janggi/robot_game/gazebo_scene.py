@@ -13,7 +13,8 @@ from simulation_calibration import ensure_simulation_calibration
 from action.board import BoardGeometry
 from piece_detection.world import CameraToBase
 from engine import fen_to_board
-from gz_scene import GzScene,PIECE_H
+from gz_scene import GzScene
+from piece_visuals import piece_height_m
 from gz.msgs10.pose_v_pb2 import Pose_V
 
 START_FEN='rnba1abnr/4k4/1c5c1/p1p1p1p1p/9/9/P1P1P1P1P/1C5C1/4K4/RNBA1ABNR w - - 0 1'
@@ -43,7 +44,7 @@ class RenderedWorld:
                 try:index=int(pose.name[6:]);piece=self.pieces[index]
                 except (ValueError,IndexError):continue
                 center=np.array([pose.position.x,pose.position.y,pose.position.z])*1000.
-                piece['pos']=center-self.geom.normal()*(PIECE_H*500.)
+                piece['pos']=center-self.geom.normal()*(piece_height_m(piece['kind'])*500.)
 
     def grip(self, command):
         raise RuntimeError('Virtual attachment is disabled; only physical contact can move pieces')

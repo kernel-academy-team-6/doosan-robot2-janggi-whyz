@@ -28,7 +28,7 @@ def test_scaling_covers_linear_rotation_and_locked_joint_timing(linked):
     assert settings.linear_acceleration_mm_s2 == (80 if linked else 160)
     assert settings.angular_acceleration_deg_s2 == settings.joint_acceleration_deg_s2 == (20 if linked else 40)
     assert settings.joint6_locked_deg == 90
-    assert settings.piece_grip_heights_mm == [2., 2., 3.]
+    assert settings.piece_grip_heights_mm == [2., 2., 2.]
 
 
 @pytest.mark.parametrize('bad', [0, -1, float('nan'), float('inf'), 'bad'])
@@ -97,8 +97,11 @@ def test_dialog_preview_and_submit_without_display(monkeypatch):
         monkeypatch.setattr(module.tk, name, Variable)
     applied = []; closed = []
     dialog = RobotMotionDialog(None, base(), applied.append, lambda:closed.append(True))
+    assert dialog.percent.get()==200.
+    assert dialog.result().linear_velocity_mm_s==base().linear_velocity_mm_s
+    assert dialog.result().joint_velocity_deg_s==base().angular_velocity_deg_s
     dialog.percent.value = 50.; dialog.preview()
-    assert '60 mm/s' in dialog.summary.options['text']
+    assert '30 mm/s' in dialog.summary.options['text']
     # Direct edits now affect all four limits, including the joint limits used
     # by pick/place. Blur and submit must not apply the ratio twice.
     dialog.values['linear_velocity_mm_s'].set('240')
@@ -110,9 +113,13 @@ def test_dialog_preview_and_submit_without_display(monkeypatch):
     assert applied[0].joint_acceleration_deg_s2 == 120 and closed == [True]
     independent = RobotMotionDialog(None, base(), applied.append, lambda:None)
     independent.linked.value = False
+    independent.toggle_linked()
     independent.values['linear_velocity_mm_s'].set('240')
     independent.commit_edit('linear_velocity_mm_s')
     assert independent.result().angular_velocity_deg_s == 60
+    assert independent.result().linear_acceleration_mm_s2 == 240
+    independent.linked.value = True
+    independent.toggle_linked()
     assert independent.result().linear_acceleration_mm_s2 == 240
 
 
@@ -124,3 +131,15 @@ def test_initial_ui_settings_unify_joint_and_cartesian_rotation():
     assert settings.linear_velocity_mm_s == 30
     assert settings.joint_velocity_deg_s == settings.angular_velocity_deg_s
     assert settings.joint_acceleration_deg_s2 == settings.angular_acceleration_deg_s2
+
+
+def test_default_ui_applies_200_percent_once_to_all_motion_limits():
+    ui=app.App.__new__(app.App)
+    ui.args=SimpleNamespace(pick_place_config=app.SRC_JANGGI.parent /
+                           'janggi_pick_place2/config/pick_place.yaml',robot_vel=None)
+    for _ in range(2):
+        settings=ui._get_motion_settings()
+        assert settings.linear_velocity_mm_s==240.
+        assert settings.linear_acceleration_mm_s2==480.
+        assert settings.angular_velocity_deg_s==settings.joint_velocity_deg_s==120.
+        assert settings.angular_acceleration_deg_s2==settings.joint_acceleration_deg_s2==240.

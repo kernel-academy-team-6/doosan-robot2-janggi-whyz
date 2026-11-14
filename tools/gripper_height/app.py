@@ -51,7 +51,8 @@ class CalibrationApp:
             ttk.Label(row,text=label).pack(side='left');ttk.Entry(row,textvariable=var,width=11).pack(side='left',padx=5)
         self.xy_button=self.button(row,'현재 Z 유지 · 자세 맞춤 + XY 이동',self.move_xy,side='left',padx=5)
         self.button(row,'현재 좌표 읽기',self.read_pose,side='left')
-        self.button(row,'저장된 홈 자세',self.home,side='left',padx=5)
+        self.button(row,'호밍 초기화',self.home,side='left',padx=5)
+        ttk.Label(setup,text='이 프로그램의 홈 관절각: [0, 0, 90, 0, 90, 0]°').pack(anchor='w',pady=(5,0))
         ttk.Label(setup,text='XY 이동은 현재 플랜지 Z에서 방향을 먼저 맞춥니다. 자세를 돌릴 공간에서 시작하세요. 측정 중 XY는 첫 기록 위치로 고정됩니다.').pack(anchor='w',pady=(5,0))
         jog=ttk.LabelFrame(frame,text='2. Z 수동 미세 이동 (자동 바닥 접촉 감지 없음)',padding=8);jog.pack(fill='x')
         ttk.Label(jog,text='이동량 (양수 mm, 소수점 가능)').pack(side='left')
@@ -84,8 +85,10 @@ class CalibrationApp:
         ttk.Button(row,text='0 기준 높이 계산',command=self.evaluate).pack(side='left')
         ttk.Label(frame,textvariable=self.status,wraplength=950,foreground='#155e75').pack(anchor='w',pady=4)
         ttk.Label(frame,text=f'저장 폴더: {self.session.directory}',wraplength=950).pack(anchor='w')
-        ttk.Label(frame,text=f'이 도구의 직선 속도 {self.args.velocity:g}mm/s · 가속도 {self.args.acceleration:g}mm/s² · '
-                  'TCP/게임 보정값 자동 변경 없음',foreground='#555').pack(anchor='w')
+        ttk.Label(frame,text=f'XY {self.args.velocity:g}mm/s · {self.args.acceleration:g}mm/s² / '
+                  f'Z {self.args.z_velocity:g}mm/s · {self.args.z_acceleration:g}mm/s² / '
+                  f'홈 {self.args.angular_velocity:g}°/s · {self.args.angular_acceleration:g}°/s² · '
+                  'TCP/게임 보정값 자동 변경 없음',foreground='#555',wraplength=950).pack(anchor='w')
 
     def job(self,label,fn,success=None,*,requires_connection=True):
         if self.busy:return
@@ -128,7 +131,8 @@ class CalibrationApp:
         def fn():
             controller=(MockController() if backend=='mock' else RosController(backend=backend,namespace=namespace,
                         velocity=self.args.velocity,acceleration=self.args.acceleration,
-                        angular_velocity=self.args.angular_velocity,angular_acceleration=self.args.angular_acceleration))
+                        angular_velocity=self.args.angular_velocity,angular_acceleration=self.args.angular_acceleration,
+                        z_velocity=self.args.z_velocity,z_acceleration=self.args.z_acceleration))
             self.controller=controller
             return controller.read()
         def connected(pose):
@@ -146,7 +150,7 @@ class CalibrationApp:
         self.job('자세 맞춤 및 XY 이동 중',lambda:self.controller.move_xy(x,y),self.pose)
 
     def read_pose(self):self.job('현재 플랜지 좌표 읽는 중',lambda:self.controller.read(),self.pose)
-    def home(self):self.job('저장된 홈 자세로 이동 중',lambda:self.controller.home(),self.pose)
+    def home(self):self.job('홈 관절각 [0, 0, 90, 0, 90, 0]°로 이동 중',lambda:self.controller.home(),self.pose)
     def jog(self,direction):
         try:
             step=number(self.step.get(),'Z 이동량')

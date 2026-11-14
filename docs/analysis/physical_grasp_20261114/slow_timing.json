@@ -1,0 +1,16 @@
+{
+  "completed_wall_s": 7.511863924002682,
+  "completed_sim_s": 3.0085,
+  "source_duration_wall_s": 3.0,
+  "requested_real_time_factor": 0.4,
+  "peak_axis_speed_deg_s": [
+    0.27079200103142625,
+    8.562542855807779,
+    84.70954287906139,
+    1.1257376917363384,
+    38.681765496370055,
+    58.031991943339655
+  ],
+  "partition": "janggi_slow_timing_82655",
+  "success": true
+}

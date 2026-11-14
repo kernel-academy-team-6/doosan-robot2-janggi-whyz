@@ -48,6 +48,7 @@ def test_next_turn_always_reads_current_board_then_executes_without_result_match
     def turn(centers,stop_check):
         assert rg.game.board==observed and rg.game.turn=='red'
         calls.append(('execute',centers))
+        rg.last_execution_completed=True;rg.winner=None;rg.victory_pending=False
         return RobotPlan('e9d9',(4,1),(3,1),('red','king'))
     rg.robot_turn=turn
     ui=App.__new__(App); ui.rg=rg; ui.game=rg.game; ui.mode=var('live')
@@ -80,3 +81,36 @@ def test_start_can_update_game_without_implicit_home_or_recognition_gate():
     rg.log=lambda *_:None
     rg.go_observe=lambda:(_ for _ in ()).throw(AssertionError('unexpected home'))
     assert rg.start({},observe=False).board=={}
+
+
+def test_victory_is_spoken_after_turn_and_space_cannot_command_again():
+    ui=App.__new__(App);events=[]
+    rg=SimpleNamespace(game=Game({(4,8):('blue','king')},turn='red'),winner=None,
+                       victory_pending=False,last_execution_completed=False)
+    rg.apply_human_move=lambda board:None
+    def turn(*args,**kwargs):
+        events.append('physical_finish');rg.winner='red';rg.last_execution_completed=True
+        rg.game.board={(4,8):('red','cha')}
+        return RobotPlan('e4e2',(4,6),(4,8),('red','cha'),('blue','king'))
+    rg.robot_turn=turn
+    ui.rg=rg;ui.game=rg.game;ui.mode=var('game');ui.args=SimpleNamespace(no_motion=False)
+    ui.robot_stop=False;ui._ensure_robot=lambda:None;ui._robot_job=lambda phase,job:job()
+    ui.worker=SimpleNamespace(fresh_state=lambda:({},{}),robot_motion=False)
+    ui._announce=lambda text,**kw:events.append(text)
+    ui.robot_human_done()
+    assert events[-1]=='상대 궁을 포획해 묘지로 옮겼습니다. 한 승리입니다.'
+    assert events.index('physical_finish')<len(events)-1
+    assert '한 승리' in ui._human_phase()
+    ui.worker.fresh_state=lambda:(_ for _ in ()).throw(AssertionError('no new camera read'))
+    ui.robot_human_done()
+    assert events.count('physical_finish')==1 and '새 대국' in events[-1]
+
+
+def test_victory_turns_off_auto_countdown_without_overwriting_victory_speech():
+    ui=App.__new__(App);events=[]
+    ui.rg=SimpleNamespace(winner='red');ui.auto_move_enabled=SimpleNamespace(set=lambda v:events.append(v))
+    ui.auto_turn=SimpleNamespace(reset=lambda:events.append('reset'))
+    ui._show_auto_status=lambda text:events.append(text)
+    ui._announce=lambda *a,**k:(_ for _ in ()).throw(AssertionError('overwrote victory speech'))
+    ui._tick_auto_move()
+    assert events==[False,'reset','한 승리 · 대국 종료']

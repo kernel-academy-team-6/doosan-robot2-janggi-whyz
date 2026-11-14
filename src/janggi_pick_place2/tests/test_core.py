@@ -61,7 +61,7 @@ def execution():
 def test_calibrated_width_roundtrip(w):
     u = command_from_width(w)
     assert isinstance(u, int) and 0 <= u <= 700
-    assert width_from_command(u) == pytest.approx(w, abs=.25 if w == 6. else .1)
+    assert width_from_command(u) == pytest.approx(w, abs=.31 if w == 6. else .101)
 
 
 @pytest.mark.parametrize('w', [5.99, 106.01, float('nan'), float('inf')])
@@ -72,13 +72,14 @@ def test_invalid_width_rejected(w):
         tcp_length(w)
 
 
-def test_length_is_fixed_from_flange_independently_of_jaw_width():
-    assert tcp_length(6.) == pytest.approx(160.)
-    assert tcp_length(40.) == tcp_length(30.) == 160.
-    with pytest.raises(ValueError, match='fixed 160'):
+def test_length_adds_circle_height_to_fixed_baseline():
+    from janggi_pick_place2.geometry import height_from_command
+    assert tcp_length(30.) == pytest.approx(132.6717+height_from_command(command_from_width(30.)))
+    assert tcp_length(40.) < tcp_length(30.)
+    with pytest.raises(ValueError, match='132.6717'):
         tcp_length(30., 222.)
-    assert flange_pose([300., 100., -80., 90.], 30., 160.) == pytest.approx(
-        [300., 100., 80., 90., 180., 0.])
+    assert flange_pose([300., 100., -80., 90.], 30., 132.6717) == pytest.approx(
+        [300., 100., -80+tcp_length(30.), 90., 180., 0.])
 
 
 def test_down_axis_singular_euler_equivalence():
@@ -111,7 +112,7 @@ def test_pick_then_place_height_and_state(execution):
     execution.run('pick', pick, g, check, report)
     assert execution.holding_state == 'holding_unverified'
     moves = [event[1] for event in execution.robot.events if event[0] == 'move']
-    assert [p[2] for p in moves] == pytest.approx([375., 375., -80.+tcp_length(30.), 375.])
+    assert [p[2] for p in moves] == pytest.approx([375., 375., -80.+tcp_length(26.), 375.])
     assert moves[0][:3] == [250., -20., 375.]  # fixed-XYZ alignment before XY
     assert moves[1][:2] == moves[2][:2] == moves[3][:2] == pick[:2]
     assert execution.gripper.events[0] == ('open', 36., 100)
@@ -122,7 +123,7 @@ def test_pick_then_place_height_and_state(execution):
     assert execution.gripper.events[-1] == ('open', 36., 100)
     assert sum(e[0] == 'home' for e in execution.robot.events) == 0
     moves = [event[1] for event in execution.robot.events if event[0] == 'move']
-    assert [p[2] for p in moves[-3:]] == pytest.approx([375., -75.+tcp_length(30.), 375.])
+    assert [p[2] for p in moves[-3:]] == pytest.approx([375., -75.+tcp_length(26.), 375.])
 
 
 def test_place_requires_a_pick(execution):
@@ -183,7 +184,7 @@ def test_combined_uses_current_height_without_home(execution):
     assert all(e[0] != 'home' for e in execution.robot.events)
     moves = [e[1] for e in execution.robot.events if e[0] == 'move']
     assert [p[2] for p in moves] == pytest.approx([
-        310., tcp_length(30.), 310., 310., 310., tcp_length(30.), 310.])
+        310., tcp_length(26.), 310., 310., 310., tcp_length(26.), 310.])
     assert execution.holding_state == 'empty_unverified'
 
 
@@ -234,3 +235,34 @@ def test_equivalent_zyz_angles_do_not_trigger_spurious_alignment(execution):
                   lambda stage,progress:stages.append(stage))
     assert 'pick/align' not in stages
     assert len([e for e in execution.robot.events if e[0]=='move'])==3
+
+
+def test_preclose_descent_accounts_for_future_jaw_extension_without_lowering_tip_into_board(execution):
+    from janggi_pick_place2.geometry import height_from_command
+    grasp=execution.resolve(20.,10.,100.)
+    execution.run('pick',[400.,50.,-18.,0.],grasp,lambda:None,lambda *_:None)
+    descent=[e[1] for e in execution.robot.events if e[0]=='move'][-2]
+    opened=command_from_width(grasp.open_width_mm);closed=command_from_width(grasp.close_width_mm)
+    # During jaw closure the tip approaches the requested height from ABOVE.
+    for i in range(101):
+        c=opened+(closed-opened)*i/100
+        tip=descent[2]-132.6717-height_from_command(c)
+        assert tip>=-18.-1e-9
+    assert descent[2]-132.6717-height_from_command(closed)==pytest.approx(-18.)
+    assert execution.settings.tcp_length_at_6mm_mm==132.6717
+    before=len(execution.robot.events)
+    execution.run('place',[450.,100.,-18.,0.],None,lambda:None,lambda *_:None)
+    placed=[e[1] for e in execution.robot.events[before:] if e[0]=='move'][-2]
+    assert placed[2]==pytest.approx(descent[2])
+    assert execution.holding_state=='empty_unverified'
+
+
+def test_extreme_closing_range_includes_interior_height_maximum(execution):
+    from janggi_pick_place2.geometry import height_from_command
+    grasp=execution.resolve(6.,10.,100.)
+    # H(c) peaks before c=700; endpoint-only checks would miss this small maximum.
+    destination,_=execution._approach([400.,50.,0.,0.],grasp,lambda:None)
+    opened=command_from_width(grasp.open_width_mm)
+    for i in range(101):
+        c=opened+(700-opened)*i/100
+        assert destination[2]-132.6717-height_from_command(c)>=-1e-9

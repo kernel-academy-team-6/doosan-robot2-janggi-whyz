@@ -1,4 +1,4 @@
-> 현재 프로젝트 TCP 기준: 컨트롤러=J6 플랜지 원점, 소프트웨어 연장=고정 160mm.
+> 현재 프로젝트 TCP 기준: 컨트롤러=J6 플랜지 원점, 소프트웨어 연장=132.6717mm + H(c).
 > 말 폭에 따른 길이 보정을 제거했으므로 이 실험의 개도 변화에 따른 Z 보정량은 0이다.
 > 독립 실행 설치본은 `janggi_pick_place2`와 이 패키지를 다시 빌드한 뒤 사용한다.
 
@@ -96,7 +96,7 @@ ros2 action send_goal /janggi_tcp_test/test \
 | `gripper_profile_velocity` | 50 | 계산 모델의 속도 값. **실제 그리퍼에 전송하지 않음** |
 | `gripper_profile_acceleration` | 100 | 계산 모델의 가속도 값. **실제 그리퍼에 전송하지 않음** |
 | `position_unit_deg` | 0.088 | 모델의 속도 단위를 위치 입력 u로 환산하는 가정 |
-| `tcp_length_at_6mm_mm` | 160.0 | 간격 6mm일 때 측정한 플랜지 기준 팁 길이 L, mm |
+| `tcp_length_at_6mm_mm` | 132.6717 | 고정 기준값. 계산 시 명령별 H(c)를 더함, mm |
 | `stream_rate_hz` | 20.0 | Z 목표 발행 주기. 하드 실시간 보증은 아님 |
 | `arm_lookahead_sec` | 0.1 | 팔 추종 지연을 고려해 모델을 미리 보는 시간 |
 | `servo_time_sec` | 0.1 | 각 servol 목표의 도달 시간 |
@@ -112,7 +112,7 @@ L만 실행 시 변경하려면:
 
 ```bash
 ros2 launch janggi_tcp_test tcp_test.launch.py backend:=real \
-  tcp_length_at_6mm_mm:=160.0
+  tcp_length_at_6mm_mm:=132.6717
 ```
 
 ## 가상 실행

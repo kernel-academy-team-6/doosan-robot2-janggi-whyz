@@ -1,0 +1,23 @@
+{
+  "label": "contact",
+  "partition": "janggi_dynamics_102386",
+  "samples": 9822,
+  "joints": {
+    "gripper_rh_l1": {
+      "hold_error_deg": -8.135191632679803,
+      "hold_peak_to_peak_deg": 1.38721352942741e-05
+    },
+    "gripper_rh_l2": {
+      "hold_error_deg": 2.63582903889173e-09,
+      "hold_peak_to_peak_deg": 3.7606878553624624e-11
+    },
+    "gripper_rh_r1": {
+      "hold_error_deg": -8.135191649382378,
+      "hold_peak_to_peak_deg": 1.3872135618690679e-05
+    },
+    "gripper_rh_r2": {
+      "hold_error_deg": 2.635268944479478e-09,
+      "hold_peak_to_peak_deg": 3.773410074088316e-11
+    }
+  }
+}

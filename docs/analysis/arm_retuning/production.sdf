@@ -1,0 +1,801 @@
+<sdf version="1.11"><world name="production_test"><physics name="1ms" type="ignored"><max_step_size>.001</max_step_size><real_time_factor>1</real_time_factor></physics><plugin filename="gz-sim-physics-system" name="gz::sim::systems::Physics"><engine><filename>gz-physics-bullet-featherstone-plugin</filename></engine></plugin><model name="janggi_physics_robot">
+    <joint name="world_fixed" type="fixed">
+      <pose relative_to="__model__">0 0 0 0 0 0</pose>
+      <parent>world</parent>
+      <child>base_link</child>
+    </joint>
+    <link name="base_link">
+      <pose relative_to="world_fixed">0 0 0 0 0 0</pose>
+      <inertial>
+        <pose>2.6999999999999999e-05 -0.0026510000000000001 0.035122 0 0 0</pose>
+        <mass>1.8029999999999999</mass>
+        <inertia>
+          <ixx>0.010607999999999999</ixx>
+          <ixy>1.7706e-06</ixy>
+          <ixz>6.6981999999999997e-06</ixz>
+          <iyy>0.0092656000000000006</iyy>
+          <iyz>-4.7833000000000001e-05</iyz>
+          <izz>0.0092125000000000002</izz>
+        </inertia>
+      </inertial>
+      <collision name="base_link_collision">
+        <pose>0 0 0 0 0 0</pose>
+        <geometry>
+          <mesh optimization="convex_decomposition">
+            <scale>0.001 0.001 0.001</scale>
+            <uri>file:///home/cse/doosan_janggi_ws/install/dsr_description2/share/dsr_description2/meshes/e0509_collision/E0509_0_0.dae</uri>
+          <convex_decomposition><max_convex_hulls>1</max_convex_hulls><voxel_resolution>10000</voxel_resolution></convex_decomposition></mesh>
+        </geometry>
+      <surface><friction><ode><mu>1.0</mu><mu2>1.0</mu2></ode><bullet><friction>1.0</friction><friction2>1.0</friction2></bullet></friction></surface></collision>
+      <visual name="base_link_visual">
+        <pose>0 0 0 0 0 0</pose>
+        <geometry>
+          <mesh>
+            <scale>0.001 0.001 0.001</scale>
+            <uri>file:///home/cse/doosan_janggi_ws/install/dsr_description2/share/dsr_description2/meshes/e0509_white/E0509_0_0.dae</uri>
+          </mesh>
+        </geometry>
+        <material>
+          <diffuse>1 1 1 1</diffuse>
+          <ambient>1 1 1 1</ambient>
+        </material>
+      </visual>
+    </link>
+    <joint name="joint_1" type="revolute">
+      <pose relative_to="base_link">0 0 0.20449999999999999 0 0 0</pose>
+      <parent>base_link</parent>
+      <child>link_1</child>
+      <axis>
+        <xyz>0 0 1</xyz>
+        <limit>
+          <lower>-6.2831999999999999</lower>
+          <upper>6.2831999999999999</upper>
+          <effort>194</effort>
+          <velocity>2.0943951023929999</velocity>
+        </limit>
+        <dynamics>
+          <damping>0</damping>
+          <friction>0</friction>
+          <spring_reference>0</spring_reference>
+          <spring_stiffness>0</spring_stiffness>
+        </dynamics>
+      </axis>
+    </joint>
+    <link name="link_1">
+      <pose relative_to="joint_1">0 0 0 0 0 0</pose>
+      <inertial>
+        <pose>9.9999999999999995e-07 0.049632999999999997 -0.049634999999999999 0 0 0</pose>
+        <mass>5.75</mass>
+        <inertia>
+          <ixx>0.046213999999999998</ixx>
+          <ixy>1.4982e-05</ixy>
+          <ixz>1.2809999999999999e-05</ixz>
+          <iyy>0.032572999999999998</iyy>
+          <iyz>-0.013997000000000001</iyz>
+          <izz>0.030998999999999999</izz>
+        </inertia>
+      </inertial>
+      <collision name="link_1_collision">
+        <pose>0 0 0 0 0 0</pose>
+        <geometry>
+          <mesh optimization="convex_decomposition">
+            <scale>0.001 0.001 0.001</scale>
+            <uri>file:///home/cse/doosan_janggi_ws/install/dsr_description2/share/dsr_description2/meshes/e0509_collision/E0509_1_1.dae</uri>
+          <convex_decomposition><max_convex_hulls>1</max_convex_hulls><voxel_resolution>10000</voxel_resolution></convex_decomposition></mesh>
+        </geometry>
+      <surface><friction><ode><mu>1.0</mu><mu2>1.0</mu2></ode><bullet><friction>1.0</friction><friction2>1.0</friction2></bullet></friction></surface></collision>
+      <collision name="link_1_collision_1">
+        <pose>0 0 0 0 0 0</pose>
+        <geometry>
+          <mesh optimization="convex_decomposition">
+            <scale>0.001 0.001 0.001</scale>
+            <uri>file:///home/cse/doosan_janggi_ws/install/dsr_description2/share/dsr_description2/meshes/e0509_collision/E0509_1_2.dae</uri>
+          <convex_decomposition><max_convex_hulls>1</max_convex_hulls><voxel_resolution>10000</voxel_resolution></convex_decomposition></mesh>
+        </geometry>
+      <surface><friction><ode><mu>1.0</mu><mu2>1.0</mu2></ode><bullet><friction>1.0</friction><friction2>1.0</friction2></bullet></friction></surface></collision>
+      <collision name="link_1_collision_2">
+        <pose>0 0 0 0 0 0</pose>
+        <geometry>
+          <mesh optimization="convex_decomposition">
+            <scale>0.001 0.001 0.001</scale>
+            <uri>file:///home/cse/doosan_janggi_ws/install/dsr_description2/share/dsr_description2/meshes/e0509_collision/E0509_1_3.dae</uri>
+          <convex_decomposition><max_convex_hulls>1</max_convex_hulls><voxel_resolution>10000</voxel_resolution></convex_decomposition></mesh>
+        </geometry>
+      <surface><friction><ode><mu>1.0</mu><mu2>1.0</mu2></ode><bullet><friction>1.0</friction><friction2>1.0</friction2></bullet></friction></surface></collision>
+      <collision name="link_1_collision_3">
+        <pose>0 0 0 0 0 0</pose>
+        <geometry>
+          <mesh optimization="convex_decomposition">
+            <scale>0.001 0.001 0.001</scale>
+            <uri>file:///home/cse/doosan_janggi_ws/install/dsr_description2/share/dsr_description2/meshes/e0509_collision/E0509_1_4.dae</uri>
+          <convex_decomposition><max_convex_hulls>1</max_convex_hulls><voxel_resolution>10000</voxel_resolution></convex_decomposition></mesh>
+        </geometry>
+      <surface><friction><ode><mu>1.0</mu><mu2>1.0</mu2></ode><bullet><friction>1.0</friction><friction2>1.0</friction2></bullet></friction></surface></collision>
+      <visual name="link_1_visual">
+        <pose>0 0 0 0 0 0</pose>
+        <geometry>
+          <mesh>
+            <scale>0.001 0.001 0.001</scale>
+            <uri>file:///home/cse/doosan_janggi_ws/install/dsr_description2/share/dsr_description2/meshes/e0509_white/E0509_1_1.dae</uri>
+          </mesh>
+        </geometry>
+        <material>
+          <diffuse>1 1 1 1</diffuse>
+          <ambient>1 1 1 1</ambient>
+        </material>
+      </visual>
+      <visual name="link_1_visual_1">
+        <pose>0 0 0 0 0 0</pose>
+        <geometry>
+          <mesh>
+            <scale>0.001 0.001 0.001</scale>
+            <uri>file:///home/cse/doosan_janggi_ws/install/dsr_description2/share/dsr_description2/meshes/e0509_white/E0509_1_2.dae</uri>
+          </mesh>
+        </geometry>
+        <material>
+          <diffuse>1 1 1 1</diffuse>
+          <ambient>1 1 1 1</ambient>
+        </material>
+      </visual>
+      <visual name="link_1_visual_2">
+        <pose>0 0 0 0 0 0</pose>
+        <geometry>
+          <mesh>
+            <scale>0.001 0.001 0.001</scale>
+            <uri>file:///home/cse/doosan_janggi_ws/install/dsr_description2/share/dsr_description2/meshes/e0509_white/E0509_1_3.dae</uri>
+          </mesh>
+        </geometry>
+        <material>
+          <diffuse>1 1 1 1</diffuse>
+          <ambient>1 1 1 1</ambient>
+        </material>
+      </visual>
+      <visual name="link_1_visual_3">
+        <pose>0 0 0 0 0 0</pose>
+        <geometry>
+          <mesh>
+            <scale>0.001 0.001 0.001</scale>
+            <uri>file:///home/cse/doosan_janggi_ws/install/dsr_description2/share/dsr_description2/meshes/e0509_white/E0509_1_4.dae</uri>
+          </mesh>
+        </geometry>
+        <material>
+          <diffuse>1 1 1 1</diffuse>
+          <ambient>1 1 1 1</ambient>
+        </material>
+      </visual>
+    </link>
+    <joint name="joint_2" type="revolute">
+      <pose relative_to="link_1">0 0 0 3.1415926535746808 -1.5707926536057681 1.5707926536057684</pose>
+      <parent>link_1</parent>
+      <child>link_2</child>
+      <axis>
+        <xyz>0 0 1</xyz>
+        <limit>
+          <lower>-6.2831999999999999</lower>
+          <upper>6.2831999999999999</upper>
+          <effort>194</effort>
+          <velocity>2.0943951023929999</velocity>
+        </limit>
+        <dynamics>
+          <damping>0</damping>
+          <friction>0</friction>
+          <spring_reference>0</spring_reference>
+          <spring_stiffness>0</spring_stiffness>
+        </dynamics>
+      </axis>
+    </joint>
+    <link name="link_2">
+      <pose relative_to="joint_2">0 0 0 0 0 0</pose>
+      <inertial>
+        <pose>0.18647 -1.1418e-17 0.17311000000000001 0 0 0</pose>
+        <mass>3.4609999999999999</mass>
+        <inertia>
+          <ixx>0.012038999999999999</ixx>
+          <ixy>7.7771000000000005e-06</ixy>
+          <ixz>3.7558999999999999e-06</ixz>
+          <iyy>0.091203000000000006</iyy>
+          <iyz>3.1825e-06</iyz>
+          <izz>0.094721</izz>
+        </inertia>
+      </inertial>
+      <collision name="link_2_collision">
+        <pose>0 0 0 0 0 0</pose>
+        <geometry>
+          <mesh optimization="convex_decomposition">
+            <scale>0.001 0.001 0.001</scale>
+            <uri>file:///home/cse/doosan_janggi_ws/install/dsr_description2/share/dsr_description2/meshes/e0509_collision/E0509_2_1.dae</uri>
+          <convex_decomposition><max_convex_hulls>1</max_convex_hulls><voxel_resolution>10000</voxel_resolution></convex_decomposition></mesh>
+        </geometry>
+      <surface><friction><ode><mu>1.0</mu><mu2>1.0</mu2></ode><bullet><friction>1.0</friction><friction2>1.0</friction2></bullet></friction></surface></collision>
+      <collision name="link_2_collision_1">
+        <pose>0 0 0 0 0 0</pose>
+        <geometry>
+          <mesh optimization="convex_decomposition">
+            <scale>0.001 0.001 0.001</scale>
+            <uri>file:///home/cse/doosan_janggi_ws/install/dsr_description2/share/dsr_description2/meshes/e0509_collision/E0509_2_2.dae</uri>
+          <convex_decomposition><max_convex_hulls>1</max_convex_hulls><voxel_resolution>10000</voxel_resolution></convex_decomposition></mesh>
+        </geometry>
+      <surface><friction><ode><mu>1.0</mu><mu2>1.0</mu2></ode><bullet><friction>1.0</friction><friction2>1.0</friction2></bullet></friction></surface></collision>
+      <visual name="link_2_visual">
+        <pose>0 0 0 0 0 0</pose>
+        <geometry>
+          <mesh>
+            <scale>0.001 0.001 0.001</scale>
+            <uri>file:///home/cse/doosan_janggi_ws/install/dsr_description2/share/dsr_description2/meshes/e0509_white/E0509_2_1.dae</uri>
+          </mesh>
+        </geometry>
+        <material>
+          <diffuse>1 1 1 1</diffuse>
+          <ambient>1 1 1 1</ambient>
+        </material>
+      </visual>
+      <visual name="link_2_visual_1">
+        <pose>0 0 0 0 0 0</pose>
+        <geometry>
+          <mesh>
+            <scale>0.001 0.001 0.001</scale>
+            <uri>file:///home/cse/doosan_janggi_ws/install/dsr_description2/share/dsr_description2/meshes/e0509_white/E0509_2_2.dae</uri>
+          </mesh>
+        </geometry>
+        <material>
+          <diffuse>1 1 1 1</diffuse>
+          <ambient>1 1 1 1</ambient>
+        </material>
+      </visual>
+    </link>
+    <joint name="joint_3" type="revolute">
+      <pose relative_to="link_2">0.373 0 0 0 0 1.5708</pose>
+      <parent>link_2</parent>
+      <child>link_3</child>
+      <axis>
+        <xyz>0 0 1</xyz>
+        <limit>
+          <lower>-2.7052999999999998</lower>
+          <upper>2.7052999999999998</upper>
+          <effort>194</effort>
+          <velocity>2.6179938779910001</velocity>
+        </limit>
+        <dynamics>
+          <damping>0</damping>
+          <friction>0</friction>
+          <spring_reference>0</spring_reference>
+          <spring_stiffness>0</spring_stiffness>
+        </dynamics>
+      </axis>
+    </joint>
+    <link name="link_3">
+      <pose relative_to="joint_3">0 0 0 0 0 0</pose>
+      <inertial>
+        <pose>1.2e-05 -0.029190000000000001 0.062355000000000001 0 0 0</pose>
+        <mass>4.5819999999999999</mass>
+        <inertia>
+          <ixx>0.032606000000000003</ixx>
+          <ixy>6.5479999999999998e-06</ixy>
+          <ixz>-6.9938999999999996e-07</ixz>
+          <iyy>0.024211</iyy>
+          <iyz>-0.0079929000000000007</iyz>
+          <izz>0.019283999999999999</izz>
+        </inertia>
+      </inertial>
+      <collision name="link_3_collision">
+        <pose>0 0 0 0 0 0</pose>
+        <geometry>
+          <mesh optimization="convex_decomposition">
+            <scale>0.001 0.001 0.001</scale>
+            <uri>file:///home/cse/doosan_janggi_ws/install/dsr_description2/share/dsr_description2/meshes/e0509_collision/E0509_3_1.dae</uri>
+          <convex_decomposition><max_convex_hulls>1</max_convex_hulls><voxel_resolution>10000</voxel_resolution></convex_decomposition></mesh>
+        </geometry>
+      <surface><friction><ode><mu>1.0</mu><mu2>1.0</mu2></ode><bullet><friction>1.0</friction><friction2>1.0</friction2></bullet></friction></surface></collision>
+      <collision name="link_3_collision_1">
+        <pose>0 0 0 0 0 0</pose>
+        <geometry>
+          <mesh optimization="convex_decomposition">
+            <scale>0.001 0.001 0.001</scale>
+            <uri>file:///home/cse/doosan_janggi_ws/install/dsr_description2/share/dsr_description2/meshes/e0509_collision/E0509_3_2.dae</uri>
+          <convex_decomposition><max_convex_hulls>1</max_convex_hulls><voxel_resolution>10000</voxel_resolution></convex_decomposition></mesh>
+        </geometry>
+      <surface><friction><ode><mu>1.0</mu><mu2>1.0</mu2></ode><bullet><friction>1.0</friction><friction2>1.0</friction2></bullet></friction></surface></collision>
+      <visual name="link_3_visual">
+        <pose>0 0 0 0 0 0</pose>
+        <geometry>
+          <mesh>
+            <scale>0.001 0.001 0.001</scale>
+            <uri>file:///home/cse/doosan_janggi_ws/install/dsr_description2/share/dsr_description2/meshes/e0509_white/E0509_3_1.dae</uri>
+          </mesh>
+        </geometry>
+        <material>
+          <diffuse>1 1 1 1</diffuse>
+          <ambient>1 1 1 1</ambient>
+        </material>
+      </visual>
+      <visual name="link_3_visual_1">
+        <pose>0 0 0 0 0 0</pose>
+        <geometry>
+          <mesh>
+            <scale>0.001 0.001 0.001</scale>
+            <uri>file:///home/cse/doosan_janggi_ws/install/dsr_description2/share/dsr_description2/meshes/e0509_white/E0509_3_2.dae</uri>
+          </mesh>
+        </geometry>
+        <material>
+          <diffuse>1 1 1 1</diffuse>
+          <ambient>1 1 1 1</ambient>
+        </material>
+      </visual>
+    </link>
+    <joint name="joint_4" type="revolute">
+      <pose relative_to="link_3">0 -0.373 0 1.5708 0 0</pose>
+      <parent>link_3</parent>
+      <child>link_4</child>
+      <axis>
+        <xyz>0 0 1</xyz>
+        <limit>
+          <lower>-6.2831999999999999</lower>
+          <upper>6.2831999999999999</upper>
+          <effort>66</effort>
+          <velocity>3.9269908169869998</velocity>
+        </limit>
+        <dynamics>
+          <damping>0</damping>
+          <friction>0</friction>
+          <spring_reference>0</spring_reference>
+          <spring_stiffness>0</spring_stiffness>
+        </dynamics>
+      </axis>
+    </joint>
+    <link name="link_4">
+      <pose relative_to="joint_4">0 0 0 0 0 0</pose>
+      <inertial>
+        <pose>3.9999999999999998e-06 0.095573000000000005 -0.12812999999999999 0 0 0</pose>
+        <mass>2.2069999999999999</mass>
+        <inertia>
+          <ixx>0.035470000000000002</ixx>
+          <ixy>8.0793999999999993e-06</ixy>
+          <ixz>7.9905000000000008e-06</ixz>
+          <iyy>0.030841</iyy>
+          <iyz>-0.011996</iyz>
+          <izz>0.019615</izz>
+        </inertia>
+      </inertial>
+      <collision name="link_4_collision">
+        <pose>0 0 0 0 0 0</pose>
+        <geometry>
+          <mesh optimization="convex_decomposition">
+            <scale>0.001 0.001 0.001</scale>
+            <uri>file:///home/cse/doosan_janggi_ws/install/dsr_description2/share/dsr_description2/meshes/e0509_collision/E0509_4_1.dae</uri>
+          <convex_decomposition><max_convex_hulls>1</max_convex_hulls><voxel_resolution>10000</voxel_resolution></convex_decomposition></mesh>
+        </geometry>
+      <surface><friction><ode><mu>1.0</mu><mu2>1.0</mu2></ode><bullet><friction>1.0</friction><friction2>1.0</friction2></bullet></friction></surface></collision>
+      <collision name="link_4_collision_1">
+        <pose>0 0 0 0 0 0</pose>
+        <geometry>
+          <mesh optimization="convex_decomposition">
+            <scale>0.001 0.001 0.001</scale>
+            <uri>file:///home/cse/doosan_janggi_ws/install/dsr_description2/share/dsr_description2/meshes/e0509_collision/E0509_4_2.dae</uri>
+          <convex_decomposition><max_convex_hulls>1</max_convex_hulls><voxel_resolution>10000</voxel_resolution></convex_decomposition></mesh>
+        </geometry>
+      <surface><friction><ode><mu>1.0</mu><mu2>1.0</mu2></ode><bullet><friction>1.0</friction><friction2>1.0</friction2></bullet></friction></surface></collision>
+      <visual name="link_4_visual">
+        <pose>0 0 0 0 0 0</pose>
+        <geometry>
+          <mesh>
+            <scale>0.001 0.001 0.001</scale>
+            <uri>file:///home/cse/doosan_janggi_ws/install/dsr_description2/share/dsr_description2/meshes/e0509_white/E0509_4_1.dae</uri>
+          </mesh>
+        </geometry>
+        <material>
+          <diffuse>1 1 1 1</diffuse>
+          <ambient>1 1 1 1</ambient>
+        </material>
+      </visual>
+      <visual name="link_4_visual_1">
+        <pose>0 0 0 0 0 0</pose>
+        <geometry>
+          <mesh>
+            <scale>0.001 0.001 0.001</scale>
+            <uri>file:///home/cse/doosan_janggi_ws/install/dsr_description2/share/dsr_description2/meshes/e0509_white/E0509_4_2.dae</uri>
+          </mesh>
+        </geometry>
+        <material>
+          <diffuse>1 1 1 1</diffuse>
+          <ambient>1 1 1 1</ambient>
+        </material>
+      </visual>
+    </link>
+    <joint name="joint_5" type="revolute">
+      <pose relative_to="link_4">0 0 0 -1.5708 0 0</pose>
+      <parent>link_4</parent>
+      <child>link_5</child>
+      <axis>
+        <xyz>0 0 1</xyz>
+        <limit>
+          <lower>-2.7052603405909998</lower>
+          <upper>2.7052603405909998</upper>
+          <effort>66</effort>
+          <velocity>3.9269908169869998</velocity>
+        </limit>
+        <dynamics>
+          <damping>0</damping>
+          <friction>0</friction>
+          <spring_reference>0</spring_reference>
+          <spring_stiffness>0</spring_stiffness>
+        </dynamics>
+      </axis>
+    </joint>
+    <link name="link_5">
+      <pose relative_to="joint_5">0 0 0 0 0 0</pose>
+      <inertial>
+        <pose>-3.0000000000000001e-06 -0.038009000000000001 0.043840999999999998 0 0 0</pose>
+        <mass>3.5449999999999999</mass>
+        <inertia>
+          <ixx>0.023525999999999998</ixx>
+          <ixy>9.9367999999999995e-06</ixy>
+          <ixz>7.6673000000000003e-06</ixz>
+          <iyy>0.018415000000000001</iyy>
+          <iyz>-0.0059938999999999999</iyz>
+          <izz>0.014249</izz>
+        </inertia>
+      </inertial>
+      <collision name="link_5_collision">
+        <pose>0 0 0 0 0 0</pose>
+        <geometry>
+          <mesh optimization="convex_decomposition">
+            <scale>0.001 0.001 0.001</scale>
+            <uri>file:///home/cse/doosan_janggi_ws/install/dsr_description2/share/dsr_description2/meshes/e0509_collision/E0509_5_1.dae</uri>
+          <convex_decomposition><max_convex_hulls>1</max_convex_hulls><voxel_resolution>10000</voxel_resolution></convex_decomposition></mesh>
+        </geometry>
+      <surface><friction><ode><mu>1.0</mu><mu2>1.0</mu2></ode><bullet><friction>1.0</friction><friction2>1.0</friction2></bullet></friction></surface></collision>
+      <collision name="link_5_collision_1">
+        <pose>0 0 0 0 0 0</pose>
+        <geometry>
+          <mesh optimization="convex_decomposition">
+            <scale>0.001 0.001 0.001</scale>
+            <uri>file:///home/cse/doosan_janggi_ws/install/dsr_description2/share/dsr_description2/meshes/e0509_collision/E0509_5_2.dae</uri>
+          <convex_decomposition><max_convex_hulls>1</max_convex_hulls><voxel_resolution>10000</voxel_resolution></convex_decomposition></mesh>
+        </geometry>
+      <surface><friction><ode><mu>1.0</mu><mu2>1.0</mu2></ode><bullet><friction>1.0</friction><friction2>1.0</friction2></bullet></friction></surface></collision>
+      <visual name="link_5_visual">
+        <pose>0 0 0 0 0 0</pose>
+        <geometry>
+          <mesh>
+            <scale>0.001 0.001 0.001</scale>
+            <uri>file:///home/cse/doosan_janggi_ws/install/dsr_description2/share/dsr_description2/meshes/e0509_white/E0509_5_1.dae</uri>
+          </mesh>
+        </geometry>
+        <material>
+          <diffuse>1 1 1 1</diffuse>
+          <ambient>1 1 1 1</ambient>
+        </material>
+      </visual>
+      <visual name="link_5_visual_1">
+        <pose>0 0 0 0 0 0</pose>
+        <geometry>
+          <mesh>
+            <scale>0.001 0.001 0.001</scale>
+            <uri>file:///home/cse/doosan_janggi_ws/install/dsr_description2/share/dsr_description2/meshes/e0509_white/E0509_5_2.dae</uri>
+          </mesh>
+        </geometry>
+        <material>
+          <diffuse>1 1 1 1</diffuse>
+          <ambient>1 1 1 1</ambient>
+        </material>
+      </visual>
+    </link>
+    <joint name="joint_6" type="revolute">
+      <pose relative_to="link_5">0 -0.17249999999999999 0 1.5708 0 0</pose>
+      <parent>link_5</parent>
+      <child>link_6</child>
+      <axis>
+        <xyz>0 0 1</xyz>
+        <limit>
+          <lower>-6.2831999999999999</lower>
+          <upper>6.2831999999999999</upper>
+          <effort>66</effort>
+          <velocity>3.9269908169869998</velocity>
+        </limit>
+        <dynamics>
+          <damping>0</damping>
+          <friction>0</friction>
+          <spring_reference>0</spring_reference>
+          <spring_stiffness>0</spring_stiffness>
+        </dynamics>
+      </axis>
+    </joint>
+    <link name="link_6">
+      <pose relative_to="joint_6">0 0 0 0 0 0</pose>
+      <inertial>
+        <pose>3.7386010583503289e-05 -7.8956772387797175e-05 -0.01241233009497022 0 0 0</pose>
+        <mass>1.0409999999999999</mass>
+        <inertia>
+          <ixx>0.0058851780945590867</ixx>
+          <ixy>5.6312841574482886e-06</ixy>
+          <ixz>6.2934160084959846e-06</ixz>
+          <iyy>0.0058117881900496392</iyy>
+          <iyz>2.342331405262766e-06</iyz>
+          <izz>0.0081704227997747118</izz>
+        </inertia>
+      </inertial>
+      <collision name="link_6_collision">
+        <pose>0 0 0 0 0 0</pose>
+        <geometry>
+          <mesh optimization="convex_decomposition">
+            <scale>0.001 0.001 0.001</scale>
+            <uri>file:///home/cse/doosan_janggi_ws/install/dsr_description2/share/dsr_description2/meshes/e0509_collision/E0509_6_1.dae</uri>
+          <convex_decomposition><max_convex_hulls>1</max_convex_hulls><voxel_resolution>10000</voxel_resolution></convex_decomposition></mesh>
+        </geometry>
+      <surface><friction><ode><mu>1.0</mu><mu2>1.0</mu2></ode><bullet><friction>1.0</friction><friction2>1.0</friction2></bullet></friction></surface></collision>
+      <collision name="link_6_fixed_joint_lump__gripper_rh_p12_rn_base_collision_1">
+        <pose>0 0 0 0 0 1.5708</pose>
+        <geometry>
+          <mesh optimization="convex_decomposition">
+            <scale>0.001 0.001 0.001</scale>
+            <uri>file:///home/cse/doosan_janggi_ws/install/rh_p12_rn_a_description/share/rh_p12_rn_a_description/meshes/base.stl</uri>
+          <convex_decomposition><max_convex_hulls>1</max_convex_hulls><voxel_resolution>10000</voxel_resolution></convex_decomposition></mesh>
+        </geometry>
+      <surface><friction><ode><mu>1.0</mu><mu2>1.0</mu2></ode><bullet><friction>1.0</friction><friction2>1.0</friction2></bullet></friction></surface></collision>
+      <visual name="link_6_visual">
+        <pose>0 0 0 0 0 0</pose>
+        <geometry>
+          <mesh>
+            <scale>0.001 0.001 0.001</scale>
+            <uri>file:///home/cse/doosan_janggi_ws/install/dsr_description2/share/dsr_description2/meshes/e0509_white/E0509_6_1.dae</uri>
+          </mesh>
+        </geometry>
+        <material>
+          <diffuse>1 1 1 1</diffuse>
+          <ambient>1 1 1 1</ambient>
+        </material>
+      </visual>
+      <visual name="link_6_fixed_joint_lump__gripper_rh_p12_rn_base_visual_1">
+        <pose>0 0 0 0 0 1.5708</pose>
+        <geometry>
+          <mesh>
+            <scale>0.001 0.001 0.001</scale>
+            <uri>file:///home/cse/doosan_janggi_ws/install/rh_p12_rn_a_description/share/rh_p12_rn_a_description/meshes/base.stl</uri>
+          </mesh>
+        </geometry>
+        <material>
+          <diffuse>0.625 0.625 0.625 1</diffuse>
+          <ambient>0.625 0.625 0.625 1</ambient>
+        </material>
+      </visual>
+    </link>
+    <joint name="gripper_rh_l1" type="revolute">
+      <pose relative_to="link_6">0.0079999999999460312 2.938564082864692e-08 0.048000000000000001 0 0 1.5708</pose>
+      <parent>link_6</parent>
+      <child>gripper_rh_p12_rn_l1</child>
+      <axis>
+        <xyz>-1 0 0</xyz>
+        <limit>
+          <lower>0</lower>
+          <upper>1.101</upper>
+          <effort>2</effort>
+          <velocity>0.65000000000000002</velocity>
+        </limit>
+        <dynamics>
+          <damping>0.02</damping>
+          <friction>0</friction>
+          <spring_reference>0</spring_reference>
+          <spring_stiffness>0</spring_stiffness>
+        </dynamics>
+      <mimic joint="gripper_rh_r1" axis="axis"><multiplier>1</multiplier></mimic></axis>
+    </joint>
+    <link name="gripper_rh_p12_rn_l1">
+      <pose relative_to="gripper_rh_l1">0 0 0 0 0 0</pose>
+      <inertial>
+        <pose>5.4711988534599997e-21 -0.034267772940499999 0.0041913991546299999 0 0 0</pose>
+        <mass>0.068000000000000005</mass>
+        <inertia>
+          <ixx>3.6308235427199998e-05</ixx>
+          <ixy>3.7186342187400002e-22</ixy>
+          <ixz>-1.0109185654100001e-21</ixz>
+          <iyy>2.00318984375e-05</iyy>
+          <iyz>6.6582934839000001e-06</iyz>
+          <izz>2.3937670323e-05</izz>
+        </inertia>
+      </inertial>
+      <collision name="gripper_rh_p12_rn_l1_collision">
+        <pose>0 0 0 0 0 0</pose>
+        <geometry>
+          <mesh optimization="convex_decomposition">
+            <scale>0.001 0.001 0.001</scale>
+            <uri>file:///home/cse/doosan_janggi_ws/install/rh_p12_rn_a_description/share/rh_p12_rn_a_description/meshes/l1.stl</uri>
+          <convex_decomposition><max_convex_hulls>1</max_convex_hulls><voxel_resolution>10000</voxel_resolution></convex_decomposition></mesh>
+        </geometry>
+      <surface><friction><ode><mu>1.0</mu><mu2>1.0</mu2></ode><bullet><friction>1.0</friction><friction2>1.0</friction2></bullet></friction></surface></collision>
+      <visual name="gripper_rh_p12_rn_l1_visual">
+        <pose>0 0 0 0 0 0</pose>
+        <geometry>
+          <mesh>
+            <scale>0.001 0.001 0.001</scale>
+            <uri>file:///home/cse/doosan_janggi_ws/install/rh_p12_rn_a_description/share/rh_p12_rn_a_description/meshes/l1.stl</uri>
+          </mesh>
+        </geometry>
+        <material>
+          <diffuse>0.625 0.625 0.625 1</diffuse>
+          <ambient>0.625 0.625 0.625 1</ambient>
+        </material>
+      </visual>
+    </link>
+    <joint name="gripper_rh_l2" type="revolute">
+      <pose relative_to="gripper_rh_p12_rn_l1">0 -0.049363400000000002 0.028500000000000001 0 0 0</pose>
+      <parent>gripper_rh_p12_rn_l1</parent>
+      <child>gripper_rh_p12_rn_l2</child>
+      <axis>
+        <xyz>1 0 0</xyz>
+        <limit>
+          <lower>0</lower>
+          <upper>1.101</upper>
+          <effort>2</effort>
+          <velocity>0.65000000000000002</velocity>
+        </limit>
+        <dynamics>
+          <damping>0.02</damping>
+          <friction>0</friction>
+          <spring_reference>0</spring_reference>
+          <spring_stiffness>0</spring_stiffness>
+        </dynamics>
+      <mimic joint="gripper_rh_r1" axis="axis"><multiplier>1</multiplier></mimic></axis>
+    </joint>
+    <link name="gripper_rh_p12_rn_l2">
+      <pose relative_to="gripper_rh_l2">0 0 0 0 0 0</pose>
+      <inertial>
+        <pose>6.3206661291399998e-19 -0.0064215055087899998 0.011245596762600001 0 0 0</pose>
+        <mass>0.021999999999999999</mass>
+        <inertia>
+          <ixx>4.9140037206500002e-06</ixx>
+          <ixy>-4.3335887542099999e-23</ixy>
+          <ixz>-2.1045367910499999e-22</ixz>
+          <iyy>5.4966278762399999e-06</iyy>
+          <iyz>-8.3394619362699997e-07</iyz>
+          <izz>1.8960425110699999e-06</izz>
+        </inertia>
+      </inertial>
+      <collision name="gripper_rh_p12_rn_l2_collision">
+        <pose>0 0 0 0 0 0</pose>
+        <geometry>
+          <mesh optimization="convex_decomposition">
+            <scale>0.001 0.001 0.001</scale>
+            <uri>file:///home/cse/doosan_janggi_ws/install/rh_p12_rn_a_description/share/rh_p12_rn_a_description/meshes/l2.stl</uri>
+          <convex_decomposition><max_convex_hulls>1</max_convex_hulls><voxel_resolution>10000</voxel_resolution></convex_decomposition></mesh>
+        </geometry>
+      <surface><friction><ode><mu>1.0</mu><mu2>1.0</mu2></ode><bullet><friction>1.0</friction><friction2>1.0</friction2></bullet></friction></surface></collision>
+      <visual name="gripper_rh_p12_rn_l2_visual">
+        <pose>0 0 0 0 0 0</pose>
+        <geometry>
+          <mesh>
+            <scale>0.001 0.001 0.001</scale>
+            <uri>file:///home/cse/doosan_janggi_ws/install/rh_p12_rn_a_description/share/rh_p12_rn_a_description/meshes/l2.stl</uri>
+          </mesh>
+        </geometry>
+        <material>
+          <diffuse>0.625 0.625 0.625 1</diffuse>
+          <ambient>0.625 0.625 0.625 1</ambient>
+        </material>
+      </visual>
+    </link>
+    <joint name="gripper_rh_r1" type="revolute">
+      <pose relative_to="link_6">-0.0079999999999460312 -2.938564082864692e-08 0.048000000000000001 0 0 1.5708</pose>
+      <parent>link_6</parent>
+      <child>gripper_rh_p12_rn_r1</child>
+      <axis>
+        <xyz>1 0 0</xyz>
+        <limit>
+          <lower>0</lower>
+          <upper>1.101</upper>
+          <effort>2</effort>
+          <velocity>0.65000000000000002</velocity>
+        </limit>
+        <dynamics>
+          <damping>0.02</damping>
+          <friction>0</friction>
+          <spring_reference>0</spring_reference>
+          <spring_stiffness>0</spring_stiffness>
+        </dynamics>
+      </axis>
+    </joint>
+    <link name="gripper_rh_p12_rn_r1">
+      <pose relative_to="gripper_rh_r1">0 0 0 0 0 0</pose>
+      <inertial>
+        <pose>1.8944026030100001e-19 0.034267772940499999 0.0041913991546299999 0 0 0</pose>
+        <mass>0.068000000000000005</mass>
+        <inertia>
+          <ixx>3.6308235427199998e-05</ixx>
+          <ixy>3.20348029546e-21</ixy>
+          <ixz>1.2153787219900001e-21</ixz>
+          <iyy>2.00318984375e-05</iyy>
+          <iyz>-6.6582934839000001e-06</iyz>
+          <izz>2.3937670323e-05</izz>
+        </inertia>
+      </inertial>
+      <collision name="gripper_rh_p12_rn_r1_collision">
+        <pose>0 0 0 0 0 0</pose>
+        <geometry>
+          <mesh optimization="convex_decomposition">
+            <scale>0.001 0.001 0.001</scale>
+            <uri>file:///home/cse/doosan_janggi_ws/install/rh_p12_rn_a_description/share/rh_p12_rn_a_description/meshes/r1.stl</uri>
+          <convex_decomposition><max_convex_hulls>1</max_convex_hulls><voxel_resolution>10000</voxel_resolution></convex_decomposition></mesh>
+        </geometry>
+      <surface><friction><ode><mu>1.0</mu><mu2>1.0</mu2></ode><bullet><friction>1.0</friction><friction2>1.0</friction2></bullet></friction></surface></collision>
+      <visual name="gripper_rh_p12_rn_r1_visual">
+        <pose>0 0 0 0 0 0</pose>
+        <geometry>
+          <mesh>
+            <scale>0.001 0.001 0.001</scale>
+            <uri>file:///home/cse/doosan_janggi_ws/install/rh_p12_rn_a_description/share/rh_p12_rn_a_description/meshes/r1.stl</uri>
+          </mesh>
+        </geometry>
+        <material>
+          <diffuse>0.625 0.625 0.625 1</diffuse>
+          <ambient>0.625 0.625 0.625 1</ambient>
+        </material>
+      </visual>
+    </link>
+    <joint name="gripper_rh_r2" type="revolute">
+      <pose relative_to="gripper_rh_p12_rn_r1">0 0.049363400000000002 0.028500000000000001 0 0 0</pose>
+      <parent>gripper_rh_p12_rn_r1</parent>
+      <child>gripper_rh_p12_rn_r2</child>
+      <axis>
+        <xyz>-1 0 0</xyz>
+        <limit>
+          <lower>0</lower>
+          <upper>1.101</upper>
+          <effort>2</effort>
+          <velocity>0.65000000000000002</velocity>
+        </limit>
+        <dynamics>
+          <damping>0.02</damping>
+          <friction>0</friction>
+          <spring_reference>0</spring_reference>
+          <spring_stiffness>0</spring_stiffness>
+        </dynamics>
+      <mimic joint="gripper_rh_r1" axis="axis"><multiplier>1</multiplier></mimic></axis>
+    </joint>
+    <link name="gripper_rh_p12_rn_r2">
+      <pose relative_to="gripper_rh_r2">0 0 0 0 0 0</pose>
+      <inertial>
+        <pose>-7.9593573477900001e-19 0.0064215055087700002 0.011245596762600001 0 0 0</pose>
+        <mass>0.021999999999999999</mass>
+        <inertia>
+          <ixx>4.9140037206400001e-06</ixx>
+          <ixy>-1.23710327649e-22</ixy>
+          <ixz>3.0696347916899997e-23</ixz>
+          <iyy>5.4966278762299999e-06</iyy>
+          <iyz>8.3394619362399999e-07</iyz>
+          <izz>1.8960425110699999e-06</izz>
+        </inertia>
+      </inertial>
+      <collision name="gripper_rh_p12_rn_r2_collision">
+        <pose>0 0 0 0 0 0</pose>
+        <geometry>
+          <mesh optimization="convex_decomposition">
+            <scale>0.001 0.001 0.001</scale>
+            <uri>file:///home/cse/doosan_janggi_ws/install/rh_p12_rn_a_description/share/rh_p12_rn_a_description/meshes/r2.stl</uri>
+          <convex_decomposition><max_convex_hulls>1</max_convex_hulls><voxel_resolution>10000</voxel_resolution></convex_decomposition></mesh>
+        </geometry>
+      <surface><friction><ode><mu>1.0</mu><mu2>1.0</mu2></ode><bullet><friction>1.0</friction><friction2>1.0</friction2></bullet></friction></surface></collision>
+      <visual name="gripper_rh_p12_rn_r2_visual">
+        <pose>0 0 0 0 0 0</pose>
+        <geometry>
+          <mesh>
+            <scale>0.001 0.001 0.001</scale>
+            <uri>file:///home/cse/doosan_janggi_ws/install/rh_p12_rn_a_description/share/rh_p12_rn_a_description/meshes/r2.stl</uri>
+          </mesh>
+        </geometry>
+        <material>
+          <diffuse>0.625 0.625 0.625 1</diffuse>
+          <ambient>0.625 0.625 0.625 1</ambient>
+        </material>
+      </visual>
+    </link>
+    <frame name="gripper_attach_joint" attached_to="link_6">
+      <pose>0 0 0 0 0 1.5708</pose>
+    </frame>
+    <frame name="gripper_rh_p12_rn_base" attached_to="gripper_attach_joint">
+      <pose>0 0 0 0 0 0</pose>
+    </frame>
+  <static>false</static><self_collide>false</self_collide><plugin filename="gz-sim-joint-position-controller-system" name="gz::sim::systems::JointPositionController"><joint_name>gripper_rh_r1</joint_name><topic>/janggi_sim/physics/gripper_rh_r1/target</topic><use_velocity_commands>false</use_velocity_commands><p_gain>5.0</p_gain><i_gain>0.1</i_gain><d_gain>0.03</d_gain><i_max>1</i_max><i_min>-1</i_min><cmd_max>2.0</cmd_max><cmd_min>-2.0</cmd_min></plugin><plugin filename="gz-sim-joint-trajectory-controller-system" name="gz::sim::systems::JointTrajectoryController"><topic>/janggi_sim/physics/arm/trajectory</topic><joint_name>joint_1</joint_name><position_p_gain>1000.0</position_p_gain><position_i_gain>10.0</position_i_gain><position_d_gain>0.0</position_d_gain><position_i_min>-97.0</position_i_min><position_i_max>97.0</position_i_max><position_cmd_min>-97.0</position_cmd_min><position_cmd_max>97.0</position_cmd_max><velocity_p_gain>40.0</velocity_p_gain><velocity_i_gain>0.0</velocity_i_gain><velocity_d_gain>0.0</velocity_d_gain><velocity_cmd_min>-29.099999999999998</velocity_cmd_min><velocity_cmd_max>29.099999999999998</velocity_cmd_max><joint_name>joint_2</joint_name><position_p_gain>1500.0</position_p_gain><position_i_gain>20.0</position_i_gain><position_d_gain>0.0</position_d_gain><position_i_min>-97.0</position_i_min><position_i_max>97.0</position_i_max><position_cmd_min>-97.0</position_cmd_min><position_cmd_max>97.0</position_cmd_max><velocity_p_gain>45.0</velocity_p_gain><velocity_i_gain>0.0</velocity_i_gain><velocity_d_gain>0.0</velocity_d_gain><velocity_cmd_min>-29.099999999999998</velocity_cmd_min><velocity_cmd_max>29.099999999999998</velocity_cmd_max><joint_name>joint_3</joint_name><position_p_gain>1200.0</position_p_gain><position_i_gain>20.0</position_i_gain><position_d_gain>0.0</position_d_gain><position_i_min>-97.0</position_i_min><position_i_max>97.0</position_i_max><position_cmd_min>-97.0</position_cmd_min><position_cmd_max>97.0</position_cmd_max><velocity_p_gain>30.0</velocity_p_gain><velocity_i_gain>0.0</velocity_i_gain><velocity_d_gain>0.0</velocity_d_gain><velocity_cmd_min>-29.099999999999998</velocity_cmd_min><velocity_cmd_max>29.099999999999998</velocity_cmd_max><joint_name>joint_4</joint_name><position_p_gain>350.0</position_p_gain><position_i_gain>10.0</position_i_gain><position_d_gain>0.0</position_d_gain><position_i_min>-33.0</position_i_min><position_i_max>33.0</position_i_max><position_cmd_min>-33.0</position_cmd_min><position_cmd_max>33.0</position_cmd_max><velocity_p_gain>6.0</velocity_p_gain><velocity_i_gain>0.0</velocity_i_gain><velocity_d_gain>0.0</velocity_d_gain><velocity_cmd_min>-9.9</velocity_cmd_min><velocity_cmd_max>9.9</velocity_cmd_max><joint_name>joint_5</joint_name><position_p_gain>250.0</position_p_gain><position_i_gain>10.0</position_i_gain><position_d_gain>0.0</position_d_gain><position_i_min>-33.0</position_i_min><position_i_max>33.0</position_i_max><position_cmd_min>-33.0</position_cmd_min><position_cmd_max>33.0</position_cmd_max><velocity_p_gain>4.5</velocity_p_gain><velocity_i_gain>0.0</velocity_i_gain><velocity_d_gain>0.0</velocity_d_gain><velocity_cmd_min>-9.9</velocity_cmd_min><velocity_cmd_max>9.9</velocity_cmd_max><joint_name>joint_6</joint_name><position_p_gain>120.0</position_p_gain><position_i_gain>10.0</position_i_gain><position_d_gain>0.0</position_d_gain><position_i_min>-33.0</position_i_min><position_i_max>33.0</position_i_max><position_cmd_min>-33.0</position_cmd_min><position_cmd_max>33.0</position_cmd_max><velocity_p_gain>1.4</velocity_p_gain><velocity_i_gain>0.0</velocity_i_gain><velocity_d_gain>0.0</velocity_d_gain><velocity_cmd_min>-9.9</velocity_cmd_min><velocity_cmd_max>9.9</velocity_cmd_max></plugin><plugin filename="gz-sim-joint-state-publisher-system" name="gz::sim::systems::JointStatePublisher"><topic>/janggi_sim/physics/joint_states</topic></plugin></model>
+<model name="janggi_table"><static>true</static>
+          <pose>0.46569 0.07940 -0.04000 0.00000 -0.00000 0.00000</pose><link name="l"><visual name="v">
+          <geometry><box><size>0.75 0.9 0.02</size></box></geometry>
+          <material><diffuse>0.45 0.45 0.48 1</diffuse><ambient>0.45 0.45 0.48 1</ambient></material>
+          </visual><collision name="table_contact"><geometry><box><size>0.75 0.9 0.02</size></box></geometry></collision></link></model><model name="janggi_board"><static>true</static><pose>0.465686 0.0594015 -0.02 0 -0 -1.57080474754</pose><link name="board_surface"><collision name="board_contact"><pose>0 0 -0.005 0 0 0</pose><geometry><box><size>0.4 0.4 0.01</size></box></geometry></collision><visual name="wood"><pose>0 0 -0.005 0 -0 0</pose><geometry><box><size>0.4 0.4 0.01</size></box></geometry><material><diffuse>0.66 0.48 0.32 1</diffuse><ambient>0.66 0.48 0.32 1</ambient></material></visual><visual name="line0"><pose>0.000687627711854 0.177294920194 0.0003 -0 -0 -1.73480985369e-05</pose><geometry><box><size>0.356334992976 0.0012 0.0004</size></box></geometry><material><diffuse>0.07 0.045 0.025 1</diffuse><ambient>0.07 0.045 0.025 1</ambient></material></visual><visual name="line1"><pose>0.000534821553664 0.13789604904 0.0003 -0 -0 -1.34813800265e-05</pose><geometry><box><size>0.356641216809 0.0012 0.0004</size></box></geometry><material><diffuse>0.07 0.045 0.025 1</diffuse><ambient>0.07 0.045 0.025 1</ambient></material></visual><visual name="line2"><pose>0.000382015395475 0.0984971778857 0.0003 -0 -0 -9.62129600131e-06</pose><geometry><box><size>0.356947440647 0.0012 0.0004</size></box></geometry><material><diffuse>0.07 0.045 0.025 1</diffuse><ambient>0.07 0.045 0.025 1</ambient></material></visual><visual name="line3"><pose>0.000229209237285 0.0590983067314 0.0003 -0 -0 -5.76782940199e-06</pose><geometry><box><size>0.357253664491 0.0012 0.0004</size></box></geometry><material><diffuse>0.07 0.045 0.025 1</diffuse><ambient>0.07 0.045 0.025 1</ambient></material></visual><visual name="line4"><pose>7.64030790949e-05 0.0196994355771 0.0003 -0 -0 -1.92096322627e-06</pose><geometry><box><size>0.35755988834 0.0012 0.0004</size></box></geometry><material><diffuse>0.07 0.045 0.025 1</diffuse><ambient>0.07 0.045 0.025 1</ambient></material></visual><visual name="line5"><pose>-7.64030790949e-05 -0.0196994355771 0.0003 0 -0 1.91931946957e-06</pose><geometry><box><size>0.357866112194 0.0012 0.0004</size></box></geometry><material><diffuse>0.07 0.045 0.025 1</diffuse><ambient>0.07 0.045 0.025 1</ambient></material></visual><visual name="line6"><pose>-0.000229209237285 -0.0590983067314 0.0003 0 -0 5.7530355711e-06</pose><geometry><box><size>0.358172336054 0.0012 0.0004</size></box></geometry><material><diffuse>0.07 0.045 0.025 1</diffuse><ambient>0.07 0.045 0.025 1</ambient></material></visual><visual name="line7"><pose>-0.000382015395475 -0.0984971778857 0.0003 0 -0 9.58020190691e-06</pose><geometry><box><size>0.358478559919 0.0012 0.0004</size></box></geometry><material><diffuse>0.07 0.045 0.025 1</diffuse><ambient>0.07 0.045 0.025 1</ambient></material></visual><visual name="line8"><pose>-0.000534821553664 -0.13789604904 0.0003 0 -0 1.34008352471e-05</pose><geometry><box><size>0.358784783789 0.0012 0.0004</size></box></geometry><material><diffuse>0.07 0.045 0.025 1</diffuse><ambient>0.07 0.045 0.025 1</ambient></material></visual><visual name="line9"><pose>-0.000687627711854 -0.177294920194 0.0003 0 -0 1.72149523055e-05</pose><geometry><box><size>0.359091007664 0.0012 0.0004</size></box></geometry><material><diffuse>0.07 0.045 0.025 1</diffuse><ambient>0.07 0.045 0.025 1</ambient></material></visual><visual name="line10"><pose>-0.178856500133 1.38777878078e-17 0.0003 0 -0 -1.57856067628</pose><geometry><box><size>0.354606710824 0.0012 0.0004</size></box></geometry><material><diffuse>0.07 0.045 0.025 1</diffuse><ambient>0.07 0.045 0.025 1</ambient></material></visual><visual name="line11"><pose>-0.1341423751 1.38777878078e-17 0.0003 0 -0 -1.57758922415</pose><geometry><box><size>0.354602657954 0.0012 0.0004</size></box></geometry><material><diffuse>0.07 0.045 0.025 1</diffuse><ambient>0.07 0.045 0.025 1</ambient></material></visual><visual name="line12"><pose>-0.0894282500667 -1.38777878078e-17 0.0003 0 -0 -1.57661775073</pose><geometry><box><size>0.354598939736 0.0012 0.0004</size></box></geometry><material><diffuse>0.07 0.045 0.025 1</diffuse><ambient>0.07 0.045 0.025 1</ambient></material></visual><visual name="line13"><pose>-0.0447141250333 4.16333634234e-17 0.0003 0 -0 -1.57564625786</pose><geometry><box><size>0.354595556182 0.0012 0.0004</size></box></geometry><material><diffuse>0.07 0.045 0.025 1</diffuse><ambient>0.07 0.045 0.025 1</ambient></material></visual><visual name="line14"><pose>1.04083408559e-17 0 0.0003 0 -0 -1.57467474736</pose><geometry><box><size>0.354592507301 0.0012 0.0004</size></box></geometry><material><diffuse>0.07 0.045 0.025 1</diffuse><ambient>0.07 0.045 0.025 1</ambient></material></visual><visual name="line15"><pose>0.0447141250333 -2.77555756156e-17 0.0003 0 -0 -1.57370322107</pose><geometry><box><size>0.354589793102 0.0012 0.0004</size></box></geometry><material><diffuse>0.07 0.045 0.025 1</diffuse><ambient>0.07 0.045 0.025 1</ambient></material></visual><visual name="line16"><pose>0.0894282500667 -1.38777878078e-17 0.0003 0 -0 -1.57273168082</pose><geometry><box><size>0.354587413592 0.0012 0.0004</size></box></geometry><material><diffuse>0.07 0.045 0.025 1</diffuse><ambient>0.07 0.045 0.025 1</ambient></material></visual><visual name="line17"><pose>0.1341423751 1.38777878078e-17 0.0003 0 -0 -1.57176012846</pose><geometry><box><size>0.354585368777 0.0012 0.0004</size></box></geometry><material><diffuse>0.07 0.045 0.025 1</diffuse><ambient>0.07 0.045 0.025 1</ambient></material></visual><visual name="line18"><pose>0.178856500133 1.38777878078e-17 0.0003 -0 -0 -1.5707885658</pose><geometry><box><size>0.354583658665 0.0012 0.0004</size></box></geometry><material><diffuse>0.07 0.045 0.025 1</diffuse><ambient>0.07 0.045 0.025 1</ambient></material></visual><visual name="line19"><pose>0.000573099535458 0.137896220755 0.0003 -0 -0 -0.725490635095</pose><geometry><box><size>0.118762072622 0.0012 0.0004</size></box></geometry><material><diffuse>0.07 0.045 0.025 1</diffuse><ambient>0.07 0.045 0.025 1</ambient></material></visual><visual name="line20"><pose>0.000496543571871 0.137895877325 0.0003 0 -0 -2.41951884245</pose><geometry><box><size>0.119218475838 0.0012 0.0004</size></box></geometry><material><diffuse>0.07 0.045 0.025 1</diffuse><ambient>0.07 0.045 0.025 1</ambient></material></visual><visual name="line21"><pose>-0.000496543571871 -0.137895877325 0.0003 -0 -0 -0.722491651707</pose><geometry><box><size>0.119161953678 0.0012 0.0004</size></box></geometry><material><diffuse>0.07 0.045 0.025 1</diffuse><ambient>0.07 0.045 0.025 1</ambient></material></visual><visual name="line22"><pose>-0.000573099535458 -0.137896220755 0.0003 0 -0 -2.42246468716</pose><geometry><box><size>0.11962273661 0.0012 0.0004</size></box></geometry><material><diffuse>0.07 0.045 0.025 1</diffuse><ambient>0.07 0.045 0.025 1</ambient></material></visual></link></model><model name="piece_0"><static>false</static><pose>0.64299 0.23688 -0.01650 0.00000 -0.00000 -1.57080</pose><link name="l"><inertial><mass>0.00507295634109577</mass><inertia><ixx>2.6507006716927706e-07</ixx><iyy>2.6507006716927706e-07</iyy><izz>4.88710990886272e-07</izz><ixy>0</ixy><ixz>0</ixz><iyz>0</iyz></inertia></inertial><gravity>true</gravity><collision name="piece_contact"><geometry><mesh optimization="convex_decomposition"><uri>file:///home/cse/doosan_janggi_ws/src/janggi/robot_game/assets/pieces/body.dae</uri><scale>0.02705980500730985 0.02705980500730985 0.005</scale><convex_decomposition><max_convex_hulls>1</max_convex_hulls><voxel_resolution>10000</voxel_resolution></convex_decomposition></mesh></geometry><surface><friction><ode><mu>0.8</mu><mu2>0.8</mu2></ode><bullet><friction>0.8</friction><friction2>0.8</friction2></bullet></friction><bounce><restitution_coefficient>0</restitution_coefficient></bounce></surface></collision><visual name="body"><geometry><mesh><uri>file:///home/cse/doosan_janggi_ws/src/janggi/robot_game/assets/pieces/body.dae</uri><scale>0.029224589407894637 0.029224589407894637 0.007</scale></mesh></geometry><material><ambient>0.82 0.78 0.67 1</ambient><diffuse>0.82 0.78 0.67 1</diffuse></material></visual><visual name="photo_top"><pose>0 0 0.0036 0 0 0</pose><geometry><mesh><uri>file:///home/cse/doosan_janggi_ws/src/janggi/robot_game/assets/pieces/top.dae</uri><scale>0.029224589407894637 0.029224589407894637 1</scale></mesh></geometry><material><ambient>1 1 1 1</ambient><diffuse>1 1 1 1</diffuse><emissive>0.5 0.5 0.5 1</emissive><pbr><metal><albedo_map>file:///home/cse/doosan_janggi_ws/src/janggi/robot_game/assets/pieces/instances/red_cha_0.png</albedo_map><emissive_map>file:///home/cse/doosan_janggi_ws/src/janggi/robot_game/assets/pieces/instances/red_cha_0.png</emissive_map><metalness>0</metalness><roughness>1</roughness></metal></pbr></material></visual></link></model><model name="piece_1"><static>false</static><pose>0.64298 0.19234 -0.01650 0.00000 -0.00000 -1.57080</pose><link name="l"><inertial><mass>0.00507295634109577</mass><inertia><ixx>2.6507006716927706e-07</ixx><iyy>2.6507006716927706e-07</iyy><izz>4.88710990886272e-07</izz><ixy>0</ixy><ixz>0</ixz><iyz>0</iyz></inertia></inertial><gravity>true</gravity><collision name="piece_contact"><geometry><mesh optimization="convex_decomposition"><uri>file:///home/cse/doosan_janggi_ws/src/janggi/robot_game/assets/pieces/body.dae</uri><scale>0.02705980500730985 0.02705980500730985 0.005</scale><convex_decomposition><max_convex_hulls>1</max_convex_hulls><voxel_resolution>10000</voxel_resolution></convex_decomposition></mesh></geometry><surface><friction><ode><mu>0.8</mu><mu2>0.8</mu2></ode><bullet><friction>0.8</friction><friction2>0.8</friction2></bullet></friction><bounce><restitution_coefficient>0</restitution_coefficient></bounce></surface></collision><visual name="body"><geometry><mesh><uri>file:///home/cse/doosan_janggi_ws/src/janggi/robot_game/assets/pieces/body.dae</uri><scale>0.029224589407894637 0.029224589407894637 0.007</scale></mesh></geometry><material><ambient>0.82 0.78 0.67 1</ambient><diffuse>0.82 0.78 0.67 1</diffuse></material></visual><visual name="photo_top"><pose>0 0 0.0036 0 0 0</pose><geometry><mesh><uri>file:///home/cse/doosan_janggi_ws/src/janggi/robot_game/assets/pieces/top.dae</uri><scale>0.029224589407894637 0.029224589407894637 1</scale></mesh></geometry><material><ambient>1 1 1 1</ambient><diffuse>1 1 1 1</diffuse><emissive>0.5 0.5 0.5 1</emissive><pbr><metal><albedo_map>file:///home/cse/doosan_janggi_ws/src/janggi/robot_game/assets/pieces/instances/red_horse_0.png</albedo_map><emissive_map>file:///home/cse/doosan_janggi_ws/src/janggi/robot_game/assets/pieces/instances/red_horse_0.png</emissive_map><metalness>0</metalness><roughness>1</roughness></metal></pbr></material></visual></link></model><model name="piece_2"><static>false</static><pose>0.64298 0.14780 -0.01650 0.00000 -0.00000 -1.57080</pose><link name="l"><inertial><mass>0.00507295634109577</mass><inertia><ixx>2.6507006716927706e-07</ixx><iyy>2.6507006716927706e-07</iyy><izz>4.88710990886272e-07</izz><ixy>0</ixy><ixz>0</ixz><iyz>0</iyz></inertia></inertial><gravity>true</gravity><collision name="piece_contact"><geometry><mesh optimization="convex_decomposition"><uri>file:///home/cse/doosan_janggi_ws/src/janggi/robot_game/assets/pieces/body.dae</uri><scale>0.02705980500730985 0.02705980500730985 0.005</scale><convex_decomposition><max_convex_hulls>1</max_convex_hulls><voxel_resolution>10000</voxel_resolution></convex_decomposition></mesh></geometry><surface><friction><ode><mu>0.8</mu><mu2>0.8</mu2></ode><bullet><friction>0.8</friction><friction2>0.8</friction2></bullet></friction><bounce><restitution_coefficient>0</restitution_coefficient></bounce></surface></collision><visual name="body"><geometry><mesh><uri>file:///home/cse/doosan_janggi_ws/src/janggi/robot_game/assets/pieces/body.dae</uri><scale>0.029224589407894637 0.029224589407894637 0.007</scale></mesh></geometry><material><ambient>0.82 0.78 0.67 1</ambient><diffuse>0.82 0.78 0.67 1</diffuse></material></visual><visual name="photo_top"><pose>0 0 0.0036 0 0 0</pose><geometry><mesh><uri>file:///home/cse/doosan_janggi_ws/src/janggi/robot_game/assets/pieces/top.dae</uri><scale>0.029224589407894637 0.029224589407894637 1</scale></mesh></geometry><material><ambient>1 1 1 1</ambient><diffuse>1 1 1 1</diffuse><emissive>0.5 0.5 0.5 1</emissive><pbr><metal><albedo_map>file:///home/cse/doosan_janggi_ws/src/janggi/robot_game/assets/pieces/instances/red_sang_0.png</albedo_map><emissive_map>file:///home/cse/doosan_janggi_ws/src/janggi/robot_game/assets/pieces/instances/red_sang_0.png</emissive_map><metalness>0</metalness><roughness>1</roughness></metal></pbr></material></visual></link></model><model name="piece_3"><static>false</static><pose>0.64298 0.10325 -0.01700 0.00000 -0.00000 -1.57080</pose><link name="l"><inertial><mass>0.0026304218064941024</mass><inertia><ixx>8.453866819679883e-08</ixx><iyy>8.453866819679883e-08</iyy><izz>1.5329480555463305e-07</izz><ixy>0</ixy><ixz>0</ixz><iyz>0</iyz></inertia></inertial><gravity>true</gravity><collision name="piece_contact"><geometry><mesh optimization="convex_decomposition"><uri>file:///home/cse/doosan_janggi_ws/src/janggi/robot_game/assets/pieces/body.dae</uri><scale>0.02056545180555549 0.02056545180555549 0.004</scale><convex_decomposition><max_convex_hulls>1</max_convex_hulls><voxel_resolution>10000</voxel_resolution></convex_decomposition></mesh></geometry><surface><friction><ode><mu>0.8</mu><mu2>0.8</mu2></ode><bullet><friction>0.8</friction><friction2>0.8</friction2></bullet></friction><bounce><restitution_coefficient>0</restitution_coefficient></bounce></surface></collision><visual name="body"><geometry><mesh><uri>file:///home/cse/doosan_janggi_ws/src/janggi/robot_game/assets/pieces/body.dae</uri><scale>0.022730236206140276 0.022730236206140276 0.006</scale></mesh></geometry><material><ambient>0.82 0.78 0.67 1</ambient><diffuse>0.82 0.78 0.67 1</diffuse></material></visual><visual name="photo_top"><pose>0 0 0.0031 0 0 0</pose><geometry><mesh><uri>file:///home/cse/doosan_janggi_ws/src/janggi/robot_game/assets/pieces/top.dae</uri><scale>0.022730236206140272 0.022730236206140272 1</scale></mesh></geometry><material><ambient>1 1 1 1</ambient><diffuse>1 1 1 1</diffuse><emissive>0.5 0.5 0.5 1</emissive><pbr><metal><albedo_map>file:///home/cse/doosan_janggi_ws/src/janggi/robot_game/assets/pieces/instances/red_sa_0.png</albedo_map><emissive_map>file:///home/cse/doosan_janggi_ws/src/janggi/robot_game/assets/pieces/instances/red_sa_0.png</emissive_map><metalness>0</metalness><roughness>1</roughness></metal></pbr></material></visual></link></model><model name="piece_4"><static>false</static><pose>0.64298 0.01417 -0.01700 0.00000 -0.00000 -1.57080</pose><link name="l"><inertial><mass>0.0026304218064941024</mass><inertia><ixx>8.453866819679883e-08</ixx><iyy>8.453866819679883e-08</iyy><izz>1.5329480555463305e-07</izz><ixy>0</ixy><ixz>0</ixz><iyz>0</iyz></inertia></inertial><gravity>true</gravity><collision name="piece_contact"><geometry><mesh optimization="convex_decomposition"><uri>file:///home/cse/doosan_janggi_ws/src/janggi/robot_game/assets/pieces/body.dae</uri><scale>0.02056545180555549 0.02056545180555549 0.004</scale><convex_decomposition><max_convex_hulls>1</max_convex_hulls><voxel_resolution>10000</voxel_resolution></convex_decomposition></mesh></geometry><surface><friction><ode><mu>0.8</mu><mu2>0.8</mu2></ode><bullet><friction>0.8</friction><friction2>0.8</friction2></bullet></friction><bounce><restitution_coefficient>0</restitution_coefficient></bounce></surface></collision><visual name="body"><geometry><mesh><uri>file:///home/cse/doosan_janggi_ws/src/janggi/robot_game/assets/pieces/body.dae</uri><scale>0.022730236206140276 0.022730236206140276 0.006</scale></mesh></geometry><material><ambient>0.82 0.78 0.67 1</ambient><diffuse>0.82 0.78 0.67 1</diffuse></material></visual><visual name="photo_top"><pose>0 0 0.0031 0 0 0</pose><geometry><mesh><uri>file:///home/cse/doosan_janggi_ws/src/janggi/robot_game/assets/pieces/top.dae</uri><scale>0.022730236206140272 0.022730236206140272 1</scale></mesh></geometry><material><ambient>1 1 1 1</ambient><diffuse>1 1 1 1</diffuse><emissive>0.5 0.5 0.5 1</emissive><pbr><metal><albedo_map>file:///home/cse/doosan_janggi_ws/src/janggi/robot_game/assets/pieces/instances/red_sa_1.png</albedo_map><emissive_map>file:///home/cse/doosan_janggi_ws/src/janggi/robot_game/assets/pieces/instances/red_sa_1.png</emissive_map><metalness>0</metalness><roughness>1</roughness></metal></pbr></material></visual></link></model><model name="piece_5"><static>false</static><pose>0.64298 -0.03037 -0.01650 0.00000 -0.00000 -1.57080</pose><link name="l"><inertial><mass>0.00507295634109577</mass><inertia><ixx>2.6507006716927706e-07</ixx><iyy>2.6507006716927706e-07</iyy><izz>4.88710990886272e-07</izz><ixy>0</ixy><ixz>0</ixz><iyz>0</iyz></inertia></inertial><gravity>true</gravity><collision name="piece_contact"><geometry><mesh optimization="convex_decomposition"><uri>file:///home/cse/doosan_janggi_ws/src/janggi/robot_game/assets/pieces/body.dae</uri><scale>0.02705980500730985 0.02705980500730985 0.005</scale><convex_decomposition><max_convex_hulls>1</max_convex_hulls><voxel_resolution>10000</voxel_resolution></convex_decomposition></mesh></geometry><surface><friction><ode><mu>0.8</mu><mu2>0.8</mu2></ode><bullet><friction>0.8</friction><friction2>0.8</friction2></bullet></friction><bounce><restitution_coefficient>0</restitution_coefficient></bounce></surface></collision><visual name="body"><geometry><mesh><uri>file:///home/cse/doosan_janggi_ws/src/janggi/robot_game/assets/pieces/body.dae</uri><scale>0.029224589407894637 0.029224589407894637 0.007</scale></mesh></geometry><material><ambient>0.82 0.78 0.67 1</ambient><diffuse>0.82 0.78 0.67 1</diffuse></material></visual><visual name="photo_top"><pose>0 0 0.0036 0 0 0</pose><geometry><mesh><uri>file:///home/cse/doosan_janggi_ws/src/janggi/robot_game/assets/pieces/top.dae</uri><scale>0.029224589407894637 0.029224589407894637 1</scale></mesh></geometry><material><ambient>1 1 1 1</ambient><diffuse>1 1 1 1</diffuse><emissive>0.5 0.5 0.5 1</emissive><pbr><metal><albedo_map>file:///home/cse/doosan_janggi_ws/src/janggi/robot_game/assets/pieces/instances/red_sang_1.png</albedo_map><emissive_map>file:///home/cse/doosan_janggi_ws/src/janggi/robot_game/assets/pieces/instances/red_sang_1.png</emissive_map><metalness>0</metalness><roughness>1</roughness></metal></pbr></material></visual></link></model><model name="piece_6"><static>false</static><pose>0.64298 -0.07491 -0.01650 0.00000 -0.00000 -1.57080</pose><link name="l"><inertial><mass>0.00507295634109577</mass><inertia><ixx>2.6507006716927706e-07</ixx><iyy>2.6507006716927706e-07</iyy><izz>4.88710990886272e-07</izz><ixy>0</ixy><ixz>0</ixz><iyz>0</iyz></inertia></inertial><gravity>true</gravity><collision name="piece_contact"><geometry><mesh optimization="convex_decomposition"><uri>file:///home/cse/doosan_janggi_ws/src/janggi/robot_game/assets/pieces/body.dae</uri><scale>0.02705980500730985 0.02705980500730985 0.005</scale><convex_decomposition><max_convex_hulls>1</max_convex_hulls><voxel_resolution>10000</voxel_resolution></convex_decomposition></mesh></geometry><surface><friction><ode><mu>0.8</mu><mu2>0.8</mu2></ode><bullet><friction>0.8</friction><friction2>0.8</friction2></bullet></friction><bounce><restitution_coefficient>0</restitution_coefficient></bounce></surface></collision><visual name="body"><geometry><mesh><uri>file:///home/cse/doosan_janggi_ws/src/janggi/robot_game/assets/pieces/body.dae</uri><scale>0.029224589407894637 0.029224589407894637 0.007</scale></mesh></geometry><material><ambient>0.82 0.78 0.67 1</ambient><diffuse>0.82 0.78 0.67 1</diffuse></material></visual><visual name="photo_top"><pose>0 0 0.0036 0 0 0</pose><geometry><mesh><uri>file:///home/cse/doosan_janggi_ws/src/janggi/robot_game/assets/pieces/top.dae</uri><scale>0.029224589407894637 0.029224589407894637 1</scale></mesh></geometry><material><ambient>1 1 1 1</ambient><diffuse>1 1 1 1</diffuse><emissive>0.5 0.5 0.5 1</emissive><pbr><metal><albedo_map>file:///home/cse/doosan_janggi_ws/src/janggi/robot_game/assets/pieces/instances/red_horse_1.png</albedo_map><emissive_map>file:///home/cse/doosan_janggi_ws/src/janggi/robot_game/assets/pieces/instances/red_horse_1.png</emissive_map><metalness>0</metalness><roughness>1</roughness></metal></pbr></material></visual></link></model><model name="piece_7"><static>false</static><pose>0.64298 -0.11946 -0.01650 0.00000 -0.00000 -1.57080</pose><link name="l"><inertial><mass>0.00507295634109577</mass><inertia><ixx>2.6507006716927706e-07</ixx><iyy>2.6507006716927706e-07</iyy><izz>4.88710990886272e-07</izz><ixy>0</ixy><ixz>0</ixz><iyz>0</iyz></inertia></inertial><gravity>true</gravity><collision name="piece_contact"><geometry><mesh optimization="convex_decomposition"><uri>file:///home/cse/doosan_janggi_ws/src/janggi/robot_game/assets/pieces/body.dae</uri><scale>0.02705980500730985 0.02705980500730985 0.005</scale><convex_decomposition><max_convex_hulls>1</max_convex_hulls><voxel_resolution>10000</voxel_resolution></convex_decomposition></mesh></geometry><surface><friction><ode><mu>0.8</mu><mu2>0.8</mu2></ode><bullet><friction>0.8</friction><friction2>0.8</friction2></bullet></friction><bounce><restitution_coefficient>0</restitution_coefficient></bounce></surface></collision><visual name="body"><geometry><mesh><uri>file:///home/cse/doosan_janggi_ws/src/janggi/robot_game/assets/pieces/body.dae</uri><scale>0.029224589407894637 0.029224589407894637 0.007</scale></mesh></geometry><material><ambient>0.82 0.78 0.67 1</ambient><diffuse>0.82 0.78 0.67 1</diffuse></material></visual><visual name="photo_top"><pose>0 0 0.0036 0 0 0</pose><geometry><mesh><uri>file:///home/cse/doosan_janggi_ws/src/janggi/robot_game/assets/pieces/top.dae</uri><scale>0.029224589407894637 0.029224589407894637 1</scale></mesh></geometry><material><ambient>1 1 1 1</ambient><diffuse>1 1 1 1</diffuse><emissive>0.5 0.5 0.5 1</emissive><pbr><metal><albedo_map>file:///home/cse/doosan_janggi_ws/src/janggi/robot_game/assets/pieces/instances/red_cha_1.png</albedo_map><emissive_map>file:///home/cse/doosan_janggi_ws/src/janggi/robot_game/assets/pieces/instances/red_cha_1.png</emissive_map><metalness>0</metalness><roughness>1</roughness></metal></pbr></material></visual></link></model><model name="piece_8"><static>false</static><pose>0.60358 0.05887 -0.01600 0.00000 -0.00000 -1.57080</pose><link name="l"><inertial><mass>0.00866070853294657</mass><inertia><ixx>6.693722442388508e-07</ixx><iyy>6.693722442388508e-07</iyy><izz>1.246363597459605e-06</izz><ixy>0</ixy><ixz>0</ixz><iyz>0</iyz></inertia></inertial><gravity>true</gravity><collision name="piece_contact"><geometry><mesh optimization="convex_decomposition"><uri>file:///home/cse/doosan_janggi_ws/src/janggi/robot_game/assets/pieces/body.dae</uri><scale>0.03355415820906421 0.03355415820906421 0.006</scale><convex_decomposition><max_convex_hulls>1</max_convex_hulls><voxel_resolution>10000</voxel_resolution></convex_decomposition></mesh></geometry><surface><friction><ode><mu>0.8</mu><mu2>0.8</mu2></ode><bullet><friction>0.8</friction><friction2>0.8</friction2></bullet></friction><bounce><restitution_coefficient>0</restitution_coefficient></bounce></surface></collision><visual name="body"><geometry><mesh><uri>file:///home/cse/doosan_janggi_ws/src/janggi/robot_game/assets/pieces/body.dae</uri><scale>0.035718942609649 0.035718942609649 0.008</scale></mesh></geometry><material><ambient>0.82 0.78 0.67 1</ambient><diffuse>0.82 0.78 0.67 1</diffuse></material></visual><visual name="photo_top"><pose>0 0 0.0041 0 0 0</pose><geometry><mesh><uri>file:///home/cse/doosan_janggi_ws/src/janggi/robot_game/assets/pieces/top.dae</uri><scale>0.035718942609649 0.035718942609649 1</scale></mesh></geometry><material><ambient>1 1 1 1</ambient><diffuse>1 1 1 1</diffuse><emissive>0.5 0.5 0.5 1</emissive><pbr><metal><albedo_map>file:///home/cse/doosan_janggi_ws/src/janggi/robot_game/assets/pieces/instances/red_king_0.png</albedo_map><emissive_map>file:///home/cse/doosan_janggi_ws/src/janggi/robot_game/assets/pieces/instances/red_king_0.png</emissive_map><metalness>0</metalness><roughness>1</roughness></metal></pbr></material></visual></link></model><model name="piece_9"><static>false</static><pose>0.56419 0.19287 -0.01650 0.00000 -0.00000 -1.57080</pose><link name="l"><inertial><mass>0.00507295634109577</mass><inertia><ixx>2.6507006716927706e-07</ixx><iyy>2.6507006716927706e-07</iyy><izz>4.88710990886272e-07</izz><ixy>0</ixy><ixz>0</ixz><iyz>0</iyz></inertia></inertial><gravity>true</gravity><collision name="piece_contact"><geometry><mesh optimization="convex_decomposition"><uri>file:///home/cse/doosan_janggi_ws/src/janggi/robot_game/assets/pieces/body.dae</uri><scale>0.02705980500730985 0.02705980500730985 0.005</scale><convex_decomposition><max_convex_hulls>1</max_convex_hulls><voxel_resolution>10000</voxel_resolution></convex_decomposition></mesh></geometry><surface><friction><ode><mu>0.8</mu><mu2>0.8</mu2></ode><bullet><friction>0.8</friction><friction2>0.8</friction2></bullet></friction><bounce><restitution_coefficient>0</restitution_coefficient></bounce></surface></collision><visual name="body"><geometry><mesh><uri>file:///home/cse/doosan_janggi_ws/src/janggi/robot_game/assets/pieces/body.dae</uri><scale>0.029224589407894637 0.029224589407894637 0.007</scale></mesh></geometry><material><ambient>0.82 0.78 0.67 1</ambient><diffuse>0.82 0.78 0.67 1</diffuse></material></visual><visual name="photo_top"><pose>0 0 0.0036 0 0 0</pose><geometry><mesh><uri>file:///home/cse/doosan_janggi_ws/src/janggi/robot_game/assets/pieces/top.dae</uri><scale>0.029224589407894637 0.029224589407894637 1</scale></mesh></geometry><material><ambient>1 1 1 1</ambient><diffuse>1 1 1 1</diffuse><emissive>0.5 0.5 0.5 1</emissive><pbr><metal><albedo_map>file:///home/cse/doosan_janggi_ws/src/janggi/robot_game/assets/pieces/instances/red_po_0.png</albedo_map><emissive_map>file:///home/cse/doosan_janggi_ws/src/janggi/robot_game/assets/pieces/instances/red_po_0.png</emissive_map><metalness>0</metalness><roughness>1</roughness></metal></pbr></material></visual></link></model><model name="piece_10"><static>false</static><pose>0.56418 -0.07484 -0.01650 0.00000 -0.00000 -1.57080</pose><link name="l"><inertial><mass>0.00507295634109577</mass><inertia><ixx>2.6507006716927706e-07</ixx><iyy>2.6507006716927706e-07</iyy><izz>4.88710990886272e-07</izz><ixy>0</ixy><ixz>0</ixz><iyz>0</iyz></inertia></inertial><gravity>true</gravity><collision name="piece_contact"><geometry><mesh optimization="convex_decomposition"><uri>file:///home/cse/doosan_janggi_ws/src/janggi/robot_game/assets/pieces/body.dae</uri><scale>0.02705980500730985 0.02705980500730985 0.005</scale><convex_decomposition><max_convex_hulls>1</max_convex_hulls><voxel_resolution>10000</voxel_resolution></convex_decomposition></mesh></geometry><surface><friction><ode><mu>0.8</mu><mu2>0.8</mu2></ode><bullet><friction>0.8</friction><friction2>0.8</friction2></bullet></friction><bounce><restitution_coefficient>0</restitution_coefficient></bounce></surface></collision><visual name="body"><geometry><mesh><uri>file:///home/cse/doosan_janggi_ws/src/janggi/robot_game/assets/pieces/body.dae</uri><scale>0.029224589407894637 0.029224589407894637 0.007</scale></mesh></geometry><material><ambient>0.82 0.78 0.67 1</ambient><diffuse>0.82 0.78 0.67 1</diffuse></material></visual><visual name="photo_top"><pose>0 0 0.0036 0 0 0</pose><geometry><mesh><uri>file:///home/cse/doosan_janggi_ws/src/janggi/robot_game/assets/pieces/top.dae</uri><scale>0.029224589407894637 0.029224589407894637 1</scale></mesh></geometry><material><ambient>1 1 1 1</ambient><diffuse>1 1 1 1</diffuse><emissive>0.5 0.5 0.5 1</emissive><pbr><metal><albedo_map>file:///home/cse/doosan_janggi_ws/src/janggi/robot_game/assets/pieces/instances/red_po_1.png</albedo_map><emissive_map>file:///home/cse/doosan_janggi_ws/src/janggi/robot_game/assets/pieces/instances/red_po_1.png</emissive_map><metalness>0</metalness><roughness>1</roughness></metal></pbr></material></visual></link></model><model name="piece_11"><static>false</static><pose>0.52479 0.23780 -0.01700 0.00000 -0.00000 -1.57080</pose><link name="l"><inertial><mass>0.0026304218064941024</mass><inertia><ixx>8.453866819679883e-08</ixx><iyy>8.453866819679883e-08</iyy><izz>1.5329480555463305e-07</izz><ixy>0</ixy><ixz>0</ixz><iyz>0</iyz></inertia></inertial><gravity>true</gravity><collision name="piece_contact"><geometry><mesh optimization="convex_decomposition"><uri>file:///home/cse/doosan_janggi_ws/src/janggi/robot_game/assets/pieces/body.dae</uri><scale>0.02056545180555549 0.02056545180555549 0.004</scale><convex_decomposition><max_convex_hulls>1</max_convex_hulls><voxel_resolution>10000</voxel_resolution></convex_decomposition></mesh></geometry><surface><friction><ode><mu>0.8</mu><mu2>0.8</mu2></ode><bullet><friction>0.8</friction><friction2>0.8</friction2></bullet></friction><bounce><restitution_coefficient>0</restitution_coefficient></bounce></surface></collision><visual name="body"><geometry><mesh><uri>file:///home/cse/doosan_janggi_ws/src/janggi/robot_game/assets/pieces/body.dae</uri><scale>0.022730236206140276 0.022730236206140276 0.006</scale></mesh></geometry><material><ambient>0.82 0.78 0.67 1</ambient><diffuse>0.82 0.78 0.67 1</diffuse></material></visual><visual name="photo_top"><pose>0 0 0.0031 0 0 0</pose><geometry><mesh><uri>file:///home/cse/doosan_janggi_ws/src/janggi/robot_game/assets/pieces/top.dae</uri><scale>0.022730236206140272 0.022730236206140272 1</scale></mesh></geometry><material><ambient>1 1 1 1</ambient><diffuse>1 1 1 1</diffuse><emissive>0.5 0.5 0.5 1</emissive><pbr><metal><albedo_map>file:///home/cse/doosan_janggi_ws/src/janggi/robot_game/assets/pieces/instances/red_soldier_0.png</albedo_map><emissive_map>file:///home/cse/doosan_janggi_ws/src/janggi/robot_game/assets/pieces/instances/red_soldier_0.png</emissive_map><metalness>0</metalness><roughness>1</roughness></metal></pbr></material></visual></link></model><model name="piece_12"><static>false</static><pose>0.52479 0.14849 -0.01700 0.00000 -0.00000 -1.57080</pose><link name="l"><inertial><mass>0.0026304218064941024</mass><inertia><ixx>8.453866819679883e-08</ixx><iyy>8.453866819679883e-08</iyy><izz>1.5329480555463305e-07</izz><ixy>0</ixy><ixz>0</ixz><iyz>0</iyz></inertia></inertial><gravity>true</gravity><collision name="piece_contact"><geometry><mesh optimization="convex_decomposition"><uri>file:///home/cse/doosan_janggi_ws/src/janggi/robot_game/assets/pieces/body.dae</uri><scale>0.02056545180555549 0.02056545180555549 0.004</scale><convex_decomposition><max_convex_hulls>1</max_convex_hulls><voxel_resolution>10000</voxel_resolution></convex_decomposition></mesh></geometry><surface><friction><ode><mu>0.8</mu><mu2>0.8</mu2></ode><bullet><friction>0.8</friction><friction2>0.8</friction2></bullet></friction><bounce><restitution_coefficient>0</restitution_coefficient></bounce></surface></collision><visual name="body"><geometry><mesh><uri>file:///home/cse/doosan_janggi_ws/src/janggi/robot_game/assets/pieces/body.dae</uri><scale>0.022730236206140276 0.022730236206140276 0.006</scale></mesh></geometry><material><ambient>0.82 0.78 0.67 1</ambient><diffuse>0.82 0.78 0.67 1</diffuse></material></visual><visual name="photo_top"><pose>0 0 0.0031 0 0 0</pose><geometry><mesh><uri>file:///home/cse/doosan_janggi_ws/src/janggi/robot_game/assets/pieces/top.dae</uri><scale>0.022730236206140272 0.022730236206140272 1</scale></mesh></geometry><material><ambient>1 1 1 1</ambient><diffuse>1 1 1 1</diffuse><emissive>0.5 0.5 0.5 1</emissive><pbr><metal><albedo_map>file:///home/cse/doosan_janggi_ws/src/janggi/robot_game/assets/pieces/instances/red_soldier_1.png</albedo_map><emissive_map>file:///home/cse/doosan_janggi_ws/src/janggi/robot_game/assets/pieces/instances/red_soldier_1.png</emissive_map><metalness>0</metalness><roughness>1</roughness></metal></pbr></material></visual></link></model><model name="piece_13"><static>false</static><pose>0.52478 0.05917 -0.01700 0.00000 -0.00000 -1.57080</pose><link name="l"><inertial><mass>0.0026304218064941024</mass><inertia><ixx>8.453866819679883e-08</ixx><iyy>8.453866819679883e-08</iyy><izz>1.5329480555463305e-07</izz><ixy>0</ixy><ixz>0</ixz><iyz>0</iyz></inertia></inertial><gravity>true</gravity><collision name="piece_contact"><geometry><mesh optimization="convex_decomposition"><uri>file:///home/cse/doosan_janggi_ws/src/janggi/robot_game/assets/pieces/body.dae</uri><scale>0.02056545180555549 0.02056545180555549 0.004</scale><convex_decomposition><max_convex_hulls>1</max_convex_hulls><voxel_resolution>10000</voxel_resolution></convex_decomposition></mesh></geometry><surface><friction><ode><mu>0.8</mu><mu2>0.8</mu2></ode><bullet><friction>0.8</friction><friction2>0.8</friction2></bullet></friction><bounce><restitution_coefficient>0</restitution_coefficient></bounce></surface></collision><visual name="body"><geometry><mesh><uri>file:///home/cse/doosan_janggi_ws/src/janggi/robot_game/assets/pieces/body.dae</uri><scale>0.022730236206140276 0.022730236206140276 0.006</scale></mesh></geometry><material><ambient>0.82 0.78 0.67 1</ambient><diffuse>0.82 0.78 0.67 1</diffuse></material></visual><visual name="photo_top"><pose>0 0 0.0031 0 0 0</pose><geometry><mesh><uri>file:///home/cse/doosan_janggi_ws/src/janggi/robot_game/assets/pieces/top.dae</uri><scale>0.022730236206140272 0.022730236206140272 1</scale></mesh></geometry><material><ambient>1 1 1 1</ambient><diffuse>1 1 1 1</diffuse><emissive>0.5 0.5 0.5 1</emissive><pbr><metal><albedo_map>file:///home/cse/doosan_janggi_ws/src/janggi/robot_game/assets/pieces/instances/red_soldier_2.png</albedo_map><emissive_map>file:///home/cse/doosan_janggi_ws/src/janggi/robot_game/assets/pieces/instances/red_soldier_2.png</emissive_map><metalness>0</metalness><roughness>1</roughness></metal></pbr></material></visual></link></model><model name="piece_14"><static>false</static><pose>0.52478 -0.03014 -0.01700 0.00000 -0.00000 -1.57080</pose><link name="l"><inertial><mass>0.0026304218064941024</mass><inertia><ixx>8.453866819679883e-08</ixx><iyy>8.453866819679883e-08</iyy><izz>1.5329480555463305e-07</izz><ixy>0</ixy><ixz>0</ixz><iyz>0</iyz></inertia></inertial><gravity>true</gravity><collision name="piece_contact"><geometry><mesh optimization="convex_decomposition"><uri>file:///home/cse/doosan_janggi_ws/src/janggi/robot_game/assets/pieces/body.dae</uri><scale>0.02056545180555549 0.02056545180555549 0.004</scale><convex_decomposition><max_convex_hulls>1</max_convex_hulls><voxel_resolution>10000</voxel_resolution></convex_decomposition></mesh></geometry><surface><friction><ode><mu>0.8</mu><mu2>0.8</mu2></ode><bullet><friction>0.8</friction><friction2>0.8</friction2></bullet></friction><bounce><restitution_coefficient>0</restitution_coefficient></bounce></surface></collision><visual name="body"><geometry><mesh><uri>file:///home/cse/doosan_janggi_ws/src/janggi/robot_game/assets/pieces/body.dae</uri><scale>0.022730236206140276 0.022730236206140276 0.006</scale></mesh></geometry><material><ambient>0.82 0.78 0.67 1</ambient><diffuse>0.82 0.78 0.67 1</diffuse></material></visual><visual name="photo_top"><pose>0 0 0.0031 0 0 0</pose><geometry><mesh><uri>file:///home/cse/doosan_janggi_ws/src/janggi/robot_game/assets/pieces/top.dae</uri><scale>0.022730236206140272 0.022730236206140272 1</scale></mesh></geometry><material><ambient>1 1 1 1</ambient><diffuse>1 1 1 1</diffuse><emissive>0.5 0.5 0.5 1</emissive><pbr><metal><albedo_map>file:///home/cse/doosan_janggi_ws/src/janggi/robot_game/assets/pieces/instances/red_soldier_3.png</albedo_map><emissive_map>file:///home/cse/doosan_janggi_ws/src/janggi/robot_game/assets/pieces/instances/red_soldier_3.png</emissive_map><metalness>0</metalness><roughness>1</roughness></metal></pbr></material></visual></link></model><model name="piece_15"><static>false</static><pose>0.52478 -0.11946 -0.01700 0.00000 -0.00000 -1.57080</pose><link name="l"><inertial><mass>0.0026304218064941024</mass><inertia><ixx>8.453866819679883e-08</ixx><iyy>8.453866819679883e-08</iyy><izz>1.5329480555463305e-07</izz><ixy>0</ixy><ixz>0</ixz><iyz>0</iyz></inertia></inertial><gravity>true</gravity><collision name="piece_contact"><geometry><mesh optimization="convex_decomposition"><uri>file:///home/cse/doosan_janggi_ws/src/janggi/robot_game/assets/pieces/body.dae</uri><scale>0.02056545180555549 0.02056545180555549 0.004</scale><convex_decomposition><max_convex_hulls>1</max_convex_hulls><voxel_resolution>10000</voxel_resolution></convex_decomposition></mesh></geometry><surface><friction><ode><mu>0.8</mu><mu2>0.8</mu2></ode><bullet><friction>0.8</friction><friction2>0.8</friction2></bullet></friction><bounce><restitution_coefficient>0</restitution_coefficient></bounce></surface></collision><visual name="body"><geometry><mesh><uri>file:///home/cse/doosan_janggi_ws/src/janggi/robot_game/assets/pieces/body.dae</uri><scale>0.022730236206140276 0.022730236206140276 0.006</scale></mesh></geometry><material><ambient>0.82 0.78 0.67 1</ambient><diffuse>0.82 0.78 0.67 1</diffuse></material></visual><visual name="photo_top"><pose>0 0 0.0031 0 0 0</pose><geometry><mesh><uri>file:///home/cse/doosan_janggi_ws/src/janggi/robot_game/assets/pieces/top.dae</uri><scale>0.022730236206140272 0.022730236206140272 1</scale></mesh></geometry><material><ambient>1 1 1 1</ambient><diffuse>1 1 1 1</diffuse><emissive>0.5 0.5 0.5 1</emissive><pbr><metal><albedo_map>file:///home/cse/doosan_janggi_ws/src/janggi/robot_game/assets/pieces/instances/red_soldier_4.png</albedo_map><emissive_map>file:///home/cse/doosan_janggi_ws/src/janggi/robot_game/assets/pieces/instances/red_soldier_4.png</emissive_map><metalness>0</metalness><roughness>1</roughness></metal></pbr></material></visual></link></model><model name="piece_16"><static>false</static><pose>0.40659 0.23872 -0.01700 0.00000 -0.00000 -1.57080</pose><link name="l"><inertial><mass>0.0026304218064941024</mass><inertia><ixx>8.453866819679883e-08</ixx><iyy>8.453866819679883e-08</iyy><izz>1.5329480555463305e-07</izz><ixy>0</ixy><ixz>0</ixz><iyz>0</iyz></inertia></inertial><gravity>true</gravity><collision name="piece_contact"><geometry><mesh optimization="convex_decomposition"><uri>file:///home/cse/doosan_janggi_ws/src/janggi/robot_game/assets/pieces/body.dae</uri><scale>0.02056545180555549 0.02056545180555549 0.004</scale><convex_decomposition><max_convex_hulls>1</max_convex_hulls><voxel_resolution>10000</voxel_resolution></convex_decomposition></mesh></geometry><surface><friction><ode><mu>0.8</mu><mu2>0.8</mu2></ode><bullet><friction>0.8</friction><friction2>0.8</friction2></bullet></friction><bounce><restitution_coefficient>0</restitution_coefficient></bounce></surface></collision><visual name="body"><geometry><mesh><uri>file:///home/cse/doosan_janggi_ws/src/janggi/robot_game/assets/pieces/body.dae</uri><scale>0.022730236206140276 0.022730236206140276 0.006</scale></mesh></geometry><material><ambient>0.82 0.78 0.67 1</ambient><diffuse>0.82 0.78 0.67 1</diffuse></material></visual><visual name="photo_top"><pose>0 0 0.0031 0 0 0</pose><geometry><mesh><uri>file:///home/cse/doosan_janggi_ws/src/janggi/robot_game/assets/pieces/top.dae</uri><scale>0.022730236206140272 0.022730236206140272 1</scale></mesh></geometry><material><ambient>1 1 1 1</ambient><diffuse>1 1 1 1</diffuse><emissive>0.5 0.5 0.5 1</emissive><pbr><metal><albedo_map>file:///home/cse/doosan_janggi_ws/src/janggi/robot_game/assets/pieces/instances/blue_soldier_0.png</albedo_map><emissive_map>file:///home/cse/doosan_janggi_ws/src/janggi/robot_game/assets/pieces/instances/blue_soldier_0.png</emissive_map><metalness>0</metalness><roughness>1</roughness></metal></pbr></material></visual></link></model><model name="piece_17"><static>false</static><pose>0.40659 0.14917 -0.01700 0.00000 -0.00000 -1.57080</pose><link name="l"><inertial><mass>0.0026304218064941024</mass><inertia><ixx>8.453866819679883e-08</ixx><iyy>8.453866819679883e-08</iyy><izz>1.5329480555463305e-07</izz><ixy>0</ixy><ixz>0</ixz><iyz>0</iyz></inertia></inertial><gravity>true</gravity><collision name="piece_contact"><geometry><mesh optimization="convex_decomposition"><uri>file:///home/cse/doosan_janggi_ws/src/janggi/robot_game/assets/pieces/body.dae</uri><scale>0.02056545180555549 0.02056545180555549 0.004</scale><convex_decomposition><max_convex_hulls>1</max_convex_hulls><voxel_resolution>10000</voxel_resolution></convex_decomposition></mesh></geometry><surface><friction><ode><mu>0.8</mu><mu2>0.8</mu2></ode><bullet><friction>0.8</friction><friction2>0.8</friction2></bullet></friction><bounce><restitution_coefficient>0</restitution_coefficient></bounce></surface></collision><visual name="body"><geometry><mesh><uri>file:///home/cse/doosan_janggi_ws/src/janggi/robot_game/assets/pieces/body.dae</uri><scale>0.022730236206140276 0.022730236206140276 0.006</scale></mesh></geometry><material><ambient>0.82 0.78 0.67 1</ambient><diffuse>0.82 0.78 0.67 1</diffuse></material></visual><visual name="photo_top"><pose>0 0 0.0031 0 0 0</pose><geometry><mesh><uri>file:///home/cse/doosan_janggi_ws/src/janggi/robot_game/assets/pieces/top.dae</uri><scale>0.022730236206140272 0.022730236206140272 1</scale></mesh></geometry><material><ambient>1 1 1 1</ambient><diffuse>1 1 1 1</diffuse><emissive>0.5 0.5 0.5 1</emissive><pbr><metal><albedo_map>file:///home/cse/doosan_janggi_ws/src/janggi/robot_game/assets/pieces/instances/blue_soldier_1.png</albedo_map><emissive_map>file:///home/cse/doosan_janggi_ws/src/janggi/robot_game/assets/pieces/instances/blue_soldier_1.png</emissive_map><metalness>0</metalness><roughness>1</roughness></metal></pbr></material></visual></link></model><model name="piece_18"><static>false</static><pose>0.40659 0.05963 -0.01700 0.00000 -0.00000 -1.57080</pose><link name="l"><inertial><mass>0.0026304218064941024</mass><inertia><ixx>8.453866819679883e-08</ixx><iyy>8.453866819679883e-08</iyy><izz>1.5329480555463305e-07</izz><ixy>0</ixy><ixz>0</ixz><iyz>0</iyz></inertia></inertial><gravity>true</gravity><collision name="piece_contact"><geometry><mesh optimization="convex_decomposition"><uri>file:///home/cse/doosan_janggi_ws/src/janggi/robot_game/assets/pieces/body.dae</uri><scale>0.02056545180555549 0.02056545180555549 0.004</scale><convex_decomposition><max_convex_hulls>1</max_convex_hulls><voxel_resolution>10000</voxel_resolution></convex_decomposition></mesh></geometry><surface><friction><ode><mu>0.8</mu><mu2>0.8</mu2></ode><bullet><friction>0.8</friction><friction2>0.8</friction2></bullet></friction><bounce><restitution_coefficient>0</restitution_coefficient></bounce></surface></collision><visual name="body"><geometry><mesh><uri>file:///home/cse/doosan_janggi_ws/src/janggi/robot_game/assets/pieces/body.dae</uri><scale>0.022730236206140276 0.022730236206140276 0.006</scale></mesh></geometry><material><ambient>0.82 0.78 0.67 1</ambient><diffuse>0.82 0.78 0.67 1</diffuse></material></visual><visual name="photo_top"><pose>0 0 0.0031 0 0 0</pose><geometry><mesh><uri>file:///home/cse/doosan_janggi_ws/src/janggi/robot_game/assets/pieces/top.dae</uri><scale>0.022730236206140272 0.022730236206140272 1</scale></mesh></geometry><material><ambient>1 1 1 1</ambient><diffuse>1 1 1 1</diffuse><emissive>0.5 0.5 0.5 1</emissive><pbr><metal><albedo_map>file:///home/cse/doosan_janggi_ws/src/janggi/robot_game/assets/pieces/instances/blue_soldier_2.png</albedo_map><emissive_map>file:///home/cse/doosan_janggi_ws/src/janggi/robot_game/assets/pieces/instances/blue_soldier_2.png</emissive_map><metalness>0</metalness><roughness>1</roughness></metal></pbr></material></visual></link></model><model name="piece_19"><static>false</static><pose>0.40659 -0.02991 -0.01700 0.00000 -0.00000 -1.57080</pose><link name="l"><inertial><mass>0.0026304218064941024</mass><inertia><ixx>8.453866819679883e-08</ixx><iyy>8.453866819679883e-08</iyy><izz>1.5329480555463305e-07</izz><ixy>0</ixy><ixz>0</ixz><iyz>0</iyz></inertia></inertial><gravity>true</gravity><collision name="piece_contact"><geometry><mesh optimization="convex_decomposition"><uri>file:///home/cse/doosan_janggi_ws/src/janggi/robot_game/assets/pieces/body.dae</uri><scale>0.02056545180555549 0.02056545180555549 0.004</scale><convex_decomposition><max_convex_hulls>1</max_convex_hulls><voxel_resolution>10000</voxel_resolution></convex_decomposition></mesh></geometry><surface><friction><ode><mu>0.8</mu><mu2>0.8</mu2></ode><bullet><friction>0.8</friction><friction2>0.8</friction2></bullet></friction><bounce><restitution_coefficient>0</restitution_coefficient></bounce></surface></collision><visual name="body"><geometry><mesh><uri>file:///home/cse/doosan_janggi_ws/src/janggi/robot_game/assets/pieces/body.dae</uri><scale>0.022730236206140276 0.022730236206140276 0.006</scale></mesh></geometry><material><ambient>0.82 0.78 0.67 1</ambient><diffuse>0.82 0.78 0.67 1</diffuse></material></visual><visual name="photo_top"><pose>0 0 0.0031 0 0 0</pose><geometry><mesh><uri>file:///home/cse/doosan_janggi_ws/src/janggi/robot_game/assets/pieces/top.dae</uri><scale>0.022730236206140272 0.022730236206140272 1</scale></mesh></geometry><material><ambient>1 1 1 1</ambient><diffuse>1 1 1 1</diffuse><emissive>0.5 0.5 0.5 1</emissive><pbr><metal><albedo_map>file:///home/cse/doosan_janggi_ws/src/janggi/robot_game/assets/pieces/instances/blue_soldier_3.png</albedo_map><emissive_map>file:///home/cse/doosan_janggi_ws/src/janggi/robot_game/assets/pieces/instances/blue_soldier_3.png</emissive_map><metalness>0</metalness><roughness>1</roughness></metal></pbr></material></visual></link></model><model name="piece_20"><static>false</static><pose>0.40659 -0.11945 -0.01700 0.00000 -0.00000 -1.57080</pose><link name="l"><inertial><mass>0.0026304218064941024</mass><inertia><ixx>8.453866819679883e-08</ixx><iyy>8.453866819679883e-08</iyy><izz>1.5329480555463305e-07</izz><ixy>0</ixy><ixz>0</ixz><iyz>0</iyz></inertia></inertial><gravity>true</gravity><collision name="piece_contact"><geometry><mesh optimization="convex_decomposition"><uri>file:///home/cse/doosan_janggi_ws/src/janggi/robot_game/assets/pieces/body.dae</uri><scale>0.02056545180555549 0.02056545180555549 0.004</scale><convex_decomposition><max_convex_hulls>1</max_convex_hulls><voxel_resolution>10000</voxel_resolution></convex_decomposition></mesh></geometry><surface><friction><ode><mu>0.8</mu><mu2>0.8</mu2></ode><bullet><friction>0.8</friction><friction2>0.8</friction2></bullet></friction><bounce><restitution_coefficient>0</restitution_coefficient></bounce></surface></collision><visual name="body"><geometry><mesh><uri>file:///home/cse/doosan_janggi_ws/src/janggi/robot_game/assets/pieces/body.dae</uri><scale>0.022730236206140276 0.022730236206140276 0.006</scale></mesh></geometry><material><ambient>0.82 0.78 0.67 1</ambient><diffuse>0.82 0.78 0.67 1</diffuse></material></visual><visual name="photo_top"><pose>0 0 0.0031 0 0 0</pose><geometry><mesh><uri>file:///home/cse/doosan_janggi_ws/src/janggi/robot_game/assets/pieces/top.dae</uri><scale>0.022730236206140272 0.022730236206140272 1</scale></mesh></geometry><material><ambient>1 1 1 1</ambient><diffuse>1 1 1 1</diffuse><emissive>0.5 0.5 0.5 1</emissive><pbr><metal><albedo_map>file:///home/cse/doosan_janggi_ws/src/janggi/robot_game/assets/pieces/instances/blue_soldier_4.png</albedo_map><emissive_map>file:///home/cse/doosan_janggi_ws/src/janggi/robot_game/assets/pieces/instances/blue_soldier_4.png</emissive_map><metalness>0</metalness><roughness>1</roughness></metal></pbr></material></visual></link></model><model name="piece_21"><static>false</static><pose>0.36719 0.19421 -0.01650 0.00000 -0.00000 -1.57080</pose><link name="l"><inertial><mass>0.00507295634109577</mass><inertia><ixx>2.6507006716927706e-07</ixx><iyy>2.6507006716927706e-07</iyy><izz>4.88710990886272e-07</izz><ixy>0</ixy><ixz>0</ixz><iyz>0</iyz></inertia></inertial><gravity>true</gravity><collision name="piece_contact"><geometry><mesh optimization="convex_decomposition"><uri>file:///home/cse/doosan_janggi_ws/src/janggi/robot_game/assets/pieces/body.dae</uri><scale>0.02705980500730985 0.02705980500730985 0.005</scale><convex_decomposition><max_convex_hulls>1</max_convex_hulls><voxel_resolution>10000</voxel_resolution></convex_decomposition></mesh></geometry><surface><friction><ode><mu>0.8</mu><mu2>0.8</mu2></ode><bullet><friction>0.8</friction><friction2>0.8</friction2></bullet></friction><bounce><restitution_coefficient>0</restitution_coefficient></bounce></surface></collision><visual name="body"><geometry><mesh><uri>file:///home/cse/doosan_janggi_ws/src/janggi/robot_game/assets/pieces/body.dae</uri><scale>0.029224589407894637 0.029224589407894637 0.007</scale></mesh></geometry><material><ambient>0.82 0.78 0.67 1</ambient><diffuse>0.82 0.78 0.67 1</diffuse></material></visual><visual name="photo_top"><pose>0 0 0.0036 0 0 0</pose><geometry><mesh><uri>file:///home/cse/doosan_janggi_ws/src/janggi/robot_game/assets/pieces/top.dae</uri><scale>0.029224589407894637 0.029224589407894637 1</scale></mesh></geometry><material><ambient>1 1 1 1</ambient><diffuse>1 1 1 1</diffuse><emissive>0.5 0.5 0.5 1</emissive><pbr><metal><albedo_map>file:///home/cse/doosan_janggi_ws/src/janggi/robot_game/assets/pieces/instances/blue_po_0.png</albedo_map><emissive_map>file:///home/cse/doosan_janggi_ws/src/janggi/robot_game/assets/pieces/instances/blue_po_0.png</emissive_map><metalness>0</metalness><roughness>1</roughness></metal></pbr></material></visual></link></model><model name="piece_22"><static>false</static><pose>0.36719 -0.07465 -0.01650 0.00000 -0.00000 -1.57080</pose><link name="l"><inertial><mass>0.00507295634109577</mass><inertia><ixx>2.6507006716927706e-07</ixx><iyy>2.6507006716927706e-07</iyy><izz>4.88710990886272e-07</izz><ixy>0</ixy><ixz>0</ixz><iyz>0</iyz></inertia></inertial><gravity>true</gravity><collision name="piece_contact"><geometry><mesh optimization="convex_decomposition"><uri>file:///home/cse/doosan_janggi_ws/src/janggi/robot_game/assets/pieces/body.dae</uri><scale>0.02705980500730985 0.02705980500730985 0.005</scale><convex_decomposition><max_convex_hulls>1</max_convex_hulls><voxel_resolution>10000</voxel_resolution></convex_decomposition></mesh></geometry><surface><friction><ode><mu>0.8</mu><mu2>0.8</mu2></ode><bullet><friction>0.8</friction><friction2>0.8</friction2></bullet></friction><bounce><restitution_coefficient>0</restitution_coefficient></bounce></surface></collision><visual name="body"><geometry><mesh><uri>file:///home/cse/doosan_janggi_ws/src/janggi/robot_game/assets/pieces/body.dae</uri><scale>0.029224589407894637 0.029224589407894637 0.007</scale></mesh></geometry><material><ambient>0.82 0.78 0.67 1</ambient><diffuse>0.82 0.78 0.67 1</diffuse></material></visual><visual name="photo_top"><pose>0 0 0.0036 0 0 0</pose><geometry><mesh><uri>file:///home/cse/doosan_janggi_ws/src/janggi/robot_game/assets/pieces/top.dae</uri><scale>0.029224589407894637 0.029224589407894637 1</scale></mesh></geometry><material><ambient>1 1 1 1</ambient><diffuse>1 1 1 1</diffuse><emissive>0.5 0.5 0.5 1</emissive><pbr><metal><albedo_map>file:///home/cse/doosan_janggi_ws/src/janggi/robot_game/assets/pieces/instances/blue_po_1.png</albedo_map><emissive_map>file:///home/cse/doosan_janggi_ws/src/janggi/robot_game/assets/pieces/instances/blue_po_1.png</emissive_map><metalness>0</metalness><roughness>1</roughness></metal></pbr></material></visual></link></model><model name="piece_23"><static>false</static><pose>0.32779 0.05994 -0.01600 0.00000 -0.00000 -1.57080</pose><link name="l"><inertial><mass>0.00866070853294657</mass><inertia><ixx>6.693722442388508e-07</ixx><iyy>6.693722442388508e-07</iyy><izz>1.246363597459605e-06</izz><ixy>0</ixy><ixz>0</ixz><iyz>0</iyz></inertia></inertial><gravity>true</gravity><collision name="piece_contact"><geometry><mesh optimization="convex_decomposition"><uri>file:///home/cse/doosan_janggi_ws/src/janggi/robot_game/assets/pieces/body.dae</uri><scale>0.03355415820906421 0.03355415820906421 0.006</scale><convex_decomposition><max_convex_hulls>1</max_convex_hulls><voxel_resolution>10000</voxel_resolution></convex_decomposition></mesh></geometry><surface><friction><ode><mu>0.8</mu><mu2>0.8</mu2></ode><bullet><friction>0.8</friction><friction2>0.8</friction2></bullet></friction><bounce><restitution_coefficient>0</restitution_coefficient></bounce></surface></collision><visual name="body"><geometry><mesh><uri>file:///home/cse/doosan_janggi_ws/src/janggi/robot_game/assets/pieces/body.dae</uri><scale>0.035718942609649 0.035718942609649 0.008</scale></mesh></geometry><material><ambient>0.82 0.78 0.67 1</ambient><diffuse>0.82 0.78 0.67 1</diffuse></material></visual><visual name="photo_top"><pose>0 0 0.0041 0 0 0</pose><geometry><mesh><uri>file:///home/cse/doosan_janggi_ws/src/janggi/robot_game/assets/pieces/top.dae</uri><scale>0.035718942609649 0.035718942609649 1</scale></mesh></geometry><material><ambient>1 1 1 1</ambient><diffuse>1 1 1 1</diffuse><emissive>0.5 0.5 0.5 1</emissive><pbr><metal><albedo_map>file:///home/cse/doosan_janggi_ws/src/janggi/robot_game/assets/pieces/instances/blue_king_0.png</albedo_map><emissive_map>file:///home/cse/doosan_janggi_ws/src/janggi/robot_game/assets/pieces/instances/blue_king_0.png</emissive_map><metalness>0</metalness><roughness>1</roughness></metal></pbr></material></visual></link></model><model name="piece_24"><static>false</static><pose>0.28839 0.23964 -0.01650 0.00000 -0.00000 -1.57080</pose><link name="l"><inertial><mass>0.00507295634109577</mass><inertia><ixx>2.6507006716927706e-07</ixx><iyy>2.6507006716927706e-07</iyy><izz>4.88710990886272e-07</izz><ixy>0</ixy><ixz>0</ixz><iyz>0</iyz></inertia></inertial><gravity>true</gravity><collision name="piece_contact"><geometry><mesh optimization="convex_decomposition"><uri>file:///home/cse/doosan_janggi_ws/src/janggi/robot_game/assets/pieces/body.dae</uri><scale>0.02705980500730985 0.02705980500730985 0.005</scale><convex_decomposition><max_convex_hulls>1</max_convex_hulls><voxel_resolution>10000</voxel_resolution></convex_decomposition></mesh></geometry><surface><friction><ode><mu>0.8</mu><mu2>0.8</mu2></ode><bullet><friction>0.8</friction><friction2>0.8</friction2></bullet></friction><bounce><restitution_coefficient>0</restitution_coefficient></bounce></surface></collision><visual name="body"><geometry><mesh><uri>file:///home/cse/doosan_janggi_ws/src/janggi/robot_game/assets/pieces/body.dae</uri><scale>0.029224589407894637 0.029224589407894637 0.007</scale></mesh></geometry><material><ambient>0.82 0.78 0.67 1</ambient><diffuse>0.82 0.78 0.67 1</diffuse></material></visual><visual name="photo_top"><pose>0 0 0.0036 0 0 0</pose><geometry><mesh><uri>file:///home/cse/doosan_janggi_ws/src/janggi/robot_game/assets/pieces/top.dae</uri><scale>0.029224589407894637 0.029224589407894637 1</scale></mesh></geometry><material><ambient>1 1 1 1</ambient><diffuse>1 1 1 1</diffuse><emissive>0.5 0.5 0.5 1</emissive><pbr><metal><albedo_map>file:///home/cse/doosan_janggi_ws/src/janggi/robot_game/assets/pieces/instances/blue_cha_0.png</albedo_map><emissive_map>file:///home/cse/doosan_janggi_ws/src/janggi/robot_game/assets/pieces/instances/blue_cha_0.png</emissive_map><metalness>0</metalness><roughness>1</roughness></metal></pbr></material></visual></link></model><model name="piece_25"><static>false</static><pose>0.28839 0.19475 -0.01650 0.00000 -0.00000 -1.57080</pose><link name="l"><inertial><mass>0.00507295634109577</mass><inertia><ixx>2.6507006716927706e-07</ixx><iyy>2.6507006716927706e-07</iyy><izz>4.88710990886272e-07</izz><ixy>0</ixy><ixz>0</ixz><iyz>0</iyz></inertia></inertial><gravity>true</gravity><collision name="piece_contact"><geometry><mesh optimization="convex_decomposition"><uri>file:///home/cse/doosan_janggi_ws/src/janggi/robot_game/assets/pieces/body.dae</uri><scale>0.02705980500730985 0.02705980500730985 0.005</scale><convex_decomposition><max_convex_hulls>1</max_convex_hulls><voxel_resolution>10000</voxel_resolution></convex_decomposition></mesh></geometry><surface><friction><ode><mu>0.8</mu><mu2>0.8</mu2></ode><bullet><friction>0.8</friction><friction2>0.8</friction2></bullet></friction><bounce><restitution_coefficient>0</restitution_coefficient></bounce></surface></collision><visual name="body"><geometry><mesh><uri>file:///home/cse/doosan_janggi_ws/src/janggi/robot_game/assets/pieces/body.dae</uri><scale>0.029224589407894637 0.029224589407894637 0.007</scale></mesh></geometry><material><ambient>0.82 0.78 0.67 1</ambient><diffuse>0.82 0.78 0.67 1</diffuse></material></visual><visual name="photo_top"><pose>0 0 0.0036 0 0 0</pose><geometry><mesh><uri>file:///home/cse/doosan_janggi_ws/src/janggi/robot_game/assets/pieces/top.dae</uri><scale>0.029224589407894637 0.029224589407894637 1</scale></mesh></geometry><material><ambient>1 1 1 1</ambient><diffuse>1 1 1 1</diffuse><emissive>0.5 0.5 0.5 1</emissive><pbr><metal><albedo_map>file:///home/cse/doosan_janggi_ws/src/janggi/robot_game/assets/pieces/instances/blue_horse_0.png</albedo_map><emissive_map>file:///home/cse/doosan_janggi_ws/src/janggi/robot_game/assets/pieces/instances/blue_horse_0.png</emissive_map><metalness>0</metalness><roughness>1</roughness></metal></pbr></material></visual></link></model><model name="piece_26"><static>false</static><pose>0.28839 0.14986 -0.01650 0.00000 -0.00000 -1.57080</pose><link name="l"><inertial><mass>0.00507295634109577</mass><inertia><ixx>2.6507006716927706e-07</ixx><iyy>2.6507006716927706e-07</iyy><izz>4.88710990886272e-07</izz><ixy>0</ixy><ixz>0</ixz><iyz>0</iyz></inertia></inertial><gravity>true</gravity><collision name="piece_contact"><geometry><mesh optimization="convex_decomposition"><uri>file:///home/cse/doosan_janggi_ws/src/janggi/robot_game/assets/pieces/body.dae</uri><scale>0.02705980500730985 0.02705980500730985 0.005</scale><convex_decomposition><max_convex_hulls>1</max_convex_hulls><voxel_resolution>10000</voxel_resolution></convex_decomposition></mesh></geometry><surface><friction><ode><mu>0.8</mu><mu2>0.8</mu2></ode><bullet><friction>0.8</friction><friction2>0.8</friction2></bullet></friction><bounce><restitution_coefficient>0</restitution_coefficient></bounce></surface></collision><visual name="body"><geometry><mesh><uri>file:///home/cse/doosan_janggi_ws/src/janggi/robot_game/assets/pieces/body.dae</uri><scale>0.029224589407894637 0.029224589407894637 0.007</scale></mesh></geometry><material><ambient>0.82 0.78 0.67 1</ambient><diffuse>0.82 0.78 0.67 1</diffuse></material></visual><visual name="photo_top"><pose>0 0 0.0036 0 0 0</pose><geometry><mesh><uri>file:///home/cse/doosan_janggi_ws/src/janggi/robot_game/assets/pieces/top.dae</uri><scale>0.029224589407894637 0.029224589407894637 1</scale></mesh></geometry><material><ambient>1 1 1 1</ambient><diffuse>1 1 1 1</diffuse><emissive>0.5 0.5 0.5 1</emissive><pbr><metal><albedo_map>file:///home/cse/doosan_janggi_ws/src/janggi/robot_game/assets/pieces/instances/blue_sang_0.png</albedo_map><emissive_map>file:///home/cse/doosan_janggi_ws/src/janggi/robot_game/assets/pieces/instances/blue_sang_0.png</emissive_map><metalness>0</metalness><roughness>1</roughness></metal></pbr></material></visual></link></model><model name="piece_27"><static>false</static><pose>0.28839 0.10498 -0.01700 0.00000 -0.00000 -1.57080</pose><link name="l"><inertial><mass>0.0026304218064941024</mass><inertia><ixx>8.453866819679883e-08</ixx><iyy>8.453866819679883e-08</iyy><izz>1.5329480555463305e-07</izz><ixy>0</ixy><ixz>0</ixz><iyz>0</iyz></inertia></inertial><gravity>true</gravity><collision name="piece_contact"><geometry><mesh optimization="convex_decomposition"><uri>file:///home/cse/doosan_janggi_ws/src/janggi/robot_game/assets/pieces/body.dae</uri><scale>0.02056545180555549 0.02056545180555549 0.004</scale><convex_decomposition><max_convex_hulls>1</max_convex_hulls><voxel_resolution>10000</voxel_resolution></convex_decomposition></mesh></geometry><surface><friction><ode><mu>0.8</mu><mu2>0.8</mu2></ode><bullet><friction>0.8</friction><friction2>0.8</friction2></bullet></friction><bounce><restitution_coefficient>0</restitution_coefficient></bounce></surface></collision><visual name="body"><geometry><mesh><uri>file:///home/cse/doosan_janggi_ws/src/janggi/robot_game/assets/pieces/body.dae</uri><scale>0.022730236206140276 0.022730236206140276 0.006</scale></mesh></geometry><material><ambient>0.82 0.78 0.67 1</ambient><diffuse>0.82 0.78 0.67 1</diffuse></material></visual><visual name="photo_top"><pose>0 0 0.0031 0 0 0</pose><geometry><mesh><uri>file:///home/cse/doosan_janggi_ws/src/janggi/robot_game/assets/pieces/top.dae</uri><scale>0.022730236206140272 0.022730236206140272 1</scale></mesh></geometry><material><ambient>1 1 1 1</ambient><diffuse>1 1 1 1</diffuse><emissive>0.5 0.5 0.5 1</emissive><pbr><metal><albedo_map>file:///home/cse/doosan_janggi_ws/src/janggi/robot_game/assets/pieces/instances/blue_sa_0.png</albedo_map><emissive_map>file:///home/cse/doosan_janggi_ws/src/janggi/robot_game/assets/pieces/instances/blue_sa_0.png</emissive_map><metalness>0</metalness><roughness>1</roughness></metal></pbr></material></visual></link></model><model name="piece_28"><static>false</static><pose>0.28839 0.01520 -0.01700 0.00000 -0.00000 -1.57080</pose><link name="l"><inertial><mass>0.0026304218064941024</mass><inertia><ixx>8.453866819679883e-08</ixx><iyy>8.453866819679883e-08</iyy><izz>1.5329480555463305e-07</izz><ixy>0</ixy><ixz>0</ixz><iyz>0</iyz></inertia></inertial><gravity>true</gravity><collision name="piece_contact"><geometry><mesh optimization="convex_decomposition"><uri>file:///home/cse/doosan_janggi_ws/src/janggi/robot_game/assets/pieces/body.dae</uri><scale>0.02056545180555549 0.02056545180555549 0.004</scale><convex_decomposition><max_convex_hulls>1</max_convex_hulls><voxel_resolution>10000</voxel_resolution></convex_decomposition></mesh></geometry><surface><friction><ode><mu>0.8</mu><mu2>0.8</mu2></ode><bullet><friction>0.8</friction><friction2>0.8</friction2></bullet></friction><bounce><restitution_coefficient>0</restitution_coefficient></bounce></surface></collision><visual name="body"><geometry><mesh><uri>file:///home/cse/doosan_janggi_ws/src/janggi/robot_game/assets/pieces/body.dae</uri><scale>0.022730236206140276 0.022730236206140276 0.006</scale></mesh></geometry><material><ambient>0.82 0.78 0.67 1</ambient><diffuse>0.82 0.78 0.67 1</diffuse></material></visual><visual name="photo_top"><pose>0 0 0.0031 0 0 0</pose><geometry><mesh><uri>file:///home/cse/doosan_janggi_ws/src/janggi/robot_game/assets/pieces/top.dae</uri><scale>0.022730236206140272 0.022730236206140272 1</scale></mesh></geometry><material><ambient>1 1 1 1</ambient><diffuse>1 1 1 1</diffuse><emissive>0.5 0.5 0.5 1</emissive><pbr><metal><albedo_map>file:///home/cse/doosan_janggi_ws/src/janggi/robot_game/assets/pieces/instances/blue_sa_1.png</albedo_map><emissive_map>file:///home/cse/doosan_janggi_ws/src/janggi/robot_game/assets/pieces/instances/blue_sa_1.png</emissive_map><metalness>0</metalness><roughness>1</roughness></metal></pbr></material></visual></link></model><model name="piece_29"><static>false</static><pose>0.28839 -0.02968 -0.01650 0.00000 -0.00000 -1.57080</pose><link name="l"><inertial><mass>0.00507295634109577</mass><inertia><ixx>2.6507006716927706e-07</ixx><iyy>2.6507006716927706e-07</iyy><izz>4.88710990886272e-07</izz><ixy>0</ixy><ixz>0</ixz><iyz>0</iyz></inertia></inertial><gravity>true</gravity><collision name="piece_contact"><geometry><mesh optimization="convex_decomposition"><uri>file:///home/cse/doosan_janggi_ws/src/janggi/robot_game/assets/pieces/body.dae</uri><scale>0.02705980500730985 0.02705980500730985 0.005</scale><convex_decomposition><max_convex_hulls>1</max_convex_hulls><voxel_resolution>10000</voxel_resolution></convex_decomposition></mesh></geometry><surface><friction><ode><mu>0.8</mu><mu2>0.8</mu2></ode><bullet><friction>0.8</friction><friction2>0.8</friction2></bullet></friction><bounce><restitution_coefficient>0</restitution_coefficient></bounce></surface></collision><visual name="body"><geometry><mesh><uri>file:///home/cse/doosan_janggi_ws/src/janggi/robot_game/assets/pieces/body.dae</uri><scale>0.029224589407894637 0.029224589407894637 0.007</scale></mesh></geometry><material><ambient>0.82 0.78 0.67 1</ambient><diffuse>0.82 0.78 0.67 1</diffuse></material></visual><visual name="photo_top"><pose>0 0 0.0036 0 0 0</pose><geometry><mesh><uri>file:///home/cse/doosan_janggi_ws/src/janggi/robot_game/assets/pieces/top.dae</uri><scale>0.029224589407894637 0.029224589407894637 1</scale></mesh></geometry><material><ambient>1 1 1 1</ambient><diffuse>1 1 1 1</diffuse><emissive>0.5 0.5 0.5 1</emissive><pbr><metal><albedo_map>file:///home/cse/doosan_janggi_ws/src/janggi/robot_game/assets/pieces/instances/blue_sang_1.png</albedo_map><emissive_map>file:///home/cse/doosan_janggi_ws/src/janggi/robot_game/assets/pieces/instances/blue_sang_1.png</emissive_map><metalness>0</metalness><roughness>1</roughness></metal></pbr></material></visual></link></model><model name="piece_30"><static>false</static><pose>0.28839 -0.07457 -0.01650 0.00000 -0.00000 -1.57080</pose><link name="l"><inertial><mass>0.00507295634109577</mass><inertia><ixx>2.6507006716927706e-07</ixx><iyy>2.6507006716927706e-07</iyy><izz>4.88710990886272e-07</izz><ixy>0</ixy><ixz>0</ixz><iyz>0</iyz></inertia></inertial><gravity>true</gravity><collision name="piece_contact"><geometry><mesh optimization="convex_decomposition"><uri>file:///home/cse/doosan_janggi_ws/src/janggi/robot_game/assets/pieces/body.dae</uri><scale>0.02705980500730985 0.02705980500730985 0.005</scale><convex_decomposition><max_convex_hulls>1</max_convex_hulls><voxel_resolution>10000</voxel_resolution></convex_decomposition></mesh></geometry><surface><friction><ode><mu>0.8</mu><mu2>0.8</mu2></ode><bullet><friction>0.8</friction><friction2>0.8</friction2></bullet></friction><bounce><restitution_coefficient>0</restitution_coefficient></bounce></surface></collision><visual name="body"><geometry><mesh><uri>file:///home/cse/doosan_janggi_ws/src/janggi/robot_game/assets/pieces/body.dae</uri><scale>0.029224589407894637 0.029224589407894637 0.007</scale></mesh></geometry><material><ambient>0.82 0.78 0.67 1</ambient><diffuse>0.82 0.78 0.67 1</diffuse></material></visual><visual name="photo_top"><pose>0 0 0.0036 0 0 0</pose><geometry><mesh><uri>file:///home/cse/doosan_janggi_ws/src/janggi/robot_game/assets/pieces/top.dae</uri><scale>0.029224589407894637 0.029224589407894637 1</scale></mesh></geometry><material><ambient>1 1 1 1</ambient><diffuse>1 1 1 1</diffuse><emissive>0.5 0.5 0.5 1</emissive><pbr><metal><albedo_map>file:///home/cse/doosan_janggi_ws/src/janggi/robot_game/assets/pieces/instances/blue_horse_1.png</albedo_map><emissive_map>file:///home/cse/doosan_janggi_ws/src/janggi/robot_game/assets/pieces/instances/blue_horse_1.png</emissive_map><metalness>0</metalness><roughness>1</roughness></metal></pbr></material></visual></link></model><model name="piece_31"><static>false</static><pose>0.28839 -0.11945 -0.01650 0.00000 -0.00000 -1.57080</pose><link name="l"><inertial><mass>0.00507295634109577</mass><inertia><ixx>2.6507006716927706e-07</ixx><iyy>2.6507006716927706e-07</iyy><izz>4.88710990886272e-07</izz><ixy>0</ixy><ixz>0</ixz><iyz>0</iyz></inertia></inertial><gravity>true</gravity><collision name="piece_contact"><geometry><mesh optimization="convex_decomposition"><uri>file:///home/cse/doosan_janggi_ws/src/janggi/robot_game/assets/pieces/body.dae</uri><scale>0.02705980500730985 0.02705980500730985 0.005</scale><convex_decomposition><max_convex_hulls>1</max_convex_hulls><voxel_resolution>10000</voxel_resolution></convex_decomposition></mesh></geometry><surface><friction><ode><mu>0.8</mu><mu2>0.8</mu2></ode><bullet><friction>0.8</friction><friction2>0.8</friction2></bullet></friction><bounce><restitution_coefficient>0</restitution_coefficient></bounce></surface></collision><visual name="body"><geometry><mesh><uri>file:///home/cse/doosan_janggi_ws/src/janggi/robot_game/assets/pieces/body.dae</uri><scale>0.029224589407894637 0.029224589407894637 0.007</scale></mesh></geometry><material><ambient>0.82 0.78 0.67 1</ambient><diffuse>0.82 0.78 0.67 1</diffuse></material></visual><visual name="photo_top"><pose>0 0 0.0036 0 0 0</pose><geometry><mesh><uri>file:///home/cse/doosan_janggi_ws/src/janggi/robot_game/assets/pieces/top.dae</uri><scale>0.029224589407894637 0.029224589407894637 1</scale></mesh></geometry><material><ambient>1 1 1 1</ambient><diffuse>1 1 1 1</diffuse><emissive>0.5 0.5 0.5 1</emissive><pbr><metal><albedo_map>file:///home/cse/doosan_janggi_ws/src/janggi/robot_game/assets/pieces/instances/blue_cha_1.png</albedo_map><emissive_map>file:///home/cse/doosan_janggi_ws/src/janggi/robot_game/assets/pieces/instances/blue_cha_1.png</emissive_map><metalness>0</metalness><roughness>1</roughness></metal></pbr></material></visual></link></model></world></sdf>

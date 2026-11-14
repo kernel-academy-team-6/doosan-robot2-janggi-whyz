@@ -1,0 +1,9 @@
+{
+  "before": {
+    "j6_moving_rmse_deg": 4.895825657147591
+  },
+  "final_verified": {
+    "j6_moving_rmse_deg": 0.10439802586456855
+  },
+  "contact_max_pair_spread_deg": 0.3833648577344757
+}

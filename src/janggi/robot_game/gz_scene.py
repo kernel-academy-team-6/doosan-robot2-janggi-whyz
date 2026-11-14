@@ -30,9 +30,8 @@ from gz.transport13 import Node
 
 from action.board import DEFAULT_CALIBRATION
 from scene_models import CalibratedLayout, DEFAULT_SCENE_CONFIG
-from piece_visuals import piece_visuals, piece_physics
-
-PIECE_H = 0.005
+from piece_visuals import piece_visuals, piece_physics, piece_height_m
+from collision_masks import ENVIRONMENT_CATEGORY, ENVIRONMENT_COLLIDE, contact_xml
 
 
 def rot_to_quat(r):
@@ -104,7 +103,7 @@ class GzScene:
         req.sdf = sdf
         req.allow_renaming = False
         name = ET.fromstring(sdf).find('model').get('name')
-        if not self._svc("create/blocking", req, EntityFactory, timeout=10000):
+        if not self._svc("create/blocking", req, EntityFactory, timeout=30000):
             raise RuntimeError(f"Gazebo model creation failed: {name}")
         self._existing_models.add(name)
         return True
@@ -178,13 +177,15 @@ class GzScene:
           <pose>{self._pose_sdf(tc, np.eye(3))}</pose><link name="l"><visual name="v">
           <geometry><box><size>0.75 0.9 0.02</size></box></geometry>
           <material><diffuse>0.45 0.45 0.48 1</diffuse><ambient>0.45 0.45 0.48 1</ambient></material>
-          </visual><collision name="table_contact"><geometry><box><size>0.75 0.9 0.02</size></box></geometry></collision></link></model></sdf>""")
+          </visual><collision name="table_contact"><geometry><box><size>0.75 0.9 0.02</size></box></geometry>
+          <surface>{contact_xml(ENVIRONMENT_CATEGORY, ENVIRONMENT_COLLIDE)}</surface></collision></link></model></sdf>""")
         models.append(self.layout.board_sdf())
         for i, p in enumerate(self.w.pieces):
-            models.append(f'<sdf version="1.9"><model name="piece_{i}"><static>false</static>'
+            height=piece_height_m(p['kind'])
+            models.append(f'<sdf version="1.11"><model name="piece_{i}"><static>false</static>'
                          f'<pose>{self._pose_sdf(self._piece_pos(p), R)}</pose><link name="l">'
-                         f'{piece_physics(p["kind"], PIECE_H, **self.layout.config.get("pieces", {}))}'
-                         f'{piece_visuals(p["side"], p["kind"], PIECE_H, p.get("texture_key"))}</link></model></sdf>')
+                         f'{piece_physics(p["kind"], height, **self.layout.config.get("pieces", {}))}'
+                         f'{piece_visuals(p["side"], p["kind"], height, p.get("texture_key"))}</link></model></sdf>')
         return models
 
     def refresh_board_models(self):
@@ -197,12 +198,12 @@ class GzScene:
 
     def _piece_pos(self, p, tip_mm=None):
         """Initial spawn pose only. Subsequent motion belongs to physics."""
-        return p["pos"] / 1000 + self.n * PIECE_H / 2
+        return p["pos"] / 1000 + self.n * piece_height_m(p['kind']) / 2
 
     def sync(self, tip_mm=None):
         raise RuntimeError('Direct piece pose updates are disabled in physics mode')
 
-    def start(self, tip_fn=None, hz: float = 20.0, robot_ns: str | None = "dsr01"):
+    def start(self, tip_fn=None, hz: float = 200.0, robot_ns: str | None = "dsr01"):
         if tip_fn is not None:
             raise RuntimeError('Kinematic attachment callbacks are disabled')
         self.build()
@@ -218,16 +219,17 @@ class GzScene:
         def loop():
             k = 0
             while not self._stop.is_set():
+                tick = time.monotonic()
                 try:
                     # GUI loading may lag behind server-side model creation.
-                    if not self._view_ready and k < 100 and k % 20 == 0:
+                    if not self._view_ready and k < 5*hz and k % max(1,round(hz)) == 0:
                         self._view_ready = self.focus_board()
                     if self.robot:
                         self.robot.sync()
                 except Exception as e:  # noqa: BLE001  (report target publication failures)
                     print(f"[gz] 동기화 오류: {e}")
                 k += 1
-                time.sleep(1.0 / hz)
+                self._stop.wait(max(0., 1.0 / hz-(time.monotonic()-tick)))
 
         self._thread = threading.Thread(target=loop, daemon=True)
         self._thread.start()

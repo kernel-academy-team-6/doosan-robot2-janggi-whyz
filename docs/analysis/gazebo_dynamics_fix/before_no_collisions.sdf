@@ -1,0 +1,626 @@
+<sdf version="1.9"><world name="isolated_dynamics"><physics name="1ms" type="ignored"><max_step_size>.001</max_step_size><real_time_factor>1</real_time_factor></physics><plugin filename="gz-sim-physics-system" name="gz::sim::systems::Physics" /><model name="janggi_physics_robot">
+    <joint name="world_fixed" type="fixed">
+      <pose relative_to="__model__">0 0 0 0 0 0</pose>
+      <parent>world</parent>
+      <child>base_link</child>
+    </joint>
+    <link name="base_link">
+      <pose relative_to="world_fixed">0 0 0 0 0 0</pose>
+      <inertial>
+        <pose>2.6999999999999999e-05 -0.0026510000000000001 0.035122 0 0 0</pose>
+        <mass>1.8029999999999999</mass>
+        <inertia>
+          <ixx>0.010607999999999999</ixx>
+          <ixy>1.7706e-06</ixy>
+          <ixz>6.6981999999999997e-06</ixz>
+          <iyy>0.0092656000000000006</iyy>
+          <iyz>-4.7833000000000001e-05</iyz>
+          <izz>0.0092125000000000002</izz>
+        </inertia>
+      </inertial>
+      <visual name="base_link_visual">
+        <pose>0 0 0 0 0 0</pose>
+        <geometry>
+          <mesh>
+            <scale>0.001 0.001 0.001</scale>
+            <uri>file:///home/cse/doosan_janggi_ws/install/dsr_description2/share/dsr_description2/meshes/e0509_white/E0509_0_0.dae</uri>
+          </mesh>
+        </geometry>
+        <material>
+          <diffuse>1 1 1 1</diffuse>
+          <ambient>1 1 1 1</ambient>
+        </material>
+      </visual>
+    </link>
+    <joint name="joint_1" type="revolute">
+      <pose relative_to="base_link">0 0 0.20449999999999999 0 0 0</pose>
+      <parent>base_link</parent>
+      <child>link_1</child>
+      <axis>
+        <xyz>0 0 1</xyz>
+        <limit>
+          <lower>-6.2831999999999999</lower>
+          <upper>6.2831999999999999</upper>
+          <effort>194</effort>
+          <velocity>3.1415999999999999</velocity>
+        </limit>
+        <dynamics>
+          <damping>0</damping>
+          <friction>0</friction>
+          <spring_reference>0</spring_reference>
+          <spring_stiffness>0</spring_stiffness>
+        </dynamics>
+      </axis>
+    </joint>
+    <link name="link_1">
+      <pose relative_to="joint_1">0 0 0 0 0 0</pose>
+      <inertial>
+        <pose>9.9999999999999995e-07 0.049632999999999997 -0.049634999999999999 0 0 0</pose>
+        <mass>5.75</mass>
+        <inertia>
+          <ixx>0.046213999999999998</ixx>
+          <ixy>1.4982e-05</ixy>
+          <ixz>1.2809999999999999e-05</ixz>
+          <iyy>0.032572999999999998</iyy>
+          <iyz>-0.013997000000000001</iyz>
+          <izz>0.030998999999999999</izz>
+        </inertia>
+      </inertial>
+      <visual name="link_1_visual">
+        <pose>0 0 0 0 0 0</pose>
+        <geometry>
+          <mesh>
+            <scale>0.001 0.001 0.001</scale>
+            <uri>file:///home/cse/doosan_janggi_ws/install/dsr_description2/share/dsr_description2/meshes/e0509_white/E0509_1_1.dae</uri>
+          </mesh>
+        </geometry>
+        <material>
+          <diffuse>1 1 1 1</diffuse>
+          <ambient>1 1 1 1</ambient>
+        </material>
+      </visual>
+      <visual name="link_1_visual_1">
+        <pose>0 0 0 0 0 0</pose>
+        <geometry>
+          <mesh>
+            <scale>0.001 0.001 0.001</scale>
+            <uri>file:///home/cse/doosan_janggi_ws/install/dsr_description2/share/dsr_description2/meshes/e0509_white/E0509_1_2.dae</uri>
+          </mesh>
+        </geometry>
+        <material>
+          <diffuse>1 1 1 1</diffuse>
+          <ambient>1 1 1 1</ambient>
+        </material>
+      </visual>
+      <visual name="link_1_visual_2">
+        <pose>0 0 0 0 0 0</pose>
+        <geometry>
+          <mesh>
+            <scale>0.001 0.001 0.001</scale>
+            <uri>file:///home/cse/doosan_janggi_ws/install/dsr_description2/share/dsr_description2/meshes/e0509_white/E0509_1_3.dae</uri>
+          </mesh>
+        </geometry>
+        <material>
+          <diffuse>1 1 1 1</diffuse>
+          <ambient>1 1 1 1</ambient>
+        </material>
+      </visual>
+      <visual name="link_1_visual_3">
+        <pose>0 0 0 0 0 0</pose>
+        <geometry>
+          <mesh>
+            <scale>0.001 0.001 0.001</scale>
+            <uri>file:///home/cse/doosan_janggi_ws/install/dsr_description2/share/dsr_description2/meshes/e0509_white/E0509_1_4.dae</uri>
+          </mesh>
+        </geometry>
+        <material>
+          <diffuse>1 1 1 1</diffuse>
+          <ambient>1 1 1 1</ambient>
+        </material>
+      </visual>
+    </link>
+    <joint name="joint_2" type="revolute">
+      <pose relative_to="link_1">0 0 0 3.1415926535746808 -1.5707926536057681 1.5707926536057684</pose>
+      <parent>link_1</parent>
+      <child>link_2</child>
+      <axis>
+        <xyz>0 0 1</xyz>
+        <limit>
+          <lower>-6.2831999999999999</lower>
+          <upper>6.2831999999999999</upper>
+          <effort>194</effort>
+          <velocity>3.1415999999999999</velocity>
+        </limit>
+        <dynamics>
+          <damping>0</damping>
+          <friction>0</friction>
+          <spring_reference>0</spring_reference>
+          <spring_stiffness>0</spring_stiffness>
+        </dynamics>
+      </axis>
+    </joint>
+    <link name="link_2">
+      <pose relative_to="joint_2">0 0 0 0 0 0</pose>
+      <inertial>
+        <pose>0.18647 -1.1418e-17 0.17311000000000001 0 0 0</pose>
+        <mass>3.4609999999999999</mass>
+        <inertia>
+          <ixx>0.012038999999999999</ixx>
+          <ixy>7.7771000000000005e-06</ixy>
+          <ixz>3.7558999999999999e-06</ixz>
+          <iyy>0.091203000000000006</iyy>
+          <iyz>3.1825e-06</iyz>
+          <izz>0.094721</izz>
+        </inertia>
+      </inertial>
+      <visual name="link_2_visual">
+        <pose>0 0 0 0 0 0</pose>
+        <geometry>
+          <mesh>
+            <scale>0.001 0.001 0.001</scale>
+            <uri>file:///home/cse/doosan_janggi_ws/install/dsr_description2/share/dsr_description2/meshes/e0509_white/E0509_2_1.dae</uri>
+          </mesh>
+        </geometry>
+        <material>
+          <diffuse>1 1 1 1</diffuse>
+          <ambient>1 1 1 1</ambient>
+        </material>
+      </visual>
+      <visual name="link_2_visual_1">
+        <pose>0 0 0 0 0 0</pose>
+        <geometry>
+          <mesh>
+            <scale>0.001 0.001 0.001</scale>
+            <uri>file:///home/cse/doosan_janggi_ws/install/dsr_description2/share/dsr_description2/meshes/e0509_white/E0509_2_2.dae</uri>
+          </mesh>
+        </geometry>
+        <material>
+          <diffuse>1 1 1 1</diffuse>
+          <ambient>1 1 1 1</ambient>
+        </material>
+      </visual>
+    </link>
+    <joint name="joint_3" type="revolute">
+      <pose relative_to="link_2">0.373 0 0 0 0 1.5708</pose>
+      <parent>link_2</parent>
+      <child>link_3</child>
+      <axis>
+        <xyz>0 0 1</xyz>
+        <limit>
+          <lower>-2.7052999999999998</lower>
+          <upper>2.7052999999999998</upper>
+          <effort>194</effort>
+          <velocity>3.1415999999999999</velocity>
+        </limit>
+        <dynamics>
+          <damping>0</damping>
+          <friction>0</friction>
+          <spring_reference>0</spring_reference>
+          <spring_stiffness>0</spring_stiffness>
+        </dynamics>
+      </axis>
+    </joint>
+    <link name="link_3">
+      <pose relative_to="joint_3">0 0 0 0 0 0</pose>
+      <inertial>
+        <pose>1.2e-05 -0.029190000000000001 0.062355000000000001 0 0 0</pose>
+        <mass>4.5819999999999999</mass>
+        <inertia>
+          <ixx>0.032606000000000003</ixx>
+          <ixy>6.5479999999999998e-06</ixy>
+          <ixz>-6.9938999999999996e-07</ixz>
+          <iyy>0.024211</iyy>
+          <iyz>-0.0079929000000000007</iyz>
+          <izz>0.019283999999999999</izz>
+        </inertia>
+      </inertial>
+      <visual name="link_3_visual">
+        <pose>0 0 0 0 0 0</pose>
+        <geometry>
+          <mesh>
+            <scale>0.001 0.001 0.001</scale>
+            <uri>file:///home/cse/doosan_janggi_ws/install/dsr_description2/share/dsr_description2/meshes/e0509_white/E0509_3_1.dae</uri>
+          </mesh>
+        </geometry>
+        <material>
+          <diffuse>1 1 1 1</diffuse>
+          <ambient>1 1 1 1</ambient>
+        </material>
+      </visual>
+      <visual name="link_3_visual_1">
+        <pose>0 0 0 0 0 0</pose>
+        <geometry>
+          <mesh>
+            <scale>0.001 0.001 0.001</scale>
+            <uri>file:///home/cse/doosan_janggi_ws/install/dsr_description2/share/dsr_description2/meshes/e0509_white/E0509_3_2.dae</uri>
+          </mesh>
+        </geometry>
+        <material>
+          <diffuse>1 1 1 1</diffuse>
+          <ambient>1 1 1 1</ambient>
+        </material>
+      </visual>
+    </link>
+    <joint name="joint_4" type="revolute">
+      <pose relative_to="link_3">0 -0.373 0 1.5708 0 0</pose>
+      <parent>link_3</parent>
+      <child>link_4</child>
+      <axis>
+        <xyz>0 0 1</xyz>
+        <limit>
+          <lower>-6.2831999999999999</lower>
+          <upper>6.2831999999999999</upper>
+          <effort>66</effort>
+          <velocity>3.927</velocity>
+        </limit>
+        <dynamics>
+          <damping>0</damping>
+          <friction>0</friction>
+          <spring_reference>0</spring_reference>
+          <spring_stiffness>0</spring_stiffness>
+        </dynamics>
+      </axis>
+    </joint>
+    <link name="link_4">
+      <pose relative_to="joint_4">0 0 0 0 0 0</pose>
+      <inertial>
+        <pose>3.9999999999999998e-06 0.095573000000000005 -0.12812999999999999 0 0 0</pose>
+        <mass>2.2069999999999999</mass>
+        <inertia>
+          <ixx>0.035470000000000002</ixx>
+          <ixy>8.0793999999999993e-06</ixy>
+          <ixz>7.9905000000000008e-06</ixz>
+          <iyy>0.030841</iyy>
+          <iyz>-0.011996</iyz>
+          <izz>0.019615</izz>
+        </inertia>
+      </inertial>
+      <visual name="link_4_visual">
+        <pose>0 0 0 0 0 0</pose>
+        <geometry>
+          <mesh>
+            <scale>0.001 0.001 0.001</scale>
+            <uri>file:///home/cse/doosan_janggi_ws/install/dsr_description2/share/dsr_description2/meshes/e0509_white/E0509_4_1.dae</uri>
+          </mesh>
+        </geometry>
+        <material>
+          <diffuse>1 1 1 1</diffuse>
+          <ambient>1 1 1 1</ambient>
+        </material>
+      </visual>
+      <visual name="link_4_visual_1">
+        <pose>0 0 0 0 0 0</pose>
+        <geometry>
+          <mesh>
+            <scale>0.001 0.001 0.001</scale>
+            <uri>file:///home/cse/doosan_janggi_ws/install/dsr_description2/share/dsr_description2/meshes/e0509_white/E0509_4_2.dae</uri>
+          </mesh>
+        </geometry>
+        <material>
+          <diffuse>1 1 1 1</diffuse>
+          <ambient>1 1 1 1</ambient>
+        </material>
+      </visual>
+    </link>
+    <joint name="joint_5" type="revolute">
+      <pose relative_to="link_4">0 0 0 -1.5708 0 0</pose>
+      <parent>link_4</parent>
+      <child>link_5</child>
+      <axis>
+        <xyz>0 0 1</xyz>
+        <limit>
+          <lower>-6.2831999999999999</lower>
+          <upper>6.2831999999999999</upper>
+          <effort>66</effort>
+          <velocity>3.927</velocity>
+        </limit>
+        <dynamics>
+          <damping>0</damping>
+          <friction>0</friction>
+          <spring_reference>0</spring_reference>
+          <spring_stiffness>0</spring_stiffness>
+        </dynamics>
+      </axis>
+    </joint>
+    <link name="link_5">
+      <pose relative_to="joint_5">0 0 0 0 0 0</pose>
+      <inertial>
+        <pose>-3.0000000000000001e-06 -0.038009000000000001 0.043840999999999998 0 0 0</pose>
+        <mass>3.5449999999999999</mass>
+        <inertia>
+          <ixx>0.023525999999999998</ixx>
+          <ixy>9.9367999999999995e-06</ixy>
+          <ixz>7.6673000000000003e-06</ixz>
+          <iyy>0.018415000000000001</iyy>
+          <iyz>-0.0059938999999999999</iyz>
+          <izz>0.014249</izz>
+        </inertia>
+      </inertial>
+      <visual name="link_5_visual">
+        <pose>0 0 0 0 0 0</pose>
+        <geometry>
+          <mesh>
+            <scale>0.001 0.001 0.001</scale>
+            <uri>file:///home/cse/doosan_janggi_ws/install/dsr_description2/share/dsr_description2/meshes/e0509_white/E0509_5_1.dae</uri>
+          </mesh>
+        </geometry>
+        <material>
+          <diffuse>1 1 1 1</diffuse>
+          <ambient>1 1 1 1</ambient>
+        </material>
+      </visual>
+      <visual name="link_5_visual_1">
+        <pose>0 0 0 0 0 0</pose>
+        <geometry>
+          <mesh>
+            <scale>0.001 0.001 0.001</scale>
+            <uri>file:///home/cse/doosan_janggi_ws/install/dsr_description2/share/dsr_description2/meshes/e0509_white/E0509_5_2.dae</uri>
+          </mesh>
+        </geometry>
+        <material>
+          <diffuse>1 1 1 1</diffuse>
+          <ambient>1 1 1 1</ambient>
+        </material>
+      </visual>
+    </link>
+    <joint name="joint_6" type="revolute">
+      <pose relative_to="link_5">0 -0.17249999999999999 0 1.5708 0 0</pose>
+      <parent>link_5</parent>
+      <child>link_6</child>
+      <axis>
+        <xyz>0 0 1</xyz>
+        <limit>
+          <lower>-6.2831999999999999</lower>
+          <upper>6.2831999999999999</upper>
+          <effort>66</effort>
+          <velocity>3.927</velocity>
+        </limit>
+        <dynamics>
+          <damping>0</damping>
+          <friction>0</friction>
+          <spring_reference>0</spring_reference>
+          <spring_stiffness>0</spring_stiffness>
+        </dynamics>
+      </axis>
+    </joint>
+    <link name="link_6">
+      <pose relative_to="joint_6">0 0 0 0 0 0</pose>
+      <inertial>
+        <pose>4.0683385579937299e-05 -8.5887147335423199e-05 -0.01289115464994775 0 0 0</pose>
+        <mass>0.95699999999999996</mass>
+        <inertia>
+          <ixx>0.0059059836518489247</ixx>
+          <ixy>5.6312945458056416e-06</ixy>
+          <ixz>6.274926778858934e-06</ixz>
+          <iyy>0.0057559818596101776</iyy>
+          <iyz>2.3816879112978048e-06</iyz>
+          <izz>0.0079434028291768786</izz>
+        </inertia>
+      </inertial>
+      <visual name="link_6_visual">
+        <pose>0 0 0 0 0 0</pose>
+        <geometry>
+          <mesh>
+            <scale>0.001 0.001 0.001</scale>
+            <uri>file:///home/cse/doosan_janggi_ws/install/dsr_description2/share/dsr_description2/meshes/e0509_white/E0509_6_1.dae</uri>
+          </mesh>
+        </geometry>
+        <material>
+          <diffuse>1 1 1 1</diffuse>
+          <ambient>1 1 1 1</ambient>
+        </material>
+      </visual>
+      <visual name="link_6_fixed_joint_lump__gripper_rh_p12_rn_base_visual_1">
+        <pose>0 0 0.013766 0 0 1.5708</pose>
+        <geometry>
+          <mesh>
+            <scale>0.001 0.001 0.001</scale>
+            <uri>file:///home/cse/doosan_janggi_ws/install/rh_p12_rn_a_description/share/rh_p12_rn_a_description/meshes/base.stl</uri>
+          </mesh>
+        </geometry>
+        <material>
+          <diffuse>0.625 0.625 0.625 1</diffuse>
+          <ambient>0.625 0.625 0.625 1</ambient>
+        </material>
+      </visual>
+    </link>
+    <joint name="gripper_rh_l1" type="revolute">
+      <pose relative_to="link_6">0.0079999999999460312 2.938564082864692e-08 0.061766000000000001 0 0 1.5708</pose>
+      <parent>link_6</parent>
+      <child>gripper_rh_p12_rn_l1</child>
+      <axis>
+        <xyz>-1 0 0</xyz>
+        <limit>
+          <lower>-0.001</lower>
+          <upper>1.101</upper>
+          <effort>1000</effort>
+          <velocity>6.5</velocity>
+        </limit>
+        <dynamics>
+          <damping>0.69999999999999996</damping>
+          <friction>0</friction>
+          <spring_reference>0</spring_reference>
+          <spring_stiffness>0</spring_stiffness>
+        </dynamics>
+      </axis>
+    </joint>
+    <link name="gripper_rh_p12_rn_l1">
+      <pose relative_to="gripper_rh_l1">0 0 0 0 0 0</pose>
+      <inertial>
+        <pose>0 -0.034000000000000002 0.0040000000000000001 0 0 0</pose>
+        <mass>0.068000000000000005</mass>
+        <inertia>
+          <ixx>9.9999999999999995e-07</ixx>
+          <ixy>0</ixy>
+          <ixz>0</ixz>
+          <iyy>9.9999999999999995e-07</iyy>
+          <iyz>0</iyz>
+          <izz>9.9999999999999995e-07</izz>
+        </inertia>
+      </inertial>
+      <visual name="gripper_rh_p12_rn_l1_visual">
+        <pose>0 0 0 0 0 0</pose>
+        <geometry>
+          <mesh>
+            <scale>0.001 0.001 0.001</scale>
+            <uri>file:///home/cse/doosan_janggi_ws/install/rh_p12_rn_a_description/share/rh_p12_rn_a_description/meshes/l1.stl</uri>
+          </mesh>
+        </geometry>
+        <material>
+          <diffuse>0.625 0.625 0.625 1</diffuse>
+          <ambient>0.625 0.625 0.625 1</ambient>
+        </material>
+      </visual>
+    </link>
+    <joint name="gripper_rh_l2" type="revolute">
+      <pose relative_to="gripper_rh_p12_rn_l1">0 -0.049363400000000002 0.028500000000000001 0 0 0</pose>
+      <parent>gripper_rh_p12_rn_l1</parent>
+      <child>gripper_rh_p12_rn_l2</child>
+      <axis>
+        <xyz>1 0 0</xyz>
+        <limit>
+          <lower>-0.001</lower>
+          <upper>1.101</upper>
+          <effort>1000</effort>
+          <velocity>6.5</velocity>
+        </limit>
+        <dynamics>
+          <damping>0.69999999999999996</damping>
+          <friction>0</friction>
+          <spring_reference>0</spring_reference>
+          <spring_stiffness>0</spring_stiffness>
+        </dynamics>
+      </axis>
+    </joint>
+    <link name="gripper_rh_p12_rn_l2">
+      <pose relative_to="gripper_rh_l2">0 0 0 0 0 0</pose>
+      <inertial>
+        <pose>0 -0.0060000000000000001 0.010999999999999999 0 0 0</pose>
+        <mass>0.021999999999999999</mass>
+        <inertia>
+          <ixx>9.9999999999999995e-07</ixx>
+          <ixy>0</ixy>
+          <ixz>0</ixz>
+          <iyy>9.9999999999999995e-07</iyy>
+          <iyz>0</iyz>
+          <izz>9.9999999999999995e-07</izz>
+        </inertia>
+      </inertial>
+      <visual name="gripper_rh_p12_rn_l2_visual">
+        <pose>0 0 0 0 0 0</pose>
+        <geometry>
+          <mesh>
+            <scale>0.001 0.001 0.001</scale>
+            <uri>file:///home/cse/doosan_janggi_ws/install/rh_p12_rn_a_description/share/rh_p12_rn_a_description/meshes/l2.stl</uri>
+          </mesh>
+        </geometry>
+        <material>
+          <diffuse>0.625 0.625 0.625 1</diffuse>
+          <ambient>0.625 0.625 0.625 1</ambient>
+        </material>
+      </visual>
+    </link>
+    <joint name="gripper_rh_r1" type="revolute">
+      <pose relative_to="link_6">-0.0079999999999460312 -2.938564082864692e-08 0.061766000000000001 0 0 1.5708</pose>
+      <parent>link_6</parent>
+      <child>gripper_rh_p12_rn_r1</child>
+      <axis>
+        <xyz>1 0 0</xyz>
+        <limit>
+          <lower>-0.001</lower>
+          <upper>1.101</upper>
+          <effort>1000</effort>
+          <velocity>6.5</velocity>
+        </limit>
+        <dynamics>
+          <damping>0.69999999999999996</damping>
+          <friction>0</friction>
+          <spring_reference>0</spring_reference>
+          <spring_stiffness>0</spring_stiffness>
+        </dynamics>
+      </axis>
+    </joint>
+    <link name="gripper_rh_p12_rn_r1">
+      <pose relative_to="gripper_rh_r1">0 0 0 0 0 0</pose>
+      <inertial>
+        <pose>0 0.034000000000000002 0.0040000000000000001 0 0 0</pose>
+        <mass>0.068000000000000005</mass>
+        <inertia>
+          <ixx>9.9999999999999995e-07</ixx>
+          <ixy>0</ixy>
+          <ixz>0</ixz>
+          <iyy>9.9999999999999995e-07</iyy>
+          <iyz>0</iyz>
+          <izz>9.9999999999999995e-07</izz>
+        </inertia>
+      </inertial>
+      <visual name="gripper_rh_p12_rn_r1_visual">
+        <pose>0 0 0 0 0 0</pose>
+        <geometry>
+          <mesh>
+            <scale>0.001 0.001 0.001</scale>
+            <uri>file:///home/cse/doosan_janggi_ws/install/rh_p12_rn_a_description/share/rh_p12_rn_a_description/meshes/r1.stl</uri>
+          </mesh>
+        </geometry>
+        <material>
+          <diffuse>0.625 0.625 0.625 1</diffuse>
+          <ambient>0.625 0.625 0.625 1</ambient>
+        </material>
+      </visual>
+    </link>
+    <joint name="gripper_rh_r2" type="revolute">
+      <pose relative_to="gripper_rh_p12_rn_r1">0 0.049363400000000002 0.028500000000000001 0 0 0</pose>
+      <parent>gripper_rh_p12_rn_r1</parent>
+      <child>gripper_rh_p12_rn_r2</child>
+      <axis>
+        <xyz>-1 0 0</xyz>
+        <limit>
+          <lower>-0.001</lower>
+          <upper>1.101</upper>
+          <effort>1000</effort>
+          <velocity>6.5</velocity>
+        </limit>
+        <dynamics>
+          <damping>0.69999999999999996</damping>
+          <friction>0</friction>
+          <spring_reference>0</spring_reference>
+          <spring_stiffness>0</spring_stiffness>
+        </dynamics>
+      </axis>
+    </joint>
+    <link name="gripper_rh_p12_rn_r2">
+      <pose relative_to="gripper_rh_r2">0 0 0 0 0 0</pose>
+      <inertial>
+        <pose>0 0.0060000000000000001 0.010999999999999999 0 0 0</pose>
+        <mass>0.021999999999999999</mass>
+        <inertia>
+          <ixx>9.9999999999999995e-07</ixx>
+          <ixy>0</ixy>
+          <ixz>0</ixz>
+          <iyy>9.9999999999999995e-07</iyy>
+          <iyz>0</iyz>
+          <izz>9.9999999999999995e-07</izz>
+        </inertia>
+      </inertial>
+      <visual name="gripper_rh_p12_rn_r2_visual">
+        <pose>0 0 0 0 0 0</pose>
+        <geometry>
+          <mesh>
+            <scale>0.001 0.001 0.001</scale>
+            <uri>file:///home/cse/doosan_janggi_ws/install/rh_p12_rn_a_description/share/rh_p12_rn_a_description/meshes/r2.stl</uri>
+          </mesh>
+        </geometry>
+        <material>
+          <diffuse>0.625 0.625 0.625 1</diffuse>
+          <ambient>0.625 0.625 0.625 1</ambient>
+        </material>
+      </visual>
+    </link>
+    <frame name="gripper_attach_joint" attached_to="link_6">
+      <pose>0 0 0.013766 0 0 1.5708</pose>
+    </frame>
+    <frame name="gripper_rh_p12_rn_base" attached_to="gripper_attach_joint">
+      <pose>0 0 0 0 0 0</pose>
+    </frame>
+  <static>false</static><self_collide>false</self_collide><plugin filename="gz-sim-joint-position-controller-system" name="gz::sim::systems::JointPositionController"><joint_name>joint_1</joint_name><topic>/janggi_sim/physics/joint_1/target</topic><use_velocity_commands>false</use_velocity_commands><p_gain>1200</p_gain><i_gain>30</i_gain><d_gain>60</d_gain><i_max>100</i_max><i_min>-100</i_min><cmd_max>194.0</cmd_max><cmd_min>-194.0</cmd_min></plugin><plugin filename="gz-sim-joint-position-controller-system" name="gz::sim::systems::JointPositionController"><joint_name>joint_2</joint_name><topic>/janggi_sim/physics/joint_2/target</topic><use_velocity_commands>false</use_velocity_commands><p_gain>1200</p_gain><i_gain>30</i_gain><d_gain>60</d_gain><i_max>100</i_max><i_min>-100</i_min><cmd_max>194.0</cmd_max><cmd_min>-194.0</cmd_min></plugin><plugin filename="gz-sim-joint-position-controller-system" name="gz::sim::systems::JointPositionController"><joint_name>joint_3</joint_name><topic>/janggi_sim/physics/joint_3/target</topic><use_velocity_commands>false</use_velocity_commands><p_gain>1200</p_gain><i_gain>30</i_gain><d_gain>60</d_gain><i_max>100</i_max><i_min>-100</i_min><cmd_max>194.0</cmd_max><cmd_min>-194.0</cmd_min></plugin><plugin filename="gz-sim-joint-position-controller-system" name="gz::sim::systems::JointPositionController"><joint_name>joint_4</joint_name><topic>/janggi_sim/physics/joint_4/target</topic><use_velocity_commands>false</use_velocity_commands><p_gain>1200</p_gain><i_gain>30</i_gain><d_gain>60</d_gain><i_max>100</i_max><i_min>-100</i_min><cmd_max>66.0</cmd_max><cmd_min>-66.0</cmd_min></plugin><plugin filename="gz-sim-joint-position-controller-system" name="gz::sim::systems::JointPositionController"><joint_name>joint_5</joint_name><topic>/janggi_sim/physics/joint_5/target</topic><use_velocity_commands>false</use_velocity_commands><p_gain>1200</p_gain><i_gain>30</i_gain><d_gain>60</d_gain><i_max>100</i_max><i_min>-100</i_min><cmd_max>66.0</cmd_max><cmd_min>-66.0</cmd_min></plugin><plugin filename="gz-sim-joint-position-controller-system" name="gz::sim::systems::JointPositionController"><joint_name>joint_6</joint_name><topic>/janggi_sim/physics/joint_6/target</topic><use_velocity_commands>false</use_velocity_commands><p_gain>1200</p_gain><i_gain>30</i_gain><d_gain>60</d_gain><i_max>100</i_max><i_min>-100</i_min><cmd_max>66.0</cmd_max><cmd_min>-66.0</cmd_min></plugin><plugin filename="gz-sim-joint-position-controller-system" name="gz::sim::systems::JointPositionController"><joint_name>gripper_rh_l1</joint_name><topic>/janggi_sim/physics/gripper_rh_l1/target</topic><use_velocity_commands>false</use_velocity_commands><p_gain>5</p_gain><i_gain>0.1</i_gain><d_gain>0.1</d_gain><i_max>1</i_max><i_min>-1</i_min><cmd_max>2.0</cmd_max><cmd_min>-2.0</cmd_min></plugin><plugin filename="gz-sim-joint-position-controller-system" name="gz::sim::systems::JointPositionController"><joint_name>gripper_rh_l2</joint_name><topic>/janggi_sim/physics/gripper_rh_l2/target</topic><use_velocity_commands>false</use_velocity_commands><p_gain>5</p_gain><i_gain>0.1</i_gain><d_gain>0.1</d_gain><i_max>1</i_max><i_min>-1</i_min><cmd_max>2.0</cmd_max><cmd_min>-2.0</cmd_min></plugin><plugin filename="gz-sim-joint-position-controller-system" name="gz::sim::systems::JointPositionController"><joint_name>gripper_rh_r1</joint_name><topic>/janggi_sim/physics/gripper_rh_r1/target</topic><use_velocity_commands>false</use_velocity_commands><p_gain>5</p_gain><i_gain>0.1</i_gain><d_gain>0.1</d_gain><i_max>1</i_max><i_min>-1</i_min><cmd_max>2.0</cmd_max><cmd_min>-2.0</cmd_min></plugin><plugin filename="gz-sim-joint-position-controller-system" name="gz::sim::systems::JointPositionController"><joint_name>gripper_rh_r2</joint_name><topic>/janggi_sim/physics/gripper_rh_r2/target</topic><use_velocity_commands>false</use_velocity_commands><p_gain>5</p_gain><i_gain>0.1</i_gain><d_gain>0.1</d_gain><i_max>1</i_max><i_min>-1</i_min><cmd_max>2.0</cmd_max><cmd_min>-2.0</cmd_min></plugin><plugin filename="gz-sim-joint-state-publisher-system" name="gz::sim::systems::JointStatePublisher"><topic>/janggi_sim/physics/joint_states</topic></plugin></model>
+</world></sdf>

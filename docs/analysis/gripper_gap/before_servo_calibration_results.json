@@ -1,0 +1,68 @@
+{
+  "partition": "janggi_gripper_width_53383",
+  "measurements": [
+    {
+      "command": 0,
+      "desired_width_mm": 105.89999955703884,
+      "measured_gap_mm": 105.1637995968736,
+      "gap_error_mm": -0.7361999601652371,
+      "gap_swing_mm": 0.014449875927169842,
+      "target_joint_rad": 0.017742363708454723,
+      "samples": 49
+    },
+    {
+      "command": 200,
+      "desired_width_mm": 84.3664980411637,
+      "measured_gap_mm": 83.52174372220122,
+      "gap_error_mm": -0.8447543189624724,
+      "gap_swing_mm": 0.016117843293869782,
+      "target_joint_rad": 0.31550761869427446,
+      "samples": 48
+    },
+    {
+      "command": 400,
+      "desired_width_mm": 55.92786750740445,
+      "measured_gap_mm": 55.236774830276204,
+      "gap_error_mm": -0.6910926771282462,
+      "gap_swing_mm": 0.014090122003700856,
+      "target_joint_rad": 0.6152214535822428,
+      "samples": 48
+    },
+    {
+      "command": 619,
+      "desired_width_mm": 19.958576404790648,
+      "measured_gap_mm": 19.66226497748592,
+      "gap_error_mm": -0.2963114273047296,
+      "gap_swing_mm": 0.006024053032614773,
+      "target_joint_rad": 0.9438678725324322,
+      "samples": 49
+    },
+    {
+      "command": 700,
+      "desired_width_mm": 6.129353399605171,
+      "measured_gap_mm": 6.019123116229214,
+      "gap_error_mm": -0.11023028337595697,
+      "gap_swing_mm": 0.0020059124907385595,
+      "target_joint_rad": 1.065361708816515,
+      "samples": 48
+    },
+    {
+      "command": 350,
+      "desired_width_mm": 63.5513174644212,
+      "measured_gap_mm": 62.89157756689957,
+      "gap_error_mm": -0.6597398975216322,
+      "gap_swing_mm": 0.014112727211788467,
+      "target_joint_rad": 0.5402183992422981,
+      "samples": 48
+    },
+    {
+      "command": 0,
+      "desired_width_mm": 105.89999955703884,
+      "measured_gap_mm": 105.34161802491947,
+      "gap_error_mm": -0.5583815321193697,
+      "gap_swing_mm": 0.011205962412248027,
+      "target_joint_rad": 0.017742363708454723,
+      "samples": 48
+    }
+  ]
+}

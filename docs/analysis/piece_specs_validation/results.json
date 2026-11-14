@@ -1,0 +1,17 @@
+{
+  "sa": {
+    "expected_center_z_m": 0.003,
+    "measured_center_z_m": 0.003063951851800084,
+    "contact_error_mm": 0.06395185180008406
+  },
+  "cha": {
+    "expected_center_z_m": 0.0035,
+    "measured_center_z_m": 0.0035801203921437263,
+    "contact_error_mm": 0.08012039214372628
+  },
+  "king": {
+    "expected_center_z_m": 0.004,
+    "measured_center_z_m": 0.004096738062798977,
+    "contact_error_mm": 0.09673806279897681
+  }
+}

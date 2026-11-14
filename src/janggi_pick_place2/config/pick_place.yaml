@@ -1,6 +1,6 @@
 /janggi_pick_place2:
   ros__parameters:
-    # mock: internal simulation; virtual: emulator arm + RViz gripper; real: hardware.
+    # mock: internal simulation; virtual: emulator + Gazebo physics; real: hardware.
     backend: mock
     robot_namespace: dsr01
     # Empty means the controller must report the unnamed/default flange TCP.
@@ -16,19 +16,23 @@
     joint6_path_step_mm: 10.0
     # 집기 전 빈 그리퍼, 진입 높이에서만 한 바퀴 풀기 허용.
     joint6_rewind_clearance_mm: 50.0
-    # 기본 False: 홈의 그리퍼 방향(베이스 기준)을 유지하는 MoveL. J6는 자유롭게 변함.
+    # 기본 False: 홈 방향 + grasp_yaw_offset_deg 작업 자세를 유지하는 MoveL. J6는 자유롭게 변함.
     # True는 과거 J6=90 관절 고정 스플라인 실험 모드.
+    # Default flat/home attitude; game selects only flat or its 90deg orthogonal direction.
+    grasp_yaw_offset_deg: 0.0
     joint6_lock_enabled: false
     joint6_locked_deg: 90.0
     joint6_lock_tolerance_deg: 3.0
     joint6_locked_step_mm: 5.0
     joint6_locked_path_tolerance_mm: 0.5
-    # 베이스 플렌지 기준으로 집기·놓기 명령에 적용하는 보정값 [mm].
+    # J6 플랜지 기준 고정 기준값 [mm] = 102.6717 + 30.
+    # 호환 파라미터명 유지. 유효 길이는 이 값 + H(c); 파라미터를 갱신하지 않음.
     # 컨트롤러 TCP는 J6 플랜지 원점. 보정·원점 계산용 222mm와 합산하지 않음.
-    tcp_length_at_6mm_mm: 160.0
+    tcp_length_at_6mm_mm: 132.6717
     # 小(사/졸/병), 中(차/마/상/포), 大(궁) 순서. 모두 mm.
     command_board_z_mm: -20.0
-    # 기본 판 Z=-20 고정. 과거 보정 Z 차이는 자동 적용하지 않음.
+    # 판 내부는 별도 calibration/config/board_height.yaml 실측면 사용.
+    # command_board_z_mm은 맵 비활성/없는 경우 및 판 밖 버리는 위치의 별도 기준.
     # 아래 옵션은 명시적인 수동 미세 보정만 적용. TL/TR/BR/BL 순서.
     board_z_compensation_enabled: false
     board_z_offset_mm: 0.0
@@ -36,8 +40,8 @@
     piece_min_widths_mm: [21.0, 27.0, 33.0]
     piece_thicknesses_mm: [6.0, 7.0, 8.0]
     piece_grip_widths_mm: [20.0, 26.0, 32.0]
-    # 판 윗면에서 팁 높이. 이전 설정보다 소형 1mm, 중/대형 2mm 하향.
-    piece_grip_heights_mm: [2.0, 2.0, 3.0]
+    # 모든 말: 보간한 판 윗면에서 베이스 +Z 방향 2mm.
+    piece_grip_heights_mm: [2.0, 2.0, 2.0]
     default_object_width_mm: 26.0
     default_opening_allowance_mm: 10.0
     # Compatibility input only: position_cmd cannot set current or speed.
@@ -56,17 +60,21 @@
     mock_home_flange_pose: [400.0, 0.0, 450.0, 0.0, 180.0, 0.0]
     mock_step_delay_sec: 0.05
     virtual_gripper_delay_sec: 0.4
+    # Gazebo-only: wait for actual physical arm/jaw settling. No real serial ACK wait.
+    virtual_physics_feedback: true
     service_timeout_sec: 5.0
     motion_timeout_sec: 60.0
     # Existing gripper_service_node owns serial/torque/position commands.
     # Wait AFTER publishing position_cmd. No arrival/contact feedback available.
-    gripper_command_wait_sec: 1.0
-    # Real gripper: wait for bridge command_result instead of guessing 1s.
-    # This acknowledges command processing, not physical grip/contact.
-    gripper_wait_for_result: true
+    gripper_command_wait_sec: 2.0
+    # Do not wait for command_result: the current bridge response is unavailable.
+    # Publish position_cmd, then only allow 2s for mechanical motion.
+    gripper_wait_for_result: false
     gripper_result_timeout_sec: 20.0
     # Realtime UI manipulation options (standalone absolute-coordinate actions do not use vision).
-    adaptive_grasp_enabled: true
+    # Compatibility key only: automatic neighbor-clearance rotation removed.
+    adaptive_grasp_enabled: false
+    # Refresh the detected center at HOME, never after horizontal approach.
     refresh_before_pick: true
     retry_move_enabled: true
     verification_frames: 3

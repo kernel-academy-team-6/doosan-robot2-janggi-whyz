@@ -45,6 +45,10 @@ from piece_state import PieceTracker, StateStore, size_prior_metadata
 from piece_motion import PieceMotionMonitor, draw_piece_regions
 from count_log import CountLog  # noqa: E402
 from board_region import BoardRecognitionRegion
+from automatic_turn import AutomaticTurn
+from speech import Speech
+from speech_catalog import RETRY_MESSAGES
+from game_notices import automatic_notice, position_key, position_notice
 from video_log import BoardRenderer, EvaluationVideos  # noqa: E402
 
 FONT_PATH = "/usr/share/fonts/opentype/noto/NotoSansCJK-Bold.ttc"
@@ -110,12 +114,12 @@ def parse_args():
     g.add_argument("--ns", default="dsr01", help="로봇 네임스페이스")
     g.add_argument("--pick-place-config", type=Path, default=SRC_JANGGI.parent/"janggi_pick_place2/config/pick_place.yaml",
                    help="janggi_pick_place2 집기·TCP·그리퍼 설정 파일")
-    g.add_argument("--pick-yaw", type=float, default=None, help="집기·놓기 yaw 강제 지정 [deg]; 생략하면 홈의 그리퍼 방향 유지")
+    g.add_argument("--pick-yaw", type=float, default=None, help="집기·놓기 yaw 강제 지정 [deg]; 생략하면 홈 방향/직교 90도 중 주변 기물이 적은 방향")
     g.add_argument("--no-motion", action="store_true", help="로봇을 움직이지 않고 엔진 수와 집을 좌표만 표시")
     g.add_argument('--adaptive-grasp', action=argparse.BooleanOptionalAction, default=None,
-                   help='주변 말과의 손가락 여유를 보고 집기/놓기 방향 선택 (기본 YAML)')
+                   help=argparse.SUPPRESS)
     g.add_argument('--refresh-before-pick', action=argparse.BooleanOptionalAction, default=None,
-                   help='집기 직전 새 영상으로 목표 위치 재확인 (기본 YAML)')
+                   help='홈 자세에서 새 영상으로 집기 위치 확인 (기본 YAML)')
     g.add_argument('--auto-retry', action=argparse.BooleanOptionalAction, default=None,
                    help='착수 관측 실패 시 한 번만 이동/놓기 재시도 (기본 YAML)')
     args = p.parse_args()
@@ -309,6 +313,9 @@ class Worker:
         self.local_regions = []
         self._piece_motion_enabled = self.show_piece_motion
         self.view_status = dict(state='settling', reason='영상 입력 대기 중', motion=0.)
+        self._auto_obstruction_epoch = 0
+        self._auto_frame_stamp = 0.
+        self._auto_home_view = None
         self.size_estimator = None
         if mapper is not None and args.calibration:
             try:
@@ -499,6 +506,9 @@ class Worker:
                         dict(piece_id=d.piece_id, cell=d.board, piece=(d.side,d.kind), pixel=d.center,
                              confidence=d.conf) for d in dets]))
                     self.view_status = view_status
+                    self._auto_frame_stamp = frame_started
+                    if view_status['state'] != 'stable':
+                        self._auto_obstruction_epoch += 1
                     self.local_regions = local_regions
                     self.frames += 1
                 self.last_frame_t = time.time()
@@ -707,6 +717,26 @@ class Worker:
         with self.lock:
             return dict(self.view_status)
 
+    def automatic_state(self):
+        """Board/centres/obstruction from one frame; include missed obstruction events."""
+        with self.lock:
+            if self.latest is None:
+                return None
+            _,detections,_,visible = self.latest
+            board = {cell:piece for cell,piece in visible.items()
+                     if piece[0] in SIDE_KO and piece[1] in FULL_SET}
+            centers = {d.board:d.center for d in detections if d.board in board}
+            return dict(board=board, centers=centers, stamp=self._auto_frame_stamp,
+                        clear=self.view_status['state']=='stable', epoch=self._auto_obstruction_epoch)
+
+    def automatic_home_baseline(self, since):
+        with self.lock:
+            view = self._auto_home_view
+            if view is None or view['stamp'] <= since:
+                return None
+            return {o['cell']:o['piece'] for o in view['objects'] if o['cell'] is not None
+                    and o['piece'][0] in SIDE_KO and o['piece'][1] in FULL_SET}
+
     def fresh_state(self, timeout: float = 10.0, new_game=False):
         """Snapshot the currently displayed observations; never wait for a stable generation."""
         with self.lock:
@@ -732,6 +762,9 @@ class Worker:
                     raise RuntimeError('인식 오류: '+self.error)
                 views=[view for view in self._robot_views if view['stamp']>barrier]
                 if len(views)>=samples:
+                    # The manipulation coordinator requests these views at HOME.
+                    # Retain the measured post-robot board before a fast human move.
+                    self._auto_home_view = views[-1]
                     return [dict(stamp=v['stamp'],objects=[dict(o) for o in v['objects']])
                             for v in views[-samples:]]
             if time.monotonic()-started>timeout:
@@ -915,6 +948,13 @@ class App:
         self.box_label_choice = tk.StringVar(value=next(name for name, value in self.box_label_options.items()
                                                        if value == getattr(args, 'box_label', 'confidence')))
         self._after = None
+        self._notice_after = None
+        self.speech_enabled = tk.BooleanVar(value=False)
+        self.speech_volume = tk.DoubleVar(value=80.)
+        self._speech_errors = deque(maxlen=8)
+        self.speech = Speech(on_error=self._speech_errors.append)
+        self._speech_caption = '음성 안내 꺼짐 · 음성 테스트로 확인할 수 있습니다'
+        self._spoken_game_key = self._auto_speech_key = None
         self.mode = tk.StringVar(value="live")
         self.first = tk.StringVar(value="blue")
         self.show_diff = tk.BooleanVar(value=True)
@@ -926,6 +966,9 @@ class App:
         self._photo = None
         self.rg = None                 # robot_game.RobotGame (로봇 대국 중)
         self.robot_busy = False
+        self.auto_move_enabled = tk.BooleanVar(value=False)
+        self.auto_turn = AutomaticTurn()
+        self._auto_resume_after = 0.
         self._motion_settings = None
         self._motion_dialog = None
         self._board_z_dialog = None
@@ -939,8 +982,7 @@ class App:
             from manipulation import ManipulationOptions
             _, parameters=load_pick_place_settings(args.pick_place_config)
             self.manipulation_options=ManipulationOptions.from_parameters(parameters)
-            for arg,field in (('adaptive_grasp','adaptive_grasp_enabled'),
-                              ('refresh_before_pick','refresh_before_pick'),('auto_retry','retry_move_enabled')):
+            for arg,field in (('refresh_before_pick','refresh_before_pick'),('auto_retry','retry_move_enabled')):
                 value=getattr(args,arg,None)
                 if value is not None: self.manipulation_options=replace(self.manipulation_options,**{field:value})
 
@@ -954,6 +996,7 @@ class App:
         if args.robot:
             self.root.bind("<space>", lambda e: self.robot_human_done())
         self._after = self.root.after(30, self.tick)
+        self._notice_after = self.root.after(50, self._tick_notifications)
 
     def _build(self):
         main = tk.Frame(self.root)
@@ -1022,8 +1065,29 @@ class App:
         tk.Radiobutton(top, text="게임", value="game", variable=self.mode, command=self.on_mode,
                        state=tk.DISABLED if self.position_only else tk.NORMAL,
                        font=("TkDefaultFont", 11, "bold")).pack(side="left", padx=8)
+        tk.Checkbutton(top, text='음성 안내', variable=self.speech_enabled,
+                       command=self._toggle_speech).pack(side='right')
+        tk.Button(top, text='음성 테스트', command=self._test_speech).pack(side='right', padx=4)
+        tk.Scale(top, from_=0, to=100, orient='horizontal', length=105, label='음성 볼륨 (%)',
+                 variable=self.speech_volume, command=self._set_speech_volume).pack(side='right', padx=4)
         self.lbl_status = tk.Label(right, anchor="w", font=(FONT_FAMILY, 13, "bold"), width=40)
         self.lbl_status.pack(fill="x", pady=(4, 2))
+        if self.args.robot:
+            notice = tk.Frame(right, bg='#eef6ee', padx=6, pady=3)
+            notice.pack(fill='x', pady=2)
+            self.lbl_auto_seconds = tk.Label(notice, text='—', width=7, bg='#eef6ee', fg='#20733c',
+                                             font=(FONT_FAMILY, 24, 'bold'))
+            self.lbl_auto_seconds.pack(side='left')
+            detail = tk.Frame(notice, bg='#eef6ee')
+            detail.pack(side='left', fill='x', expand=True)
+            self.lbl_auto_banner = tk.Label(detail, text='자동 착수 꺼짐', anchor='w', bg='#eef6ee',
+                                            font=(FONT_FAMILY, 11, 'bold'))
+            self.lbl_auto_banner.pack(fill='x')
+            self.auto_progress = ttk.Progressbar(detail, maximum=3., mode='determinate')
+            self.auto_progress.pack(fill='x', pady=3)
+        self.lbl_speech_state = tk.Label(right, text=self._speech_caption, anchor='w', fg='#555',
+                                         font=(FONT_FAMILY, 9), wraplength=700)
+        self.lbl_speech_state.pack(fill='x')
 
         mid = tk.Frame(right)
         mid.pack(fill="both", expand=True)
@@ -1054,10 +1118,14 @@ class App:
             tk.Button(fr, text="대국 시작 (인식된 판)", command=self.robot_start).pack(fill="x", pady=1)
             tk.Button(fr, text="착수 완료 (Space)", command=self.robot_human_done, bg="#2e7d32", fg="white",
                       font=(FONT_FAMILY, 12, "bold")).pack(fill="x", pady=3)
+            tk.Checkbutton(fr, text="자동 착수 인식 모드 (3초)", indicatoron=False,
+                           variable=self.auto_move_enabled, command=self._toggle_auto_move,
+                           selectcolor='#c8e6c9').pack(fill='x', pady=2)
+            self.lbl_auto_move = tk.Label(fr, text='자동 착수 꺼짐', anchor='w', justify='left', wraplength=220)
+            self.lbl_auto_move.pack(fill='x')
             tk.Button(fr, text="로봇 정지", command=self.robot_halt, bg="#c62828", fg="white").pack(fill="x", pady=1)
             self.manipulation_vars={}
-            for name,label in (('adaptive_grasp_enabled','주변 말 피해 회전'),
-                               ('refresh_before_pick','집기 직전 재인식'),('retry_move_enabled','착수 실패 1회 재시도')):
+            for name,label in (('refresh_before_pick','홈에서 집기 위치 확인'),('retry_move_enabled','착수 실패 1회 재시도')):
                 value=tk.BooleanVar(value=getattr(self.manipulation_options,name))
                 self.manipulation_vars[name]=value
                 tk.Checkbutton(fr,text=label,variable=value,command=self._set_manipulation_options).pack(anchor='w')
@@ -1316,10 +1384,13 @@ class App:
     def _get_motion_settings(self):
         from dataclasses import replace
         from action.pick_place2 import load_pick_place_settings
+        from robot_motion_ui import DEFAULT_SPEED_PERCENT, FIELDS, motion_settings
         saved = getattr(self, '_motion_settings', None)
         if saved is not None:
             return saved
         settings, _ = load_pick_place_settings(self.args.pick_place_config)
+        settings = motion_settings(settings, {name:getattr(settings,name) for name,_ in FIELDS},
+                                   DEFAULT_SPEED_PERCENT, linked=True)
         velocity = getattr(self.args, 'robot_vel', None)
         if velocity is not None:
             settings = replace(settings, linear_velocity_mm_s=velocity,
@@ -1357,14 +1428,15 @@ class App:
             return
         self._board_z_dialog = BoardZDialog(
             self.root, BoardGeometry.from_calibration(self.args.calibration), self._get_motion_settings(),
-            self._apply_board_z_settings, lambda:setattr(self, '_board_z_dialog', None))
+            self._apply_board_z_settings, lambda:setattr(self, '_board_z_dialog', None),
+            virtual=self.args.source == 'gazebo')
 
     def _apply_board_z_settings(self, settings):
         from dataclasses import replace
         from board_z_ui import Z_FIELDS
         settings = replace(self._get_motion_settings(), **{name:getattr(settings,name) for name in Z_FIELDS})
         self._install_robot_settings(settings)
-        self._msgs.append(f'[판 Z 보정] 사용={settings.board_z_compensation_enabled} · '
+        self._msgs.append(f'[실측면 위 수동 추가 보정] 사용={settings.board_z_compensation_enabled} · '
                           f'전체 {settings.board_z_offset_mm:+g}mm · 모서리 추가 {settings.board_z_corner_offsets_mm}')
 
     def _install_robot_settings(self, settings):
@@ -1382,9 +1454,13 @@ class App:
         """fn을 작업 스레드에서 돌린다 (엔진·로봇 동작이 UI를 막지 않게)."""
         if self.robot_busy:
             return
+        if hasattr(self, 'auto_turn'):
+            self.auto_turn.reset()
+        self._auto_speech_key = None
         from session import TurnError
 
         self.robot_busy, self.robot_stop, self.robot_phase = True, False, phase
+        job_started = time.monotonic()
 
         def run():
             try:
@@ -1393,16 +1469,28 @@ class App:
             except TurnError as e:
                 self._msgs.append(f"! {e}")
                 self.robot_phase = f"다시 확인: {e}"
+                self._announce('착수 상태를 다시 확인해 주세요.', replace=True)
             except Exception as e:  # noqa: BLE001
                 self._msgs.append(f"! 오류: {e}")
                 self.robot_phase = f"오류: {e}\n판을 바로잡고 [인식된 판으로 맞추기] 후 [착수 완료]"
+                self._announce('로봇 동작 중 오류가 발생했습니다. 화면을 확인해 주세요.', replace=True)
             finally:
                 self.worker.robot_motion = False
+                home_baseline = getattr(self.worker, 'automatic_home_baseline', None)
+                if hasattr(self, 'auto_turn') and home_baseline is not None:
+                    board = home_baseline(job_started)
+                    if board:
+                        self.auto_turn.set_baseline(board)
+                self._auto_resume_after = time.monotonic()
                 self.robot_busy = False
 
         threading.Thread(target=run, daemon=True).start()
 
     def _human_phase(self):
+        if self.rg is not None and getattr(self.rg, 'winner', None):
+            return f'{SIDE_KO[self.rg.winner]} 승리 · 대국 종료'
+        if self.rg is not None and getattr(self.rg, 'victory_pending', False):
+            return '궁 포획 미완료 · 판을 확인하고 [착수 완료]로 다시 시도'
         return "현재 판을 기준으로 [착수 완료]를 누르면 로봇이 둡니다"
 
     def _ensure_robot(self):
@@ -1449,16 +1537,23 @@ class App:
                 raise
         cfg = RobotGameConfig(human_side=self.args.human_side, movetime_ms=self.args.movetime,
                               piece_height_mm=self.args.piece_height, command_settings=settings,
-                              manipulation=getattr(self,'manipulation_options',None))
+                              manipulation=getattr(self,'manipulation_options',None),
+                              virtual=self.args.source == 'gazebo')
         self.rg = RobotGame(engine, cam, geom, picker, cfg, log=self._msgs.append)
         self.rg.vision=self.worker
+        self.rg.on_manipulation_retry=self._announce_robot_retry
         if not self.args.no_motion:
-            self.rg.on_move_planned = self.worker.expect_robot_move
+            def planned(src, dst):
+                self.worker.expect_robot_move(src, dst)
+                captured = self.rg.game.board.get(dst)
+                self._announce('로봇이 상대 말을 잡습니다.' if captured else '로봇이 말을 옮깁니다.')
+            self.rg.on_move_planned = planned
 
     def robot_home(self):
         """Explicit home button: no board read, game start, or gripper command."""
         def job():
             self._ensure_robot()
+            self._announce('호밍 목표를 표시합니다.' if self.args.no_motion else '호밍을 시작합니다.', replace=True)
             from action.pick_place2 import load_pick_place_settings
             settings, _ = load_pick_place_settings(self.args.pick_place_config)
             joints = list(settings.home_joint_deg)
@@ -1479,36 +1574,198 @@ class App:
             self.robot_phase = "판 읽는 중"
             board, _ = self.worker.fresh_state(new_game=True)
             self.game = self.rg.start(board, observe=False)
+            if hasattr(self, 'auto_turn'):
+                self.auto_turn.set_baseline(board)
             self.worker.mark_game_generation()
             self.last_move = None
+            self._announce_position(self.game, '대국을 시작합니다. 사람 차례입니다.')
         self.log.delete(0, "end")
         self.mode.set("game")
         self._robot_job("대국 준비 중", job)
 
-    def robot_human_done(self):
+    def robot_human_done(self, *, snapshot=None):
         """Replace the game with the current observations, then plan and execute."""
         def job():
             self._ensure_robot()
             rg = self.rg
+            if getattr(rg, 'winner', None):
+                self._announce(f'{SIDE_KO[rg.winner]} 승리로 대국이 끝났습니다. 새 대국을 시작해 주세요.', replace=True)
+                return
             self.robot_phase = "현재 판 읽는 중"
-            board, centers = self.worker.fresh_state()
+            board, centers = self.worker.fresh_state() if snapshot is None else snapshot
             if rg.game is None:
                 self.game = rg.start(board, observe=False)
-            rg.apply_human_move(board)
+            previous = dict(rg.game.board)
+            move = rg.apply_human_move(board)
             self.game = rg.game
+            recognized = ('포획을 확인했습니다. ' if move is not None and previous.get(move[1]) else
+                          '착수를 확인했습니다. ' if move is not None else '현재 판을 확인했습니다. ')
+            self._announce_position(rg.game, recognized+'로봇이 다음 수를 생각합니다.', replace=True)
             self.robot_phase = "현재 판 기준 엔진 생각 중 / 로봇 두는 중"
             self.worker.robot_motion = not self.args.no_motion
             plan = rg.robot_turn(centers, stop_check=lambda: self.robot_stop)
-            if plan.src is not None and not plan.is_pass:
+            if rg.last_execution_completed and plan.src is not None and not plan.is_pass:
                 self.last_move = (plan.src, plan.dst)
+            if rg.winner:
+                self._spoken_game_key = position_key(rg.game)
+                self._announce((f'{SIDE_KO[rg.winner]}의 궁 포획 승리 수를 계산했습니다.' if self.args.no_motion else
+                                f'상대 궁을 포획해 묘지로 옮겼습니다. {SIDE_KO[rg.winner]} 승리입니다.'), replace=True)
+                return
+            if rg.victory_pending:
+                self._announce('궁 포획이 완료되지 않았습니다. 판을 확인해 주세요.', replace=True)
+                return
+            prefix = ('로봇이 둘 수 있는 수가 없습니다.' if plan.uci is None else
+                      '로봇이 한 수 쉽니다. 사람 차례입니다.' if plan.is_pass else
+                      '로봇의 수를 계산했습니다.' if self.args.no_motion else
+                      '로봇 동작이 끝났습니다. 사람 차례입니다.')
+            self._announce_position(rg.game, prefix)
         self.mode.set("game")
         self._robot_job("판 읽는 중", job)
 
     def robot_halt(self):
         self.robot_stop = True
+        if hasattr(self, 'auto_move_enabled'):
+            self.auto_move_enabled.set(False)
+            self._toggle_auto_move()
         if self._mover is not None:
             self._mover.stop()
         self._msgs.append("! 로봇 정지 명령")
+        self._announce('로봇 정지 요청을 보냈습니다.', replace=True)
+
+    def _toggle_auto_move(self):
+        self.auto_turn.reset()
+        self._auto_resume_after = time.monotonic()
+        self._auto_speech_key = None
+        self._show_auto_status('기준 판 확인 대기' if self.auto_move_enabled.get() else '자동 착수 꺼짐')
+        self._announce('자동 착수 인식을 켰습니다.' if self.auto_move_enabled.get() else '자동 착수 인식을 껐습니다.', replace=True)
+
+    def _show_auto_status(self, text, remaining=None):
+        self.lbl_auto_move.config(text=text)
+        if hasattr(self, 'lbl_auto_seconds'):
+            self.lbl_auto_seconds.config(text='—' if remaining is None else f'{remaining:.1f}초',
+                                          fg='#20733c' if remaining is not None else '#777')
+            self.lbl_auto_banner.config(text=text)
+            self.auto_progress.config(value=0. if remaining is None else remaining)
+
+    def _announce(self, text, *, replace=False):
+        # Also callable by the robot job: never reads Tk variables or waits for audio.
+        self._speech_caption = text
+        speaker = getattr(self, 'speech', None)
+        if speaker is not None:
+            try:
+                speaker.say(text, replace=replace)
+            except Exception as exc:
+                if hasattr(self, '_speech_errors'):self._speech_errors.append(str(exc))
+
+    def _announce_position(self, game, prefix, *, replace=False):
+        try:
+            key, text = position_notice(game)
+            self._spoken_game_key = key
+        except (RuntimeError, KeyError, ValueError):
+            text = ''  # Voice/rules display must never block a robot command.
+        self._announce(prefix + (' '+text if text else ''), replace=replace)
+
+    def _toggle_speech(self):
+        enabled = self.speech_enabled.get()
+        if not self.speech.set_enabled(enabled):
+            self.speech_enabled.set(False)
+            self._speech_caption = (self.speech.unavailable_reason if enabled else '음성 안내 꺼짐')
+            return
+        self._spoken_game_key = None
+        self._announce('음성 안내를 켰습니다.', replace=True)
+
+    def _set_speech_volume(self, value):
+        self.speech.set_volume(float(value))
+
+    def _announce_robot_retry(self, kind):
+        self._announce(RETRY_MESSAGES[kind], replace=True)
+
+    def _test_speech(self):
+        self.speech_enabled.set(True)
+        if self.speech.set_enabled(True):
+            self._announce('장기 음성 안내 테스트입니다. 착수를 인식했습니다. 장군입니다.', replace=True)
+        else:
+            self.speech_enabled.set(False)
+            self._speech_caption = self.speech.unavailable_reason
+
+    def _tick_notifications(self):
+        # Lightweight 50ms callback; countdown and speech do not depend on new video frames.
+        if self.args.robot:
+            self._tick_auto_move()
+        game = self.rg.game if self.rg is not None else self.game
+        if (game is not None and not self.position_only and not self.robot_busy
+                and not getattr(self.rg, 'winner', None)):
+            key = position_key(game)
+            if key != self._spoken_game_key:
+                key, text = position_notice(game)
+                self._spoken_game_key = key
+                if text:self._announce(text)
+        while self._speech_errors:
+            self._msgs.append('[음성 안내] '+self._speech_errors.popleft())
+            self._speech_caption = '음성 출력 오류 · 스피커 설정과 [음성 테스트]를 확인하세요.'
+        enabled = getattr(self, 'speech_enabled', None)
+        voice_mode = '음성 켜짐' if enabled is not None and enabled.get() else '음성 꺼짐'
+        self.lbl_speech_state.config(text=voice_mode+' · '+self._speech_caption)
+        self._notice_after = self.root.after(50, self._tick_notifications)
+
+    def _tick_auto_move(self):
+        if getattr(self.rg, 'winner', None):
+            self.auto_move_enabled.set(False)
+            self.auto_turn.reset()
+            self._show_auto_status(f'{SIDE_KO[self.rg.winner]} 승리 · 대국 종료')
+            return
+        if not getattr(self, 'auto_move_enabled', None) or not self.auto_move_enabled.get():
+            return
+        if self.robot_busy:
+            self._show_auto_status('로봇 동작 중 · 자동 감지 대기')
+            return
+        if self.robot_stop:
+            self.auto_turn.cancel_countdown()
+            return
+        if self.rg is None or self.rg.game is None:
+            self._show_auto_status('[대국 시작] 후 사람 이동 감지')
+            return
+        if getattr(self.rg, 'victory_pending', False):
+            self.auto_turn.cancel_countdown()
+            self._show_auto_status('궁 포획 미완료 · 판 확인 후 수동 재시도')
+            return
+        if self.rg.game.turn != self.args.human_side:
+            self.auto_turn.cancel_countdown()
+            self._show_auto_status('사람 차례 대기')
+            return
+        reader = getattr(self.worker, 'automatic_state', None)
+        if reader is None:
+            self.auto_turn.cancel_countdown()
+            self._show_auto_status('현재 입력은 자동 착수 인식 미지원')
+            return
+        state = reader()
+        if state is None or state['stamp'] <= self._auto_resume_after:
+            self.auto_turn.cancel_countdown()
+            self._show_auto_status('홈 복귀 후 새 영상 대기')
+            return
+        result = self.auto_turn.update(state['board'], self.args.human_side, now=time.monotonic(),
+                                       stamp=state['stamp'], clear=state['clear'], epoch=state['epoch'])
+        text = result.text
+        if result.move is not None:
+            src,dst = result.move
+            text += f' {src}→{dst}'
+        if result.remaining is not None:
+            text += f' · {result.remaining:.1f}초'
+        self._show_auto_status(text, result.remaining)
+        key, announcement = automatic_notice(result, self.auto_turn.baseline or {}, state['board'])
+        old_key = getattr(self, '_auto_speech_key', None)
+        if announcement and key != old_key and result.remaining <= self.auto_turn.delay_sec-.2:
+            self._auto_speech_key = key
+            restarted = old_key is not None and old_key[0] == key[0]
+            self._announce('카운트를 초기화하고 다시 기다립니다.' if restarted else announcement, replace=True)
+        elif result.remaining is None and old_key is not None and result.text != '로봇 착수 대기':
+            self._auto_speech_key = None
+            self._announce('영상이 지연되어 카운트를 초기화합니다.' if '영상 지연' in result.text else
+                           '방해가 감지되어 카운트를 초기화합니다.' if '방해' in result.text else
+                           '착수 인식이 취소되었습니다.', replace=True)
+        if result.fire:
+            self._msgs.append(f'[자동 착수] 사람 이동 {result.move[0]}→{result.move[1]} · 방해 없이 3초 경과')
+            self.robot_human_done(snapshot=(dict(state['board']),dict(state['centers'])))
 
     # ------------------------------------------------------------------ 그리기
     def tick(self):
@@ -1573,6 +1830,7 @@ class App:
         # 그릴 내용이 그대로면 다시 그리지 않는다 (캔버스 전체를 다시 그리는 데 수십 ms 걸린다)
         sig = (live, tuple(sorted(board.items())), self.sel, self.drag_xy, self.last_move,
                None if live else (self.game.turn, len(self.game.history)),
+               getattr(self.rg, 'winner', None),
                tuple(sorted(self.diff_cells())) if (not live and self.show_diff.get()) else None)
         if sig == self._board_sig:
             return
@@ -1584,8 +1842,11 @@ class App:
                                    fg="#333")
         else:
             st = self.game.status()
-            self.lbl_status.config(text=f"{SIDE_KO[self.game.turn]} 차례" + (f" — {st}!" if st else ""),
-                                   fg=SIDE_HEX[self.game.turn])
+            winner = getattr(self.rg, 'winner', None)
+            ending = '궁 포획 승리 수 계산' if self.args.no_motion else '상대 궁 포획 완료'
+            self.lbl_status.config(text=(f'{SIDE_KO[winner]} 승리 · {ending}' if winner else
+                                        f"{SIDE_KO[self.game.turn]} 차례" + (f" — {st}!" if st else "")),
+                                   fg=SIDE_HEX[winner or self.game.turn])
             if self.last_move:
                 for c in self.last_move:
                     bv.mark(c, "#2e7d32", r=29, width=2, dash=(4, 2))
@@ -1644,6 +1905,11 @@ class App:
         print(f"[저장] {out / stamp}.png")
 
     def quit(self):
+        if getattr(self, '_notice_after', None) is not None:
+            self.root.after_cancel(self._notice_after)
+            self._notice_after = None
+        speaker = getattr(self, 'speech', None)
+        if speaker is not None:speaker.close()
         z_dialog = getattr(self, '_board_z_dialog', None)
         if z_dialog is not None:
             z_dialog.close()

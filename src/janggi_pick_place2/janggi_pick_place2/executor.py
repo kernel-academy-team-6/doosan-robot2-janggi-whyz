@@ -3,7 +3,8 @@ from dataclasses import dataclass
 import math
 
 from .geometry import (finite, width, flange_pose, tcp_length, orientation_error_deg,
-                       CARTESIAN_ORIENTATION_TOLERANCE_DEG)
+                       CARTESIAN_ORIENTATION_TOLERANCE_DEG, command_from_width, height_from_command,
+                       THETA_0_RAD, THETA_PER_COMMAND_RAD)
 
 
 class OperationCancelled(Exception):
@@ -12,7 +13,7 @@ class OperationCancelled(Exception):
 
 @dataclass(frozen=True)
 class Settings:
-    tcp_length_at_6mm_mm: float = 160.0
+    tcp_length_at_6mm_mm: float = 132.6717
     default_object_width_mm: float = 26.0
     default_opening_allowance_mm: float = 10.0
     default_grip_current_ma: float = 100.0
@@ -25,7 +26,7 @@ class Settings:
     piece_min_widths_mm: tuple = (21.0, 27.0, 33.0)
     piece_thicknesses_mm: tuple = (6.0, 7.0, 8.0)
     piece_grip_widths_mm: tuple = (20.0, 26.0, 32.0)
-    piece_grip_heights_mm: tuple = (2.0, 2.0, 3.0)
+    piece_grip_heights_mm: tuple = (2.0, 2.0, 2.0)
     home_joint_deg: tuple = (0.0, -13.694, 134.216, 0.0, 59.485, 90.0)
     joint_velocity_deg_s: float = 15.0
     joint_acceleration_deg_s2: float = 30.0
@@ -41,6 +42,7 @@ class Settings:
     joint6_limit_margin_deg: float = 5.0
     joint6_path_step_mm: float = 10.0
     joint6_rewind_clearance_mm: float = 50.0
+    grasp_yaw_offset_deg: float = 0.0
     joint6_lock_enabled: bool = False
     joint6_locked_deg: float = 90.0
     joint6_lock_tolerance_deg: float = 3.0
@@ -135,7 +137,7 @@ class PickPlaceExecutor:
                      width(w+s.release_extra_width_mm))
 
     def target_pose(self, target, grasp):
-        pose = flange_pose(target, grasp.width_mm, self.settings.tcp_length_at_6mm_mm)
+        pose = flange_pose(target, grasp.close_width_mm, self.settings.tcp_length_at_6mm_mm)
         if self.orientation_abc is not None:
             if len(self.orientation_abc) != 3:
                 raise ValueError('orientation override must contain three angles')
@@ -201,6 +203,18 @@ class PickPlaceExecutor:
             raise ValueError('pick/place must start with flange Z pointing down; '
                              'use the separate home action or orient the arm first')
         destination = self.target_pose(target, grasp)
+        # Pre-close descent anticipates the entire jaw motion. With jaws open,
+        # tips are slightly higher; after closing they reach the requested Z.
+        # Covers the small H maximum near c=684 as well as endpoint commands.
+        start_width = grasp.open_width_mm if self.holding_state == 'empty_unverified' else grasp.close_width_mm
+        end_width = grasp.close_width_mm if self.holding_state == 'empty_unverified' else grasp.release_width_mm
+        first, last = sorted((command_from_width(start_width), command_from_width(end_width)))
+        commands = [first, last]
+        peak = (math.pi/2-THETA_0_RAD)/THETA_PER_COMMAND_RAD
+        if first <= peak <= last:
+            commands.append(peak)
+        destination[2] += max(height_from_command(c) for c in commands)-height_from_command(command_from_width(grasp.close_width_mm))
+        self.check_workspace(destination)
         if destination[2] > current[2] + .1:
             raise ValueError('target flange height exceeds entry height; this action only descends')
         above = [destination[0], destination[1], current[2], *destination[3:]]
@@ -279,3 +293,38 @@ class PickPlaceExecutor:
         self.holding_state = 'empty_unverified'
         self._step('place/retreat', .80, check, report)
         self.robot.move(above, check)
+
+    def drop_at_height(self, flange_xyz, grasp, check, report):
+        """Release a captured piece at home flange height; never descend to board.
+        Lift first if needed, then move horizontally; no implicit home motion.
+        """
+        self._step('drop/prepare',.05,check,report)
+        self.robot.check_tcp(check)
+        current=self.robot.current_pose(check)
+        xyz=[finite(v,'drop flange position') for v in flange_xyz]
+        if len(xyz)!=3:raise ValueError('drop requires three flange coordinates')
+        if xyz[2]<current[2]-.1:
+            # Never lower the arm for a drop; already-above-home poses stay high.
+            xyz[2]=current[2]
+        abc=list(self.orientation_abc or current[3:])
+        lifted=[*current[:2],xyz[2],*abc];destination=[*xyz,*abc]
+        self.check_workspace(lifted);self.check_workspace(destination)
+        self.gripper.prepare(check)
+        if xyz[2]>current[2]+.01:
+            self._step('drop/lift',.15,check,report)
+            self.robot.move([*current[:2],xyz[2],*current[3:]],check)
+        self._align_before_xy(destination,check,report,'drop',[lifted,destination])
+        self._step('drop/horizontal',.35,check,report)
+        self.robot.move(destination,check)
+        self._step('drop/release',.7,check,report)
+        self.holding_state='unknown'
+        self.gripper.open_to(grasp.release_width_mm,grasp.current_ma,check)
+        # open_to includes its configured mechanical wait (real: normally 2 s).
+        # Stay above the grave and repeat the same command once; no extra arm
+        # move, serial ACK requirement, or change to ordinary board placement.
+        check()
+        self._step('drop/release_again',.9,check,report)
+        self.gripper.open_to(grasp.release_width_mm,grasp.current_ma,check)
+        self.held=None;self.holding_state='empty_unverified'
+        self.stage='complete';report('complete',1.)
+        return self.robot.current_pose(check)

@@ -1,0 +1,68 @@
+{
+  "partition": "janggi_gripper_width_54465",
+  "measurements": [
+    {
+      "command": 0,
+      "desired_width_mm": 105.89999955703884,
+      "measured_gap_mm": 105.82214366597657,
+      "gap_error_mm": -0.07785589106227064,
+      "gap_swing_mm": 0.0,
+      "target_joint_rad": 0.017742363708454723,
+      "samples": 49
+    },
+    {
+      "command": 200,
+      "desired_width_mm": 84.3664980411637,
+      "measured_gap_mm": 84.2687666302961,
+      "gap_error_mm": -0.09773141086759551,
+      "gap_swing_mm": 0.0,
+      "target_joint_rad": 0.31550761869427446,
+      "samples": 49
+    },
+    {
+      "command": 400,
+      "desired_width_mm": 55.92786750740445,
+      "measured_gap_mm": 55.83845705101487,
+      "gap_error_mm": -0.08941045638957945,
+      "gap_swing_mm": 0.0,
+      "target_joint_rad": 0.6152214535822428,
+      "samples": 48
+    },
+    {
+      "command": 619,
+      "desired_width_mm": 19.958576404790648,
+      "measured_gap_mm": 19.90534481767304,
+      "gap_error_mm": -0.053231587117608115,
+      "gap_swing_mm": 0.0,
+      "target_joint_rad": 0.9438678725324322,
+      "samples": 48
+    },
+    {
+      "command": 700,
+      "desired_width_mm": 6.129353399605171,
+      "measured_gap_mm": 6.093485416471963,
+      "gap_error_mm": -0.03586798313320827,
+      "gap_swing_mm": 0.0,
+      "target_joint_rad": 1.065361708816515,
+      "samples": 48
+    },
+    {
+      "command": 350,
+      "desired_width_mm": 63.5513174644212,
+      "measured_gap_mm": 63.45738151422239,
+      "gap_error_mm": -0.09393595019881218,
+      "gap_swing_mm": 0.0,
+      "target_joint_rad": 0.5402183992422981,
+      "samples": 49
+    },
+    {
+      "command": 0,
+      "desired_width_mm": 105.89999955703884,
+      "measured_gap_mm": 105.8236859794164,
+      "gap_error_mm": -0.07631357762244306,
+      "gap_swing_mm": 0.0,
+      "target_joint_rad": 0.017742363708454723,
+      "samples": 48
+    }
+  ]
+}

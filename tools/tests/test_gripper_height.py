@@ -109,21 +109,43 @@ def test_mock_xy_preserves_flange_z_and_decimal_z_is_relative():
 def test_ros_transport_uses_raw_flange_coordinates_and_aligns_before_xy_without_tip_offset():
     from gripper_height.controller import RosController
     from janggi_pick_place2.executor import Settings
+    from dataclasses import replace
     import threading
-    c=RosController.__new__(RosController);c.stopped=threading.Event();c.settings=Settings()
+    c=RosController.__new__(RosController);c.stopped=threading.Event()
+    c.settings=replace(Settings(),linear_velocity_mm_s=120.,linear_acceleration_mm_s2=240.,
+                       joint_velocity_deg_s=60.,joint_acceleration_deg_s2=120.)
+    c.z_settings=replace(c.settings,linear_velocity_mm_s=10.,linear_acceleration_mm_s2=20.)
     state={'pose':[400.,0.,175.25,90.,180.,0.]};events=[]
+    speeds=[]
     def call(kind,path,request,check):
         check();events.append(('align',list(request.pos)));state['pose']=list(request.pos)
     def move(target,check):
         check();events.append(('move',list(target)));state['pose']=list(target)
+        speeds.append((c.arm.settings.linear_velocity_mm_s,c.arm.settings.linear_acceleration_mm_s2))
     c.arm=SimpleNamespace(check_tcp=lambda check:check(),current_pose=lambda check:list(state['pose']),
                           _solution=lambda check:0,_inverse=lambda *args:[0,0,90,0,90,0],
                           _check_joint6=lambda value:None,io=SimpleNamespace(call=call),
-                          _wait=lambda reached,check:reached(),move=move)
+                          _wait=lambda reached,check:reached(),move=move,settings=c.settings)
     c.move_xy(338.22,-168.66)
     assert events==[('align',[400.,0.,175.25,0.,180.,0.]),
                     ('move',[338.22,-168.66,175.25,0.,180.,0.])]
     assert c.jog(-.125)==[338.22,-168.66,175.125,0.,180.,0.]
+    assert speeds==[(120.,240.),(10.,20.)]
+    assert c.arm.settings is c.settings
+    c.arm.move=lambda *args:(_ for _ in ()).throw(RuntimeError('motion failed'))
+    with pytest.raises(RuntimeError,match='motion failed'):c.jog(.1)
+    assert c.arm.settings is c.settings
+
+
+def test_measurement_home_uses_its_own_joint_target():
+    from gripper_height.controller import HOME_JOINT_DEG, RosController, MockController
+    import threading
+    c=RosController.__new__(RosController);c.stopped=threading.Event();sent=[]
+    c.arm=SimpleNamespace(home=lambda check,**kwargs:sent.append(kwargs['joints']),
+                          current_pose=lambda check:[400.,0.,250.,0.,180.,0.])
+    assert c.home()==[400.,0.,250.,0.,180.,0.]
+    assert sent==[(0.,0.,90.,0.,90.,0.)]
+    mock=MockController();mock.home();assert mock.joints==list(HOME_JOINT_DEG)
 
 
 def test_gui_constructs_and_advances_manual_measurement_without_display_or_hardware(monkeypatch,tmp_path):
@@ -149,13 +171,16 @@ def test_gui_constructs_and_advances_manual_measurement_without_display_or_hardw
     monkeypatch.setattr(app.tk,'Tk',Widget);monkeypatch.setattr(app.tk,'StringVar',Var)
     for name in ('Frame','Button','Label','Combobox','Entry','LabelFrame','Treeview'):
         monkeypatch.setattr(app.ttk,name,Widget)
-    args=SimpleNamespace(resume=None,output=tmp_path,backend='mock',ns='dsr01',velocity=10.,acceleration=20.)
+    args=SimpleNamespace(resume=None,output=tmp_path,backend='mock',ns='dsr01',velocity=120.,acceleration=240.,
+                         angular_velocity=60.,angular_acceleration=120.,z_velocity=10.,z_acceleration=20.)
     ui=app.CalibrationApp(args)
     def run(label,fn,success=None,**kwargs):
         result=fn()
         if success:success(result)
         ui.refresh()
-    ui.job=run;ui.connect();ui.x.set('338.22');ui.y.set('-168.66');ui.move_xy();ui.start()
+    ui.job=run;ui.connect();ui.home()
+    assert ui.controller.joints==[0.,0.,90.,0.,90.,0.]
+    ui.x.set('338.22');ui.y.set('-168.66');ui.move_xy();ui.start()
     assert ui.session.active_command==700 and not ui.session.samples
     ui.step.set('0.125');ui.jog(-1);ui.width.set('6.1');ui.next()
     assert ui.session.samples[0].flange_pose[2]==249.875

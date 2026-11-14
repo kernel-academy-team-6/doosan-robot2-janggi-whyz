@@ -31,7 +31,7 @@ from .transport import TestGripper
 
 DEFAULTS = {
     'backend':'mock', 'robot_namespace':'dsr01', 'expected_flange_tcp_name':'',
-    'tcp_length_at_6mm_mm':160., 'position_unit_deg':.088,
+    'tcp_length_at_6mm_mm':132.6717, 'position_unit_deg':.088,
     'gripper_profile_velocity':50, 'gripper_profile_acceleration':100,
     'gripper_command_wait_sec':5.,
     'stream_rate_hz':20., 'servo_time_sec':.1, 'arm_lookahead_sec':.1,

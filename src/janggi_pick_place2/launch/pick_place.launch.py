@@ -13,6 +13,9 @@ def launch_node(context):
         'robot_namespace': LaunchConfiguration('robot_namespace').perform(context),
     }
     length = LaunchConfiguration('tcp_length_at_6mm_mm').perform(context)
+    physics = LaunchConfiguration('virtual_physics_feedback').perform(context)
+    if physics:
+        overrides['virtual_physics_feedback'] = physics.lower() == 'true'
     if length:
         overrides['tcp_length_at_6mm_mm'] = float(length)
     return [Node(package='janggi_pick_place2', executable='pick_place_node',
@@ -26,7 +29,9 @@ def generate_launch_description():
         DeclareLaunchArgument('params_file', default_value=path),
         DeclareLaunchArgument('backend', default_value='mock', choices=['mock', 'virtual', 'real']),
         DeclareLaunchArgument('robot_namespace', default_value='dsr01'),
+        DeclareLaunchArgument('virtual_physics_feedback', default_value='',
+                              description='Empty uses YAML. false allows emulator-only testing without Gazebo.'),
         DeclareLaunchArgument('tcp_length_at_6mm_mm', default_value='',
-                              description='Compatibility override; only fixed 160 mm is allowed. Empty uses YAML.'),
+                              description='Compatibility override; only baseline 132.6717 mm is allowed; H(c) is added. Empty uses YAML.'),
         OpaqueFunction(function=launch_node),
     ])

@@ -62,8 +62,9 @@ class FakePicker:
     ('placed',1,0),('unchanged',2,0),('missing',1,1),
 ])
 def test_bounded_retry_runs_full_move_or_release_only(first,expected_picks,expected_retry_place):
-    p=FakePicker(first);logs=[]
+    p=FakePicker(first);logs=[];notices=[]
     game=SimpleNamespace(picker=p,log=logs.append,
+                         on_manipulation_retry=notices.append,
                          geom=SimpleNamespace(board_to_base=lambda *args:np.array([50.,0.,0.])),
                          go_observe=lambda:p.events.append(('home',)))
     coordinator=ManipulationCoordinator(game,None,ManipulationOptions(adaptive_grasp_enabled=False,
@@ -74,6 +75,7 @@ def test_bounded_retry_runs_full_move_or_release_only(first,expected_picks,expec
     assert sum(e[0]=='pick' for e in p.events)==expected_picks
     assert sum(e[0]=='retry_place' for e in p.events)==expected_retry_place
     assert game._execution_observed
+    assert notices==({'placed':[], 'unchanged':['move'], 'missing':['place']}[first])
 
 
 def test_retry_toggle_off_does_not_repeat_failed_move():
@@ -83,6 +85,7 @@ def test_retry_toggle_off_does_not_repeat_failed_move():
     c=ManipulationCoordinator(g,None,ManipulationOptions(adaptive_grasp_enabled=False,
                                                         refresh_before_pick=False,retry_move_enabled=False),lambda:None)
     c.scenes=lambda:[[piece()] for _ in range(3)]
+    g.on_manipulation_retry=lambda kind:pytest.fail('disabled retry announced')
     c.execute(SimpleNamespace(piece=('blue','soldier'),pick_mm=np.zeros(3),dst=(1,0),captured=None))
     assert [e[0] for e in p.events].count('pick')==1
 
@@ -95,19 +98,19 @@ def test_repeated_failure_is_not_an_infinite_retry():
                       geom=SimpleNamespace(board_to_base=lambda *args:np.array([50.,0.,0.])))
     c=ManipulationCoordinator(g,None,ManipulationOptions(adaptive_grasp_enabled=False,refresh_before_pick=False),lambda:None)
     c.scenes=lambda:[[piece()] for _ in range(3)]
-    with pytest.raises(RuntimeError,match='한 번 재시도'):
-        c.execute(SimpleNamespace(piece=('blue','soldier'),pick_mm=np.zeros(3),dst=(1,0),captured=None))
+    c.execute(SimpleNamespace(piece=('blue','soldier'),pick_mm=np.zeros(3),dst=(1,0),captured=None))
+    assert g._execution_observed
     assert sum(e[0]=='pick' for e in p.events)==2
 
 
-def test_fresh_pick_callback_updates_target_immediately_before_descent():
+def test_pick_uses_home_snapshot_without_descent_refresh_callback():
     p=FakePicker('placed')
     g=SimpleNamespace(picker=p,log=lambda *_:None,go_observe=lambda:None)
     c=ManipulationCoordinator(g,None,ManipulationOptions(adaptive_grasp_enabled=False),lambda:None)
     scenes=iter([[[piece(5)]]*3,[[piece(20)]]*3])
     c.scenes=lambda:next(scenes)
     token,target=c.pick(('blue','soldier'),np.zeros(3),'own')
-    assert token=='own' and target[0]==20 and ('pick',20.) in p.events
+    assert token=='own' and target[0]==5 and ('pick',5.) in p.events
 
 
 def test_capture_displacing_own_piece_is_reobserved_before_own_pick():
@@ -117,7 +120,6 @@ def test_capture_displacing_own_piece_is_reobserved_before_own_pick():
         def set_operation_yaw(self,yaw):pass
         def pick_abs(self,target,refresh=None):
             token='enemy' if 'enemy' in positions else 'own'
-            if token=='own': positions['own']+=10.  # Bumped again during approach.
             updated=refresh() if refresh else target
             assert updated[0]==positions[token]
             events.append((token,float(updated[0])));positions.pop(token)
@@ -131,4 +133,118 @@ def test_capture_displacing_own_piece_is_reobserved_before_own_pick():
                                 for pid,x in positions.items()] for _ in range(3)]
     coordinator.execute(SimpleNamespace(piece=('blue','soldier'),pick_mm=np.zeros(3),dst=(1,0),
                                          captured=('red','horse'),capture_mm=np.array([50.,0.,0.])))
-    assert events==[('enemy',50.),('own',30.)]
+    assert events==[('enemy',50.),('own',20.)]
+
+
+def test_removed_adaptive_rotation_cannot_be_reenabled_by_old_settings(monkeypatch):
+    import manipulation
+    monkeypatch.setattr(manipulation,'choose_yaw',lambda *args:pytest.fail('removed neighbor rotation must not run'))
+    picker=FakePicker('placed')
+    game=SimpleNamespace(picker=picker,log=lambda *_:None,
+                         go_observe=lambda:pytest.fail('orientation reset must not home'))
+    options=ManipulationOptions(adaptive_grasp_enabled=True)
+    coordinator=ManipulationCoordinator(game,None,options,lambda:None)
+    coordinator.orient([piece(1)],np.zeros(3),'king','own')
+    assert picker.events==[('yaw',None)]
+    loaded=ManipulationOptions.from_parameters(dict(adaptive_grasp_enabled=True,
+        refresh_before_pick=True,retry_move_enabled=True))
+    assert not loaded.adaptive_grasp_enabled
+    assert loaded.refresh_before_pick and loaded.retry_move_enabled
+
+
+def test_uncertain_visual_state_or_occupied_target_does_not_latch_or_block_next_commands():
+    p=FakePicker('placed')
+    p.mark_holding_unknown=lambda:pytest.fail('visual uncertainty must not latch holding state')
+    g=SimpleNamespace(picker=p,log=lambda *_:None,go_observe=lambda:None,
+        geom=SimpleNamespace(board_to_base=lambda *args:np.array([50.,0.,0.])))
+    c=ManipulationCoordinator(g,None,ManipulationOptions(refresh_before_pick=False),lambda:None)
+    # An unrelated piece at the destination used to block place outright.
+    c.scenes=lambda:[[piece(50,pid='other',label=('red','horse'))]]*3
+    c.execute(SimpleNamespace(piece=('blue','soldier'),pick_mm=np.zeros(3),dst=(1,0),captured=None))
+    assert any(e[0]=='place' for e in p.events)
+    assert g._execution_observed
+
+
+def test_all_robot_snapshots_happen_at_home_not_between_pick_and_place():
+    p=FakePicker('placed');at_home=[False];order=[]
+    original_pick=p.pick_abs;original_place=p.place
+    def pick(target,refresh=None):
+        assert refresh is None
+        assert at_home[0]
+        order.append('pick');at_home[0]=False
+        original_pick(target,refresh)
+    def place(*dst):
+        assert not at_home[0]
+        order.append('place');original_place(*dst)
+    def home():at_home[0]=True;order.append('home')
+    p.pick_abs=pick;p.place=place
+    g=SimpleNamespace(picker=p,log=lambda *_:None,go_observe=home,
+        geom=SimpleNamespace(board_to_base=lambda *args:np.array([50.,0.,0.])))
+    c=ManipulationCoordinator(g,None,ManipulationOptions(),lambda:None)
+    def snapshot():
+        assert at_home[0], 'camera target query while wrist occludes board'
+        order.append('snapshot')
+        return [[piece(p.pos)]]*3
+    c.scenes=snapshot
+    c.execute(SimpleNamespace(piece=('blue','soldier'),pick_mm=np.zeros(3),dst=(1,0),captured=None))
+    assert order==['home','snapshot','pick','place','home','snapshot']
+
+
+@pytest.mark.parametrize('neighbors,expected,counts',[
+    ([piece(40,pid='r'),piece(-40,pid='l')],90.,(2,0)),
+    ([piece(0,40,pid='u'),piece(0,-40,pid='d')],0.,(0,2)),
+    ([piece(40,pid='r'),piece(-40,pid='l'),piece(0,40,pid='u')],90.,(2,1)),
+    ([],0.,(0,0)),
+    ([piece(40,pid='r'),piece(0,40,pid='u')],0.,(1,1)),
+    ([piece(400,pid='far')],0.,(0,0)),
+])
+def test_binary_direction_uses_fewer_nearby_pieces_and_defaults_to_flat(neighbors,expected,counts):
+    from manipulation import choose_orthogonal_direction
+    offset,actual=choose_orthogonal_direction(np.zeros(3),neighbors,20.,30.,0.,ManipulationOptions())
+    assert offset==expected and actual==counts
+
+
+def test_binary_direction_tracks_home_axis_and_never_blocks_a_crowded_scene():
+    from manipulation import choose_orthogonal_direction
+    offset,_=choose_orthogonal_direction(np.zeros(3),[piece(0,40,pid='up')],20.,30.,90.,ManipulationOptions())
+    assert offset==90.
+    offset,counts=choose_orthogonal_direction(np.zeros(3),[piece(8,8),piece(-8,-8,pid='other')],20.,30.,0.,ManipulationOptions())
+    assert offset in (0.,90.) and min(counts)>0  # choose even when both are crowded
+
+
+@pytest.mark.parametrize('clears', [False, True])
+def test_king_capture_retries_then_requires_removal_before_attacker_moves(clears):
+    p=FakePicker('placed');p.enemy=True;p.drops=0;notices=[]
+    def discard():
+        p.drops+=1;p.events.append(('grave',))
+        if clears and p.drops==2:p.enemy=False
+    p.discard=discard
+    g=SimpleNamespace(picker=p,log=lambda *_:None,go_observe=lambda:None,
+                      geom=SimpleNamespace(board_to_base=lambda *args:np.array([50.,0.,0.])))
+    g.on_manipulation_retry=notices.append
+    c=ManipulationCoordinator(g,None,ManipulationOptions(retry_move_enabled=True),lambda:None)
+    def scenes():
+        scene=([piece(0)] if p.drops<2 else [piece(0)])
+        if p.enemy:scene.append(piece(50,pid='enemy',label=('red','king')))
+        # After the attacker's place call, show it at the destination.
+        if p.attempts:scene=[piece(50)]
+        return [scene]*3
+    c.scenes=scenes
+    plan=SimpleNamespace(piece=('blue','soldier'),pick_mm=np.zeros(3),dst=(1,0),
+                         captured=('red','king'),capture_mm=np.array([50.,0.,0.]))
+    completed=c.execute(plan)
+    assert p.drops==2 and completed is clears
+    assert any(e[0]=='place' for e in p.events) is clears
+    assert notices==['capture']
+
+
+def test_failed_retry_notice_does_not_stop_robot_retry():
+    p=FakePicker('unchanged')
+    def fail(kind):raise RuntimeError('audio unavailable')
+    g=SimpleNamespace(picker=p,log=lambda *_:None,go_observe=lambda:None,
+                      on_manipulation_retry=fail,
+                      geom=SimpleNamespace(board_to_base=lambda *args:np.array([50.,0.,0.])))
+    c=ManipulationCoordinator(g,None,ManipulationOptions(refresh_before_pick=False),lambda:None)
+    c.scenes=lambda:[[] if p.pos is None else [piece(p.pos)]]*3
+    c.execute(SimpleNamespace(piece=('blue','soldier'),pick_mm=np.zeros(3),dst=(1,0),captured=None))
+    assert sum(e[0]=='pick' for e in p.events)==2

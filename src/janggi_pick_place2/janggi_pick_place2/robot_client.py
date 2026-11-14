@@ -111,6 +111,10 @@ class RobotClient:
             raise RuntimeError('invalid FK response; no motion sent')
         return values
 
+    def home_flange_pose(self, check):
+        """Query FK for configured home, without moving the robot."""
+        return self._forward(self.settings.home_joint_deg, check)
+
     def _locked_planner(self):
         from .locked_wrist import LockedWristPlanner
         return LockedWristPlanner(self.settings,self._inverse,self._forward)
@@ -385,6 +389,19 @@ class VirtualRobotClient(RobotClient):
             return super().stop()
         return None
 
+    def _wait_physics(self, check):
+        feedback = getattr(self, 'physics_feedback', None)
+        if feedback is not None:
+            feedback.arm(self.current_joints(check), check)
+
+    def move(self, pose, check):
+        super().move(pose, check)
+        self._wait_physics(check)
+
+    def home(self, check, **kwargs):
+        super().home(check, **kwargs)
+        self._wait_physics(check)
+
 
 class MockRobot:
     def __init__(self, settings):
@@ -398,6 +415,10 @@ class MockRobot:
     def current_pose(self, check):
         check()
         return list(self.last_pose)
+
+    def home_flange_pose(self, check):
+        check()
+        return list(self.settings.mock_home_flange_pose)
 
     def home(self, check, *, joints=None, velocity=None, acceleration=None):
         check()

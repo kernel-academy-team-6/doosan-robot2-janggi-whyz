@@ -1,9 +1,12 @@
 <?xml version="1.0"?>
 <!-- Keep world name 'empty' for the existing scene transport service paths. -->
-<sdf version="1.9">
+<sdf version="1.11">
   <world name="empty">
-    <physics name="1ms" type="ignored"><max_step_size>0.001</max_step_size><real_time_factor>1</real_time_factor></physics>
-    <plugin filename="gz-sim-physics-system" name="gz::sim::systems::Physics"/>
+    <physics name="0.5ms" type="ignored"><max_step_size>0.0005</max_step_size><real_time_factor>1</real_time_factor></physics>
+    <plugin filename="gz-sim-physics-system" name="gz::sim::systems::Physics">
+      <!-- Native mimic constraints are required for the parallel gripper. -->
+      <engine><filename>gz-physics-bullet-featherstone-plugin</filename></engine>
+    </plugin>
     <plugin filename="gz-sim-user-commands-system" name="gz::sim::systems::UserCommands"/>
     <plugin filename="gz-sim-scene-broadcaster-system" name="gz::sim::systems::SceneBroadcaster"/>
     <plugin filename="gz-sim-apply-link-wrench-system" name="gz::sim::systems::ApplyLinkWrench"/>

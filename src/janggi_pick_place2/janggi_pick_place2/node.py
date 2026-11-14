@@ -18,6 +18,7 @@ from rclpy.validate_namespace import validate_namespace
 from std_srvs.srv import Trigger
 
 from janggi_pick_place2.action import Home, Pick, Place, PickAndPlace
+from .geometry import tcp_length_from_command
 from .executor import OperationCancelled, PickPlaceExecutor, Settings
 from .gripper import GripperClient, MockGripper, VirtualGripperClient
 from .robot_client import MockRobot, RobotClient, VirtualRobotClient
@@ -29,11 +30,12 @@ EXTRA_DEFAULTS = {
     'expected_flange_tcp_name': '',
     'service_timeout_sec': 5.0,
     'motion_timeout_sec': 60.0,
-    'gripper_command_wait_sec': 5.0,
-    'gripper_wait_for_result': True,
+    'gripper_command_wait_sec': 2.0,
+    'gripper_wait_for_result': False,
     'gripper_result_timeout_sec': 20.0,
     'mock_step_delay_sec': 0.05,
     'virtual_gripper_delay_sec': 0.4,
+    'virtual_physics_feedback': False,
 }
 
 
@@ -87,7 +89,7 @@ class PickPlaceNode(Node):
                                                   callback_group=group)
         self.get_logger().info(
             f'Actions ready; backend={p["backend"]}; no startup motion. '
-            f'fixed flange extension={self.settings.tcp_length_at_6mm_mm} mm; '
+            f'fixed flange baseline={self.settings.tcp_length_at_6mm_mm} mm; '
             'targets are base-frame [x,y,absolute TIP z,yaw] in mm/deg.'
         )
         if self.settings.joint6_lock_enabled:
@@ -204,8 +206,11 @@ class PickPlaceNode(Node):
                 'holding_state': self.runner.holding_state,
                 'last_error': self._last_error,
                 'tcp_length_at_6mm_mm': self.settings.tcp_length_at_6mm_mm,
-                'tcp_reference': 'joint_6_flange', 'flange_extension_mm': 160.0,
-                'width_dependent_tcp': False,
+                'tcp_reference': 'joint_6_flange', 'flange_baseline_mm': self.settings.tcp_length_at_6mm_mm,
+                'width_dependent_tcp': True,
+                'effective_extension_mm': (tcp_length_from_command(self.gripper.last_command['commanded_position'],
+                    self.settings.tcp_length_at_6mm_mm) if self.gripper.last_command is not None else None),
+                'extension_source': 'command_model_not_feedback',
                 'gripper_feedback_received': False,
                 'grip_verified': False,
                 'gripper_transport': 'position_cmd' if self.parameters['backend'] == 'real' else self.parameters['backend'],

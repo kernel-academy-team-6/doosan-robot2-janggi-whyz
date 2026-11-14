@@ -45,8 +45,9 @@ def test_compensation_preserves_model_tip_and_only_changes_z(initial,target):
         assert sample['predicted_tip_z_mm']==pytest.approx(plan.tip_z,abs=1e-10)
         pose=plan.target_pose(t)
         assert pose[:2]==[400.,50.] and pose[3:]==[25.,180.,10.]
-    # Fixed flange-to-tip extension: changing jaw gap requires no flange-Z compensation.
-    assert plan.target_pose(plan.profile.duration)[2] == pytest.approx(450.)
+    from janggi_pick_place2.geometry import height_from_command
+    assert plan.target_pose(plan.profile.duration)[2] == pytest.approx(
+        450+height_from_command(u1)-height_from_command(u0))
 
 
 def test_tilt_uses_actual_z_component():
@@ -65,8 +66,9 @@ def test_invalid_gaps(initial,target):
 def test_motion_limits_reject_infeasible_profiles():
     u0,u1=endpoints(30.,60.)
     plan=CompensationPlan(Profile(u0,u1),[400.,0.,450.,0.,180.,0.])
-    stats=plan.validate(120.,.01,.01,.01,-200.,1000.)
-    assert stats['peak_z_velocity_mm_s']==stats['peak_z_acceleration_mm_s2']==0.
+    with pytest.raises(ValueError):plan.validate(120.,.01,.01,.01,-200.,1000.)
+    stats=plan.validate(120.,100.,10000.,100000.,-200.,1000.)
+    assert stats['peak_z_velocity_mm_s']>0
     with pytest.raises(ValueError,match='duration'):
         plan.validate(.0001,30.,5.,10.,-200.,1000.)
     with pytest.raises(ValueError,match='height bounds'):

@@ -59,7 +59,9 @@ class BoardPickPlace2:
         self.piece_kind = 'cha'
         self.held_grasp_height_mm = None
         self.operation_yaw = None
+        self.operation_orientation_abc = None
         self.home_orientation_abc = None
+        self.home_flange_z_mm = None
         self._last_place = None
         # Default: preserve measured home attitude, avoiding a yaw=0 wrist turn.
         # An explicit --pick-yaw remains an intentional orientation override.
@@ -69,6 +71,10 @@ class BoardPickPlace2:
         if self.settings.joint6_lock_enabled and self.yaw is not None:
             raise ValueError('--pick-yaw conflicts with joint6_lock_enabled; use the configured J6 angle')
         self.backend = 'virtual' if virtual else 'real'
+        # UI virtual mode is Gazebo: wait for physical motion, not emulator-only
+        # completion. Real serial communication remains open-loop as requested.
+        if virtual:
+            self.params['virtual_physics_feedback'] = True
         self.trace_path = Path(trace_path) if trace_path else None
         self.trace_sequence = 0
         if robot is None or gripper is None:
@@ -84,6 +90,7 @@ class BoardPickPlace2:
         mover.command_observer = self.record_motion
         self.record_motion('configuration', dict(backend=self.backend, yaw=self.yaw,
                            command_offset_mm=self.settings.tcp_length_at_6mm_mm,
+                           grasp_yaw_offset_deg=self.settings.grasp_yaw_offset_deg,
                            calibration_offset_mm=mover.board.tcp_offset_mm.tolist(),
                            linear_velocity_mm_s=self.settings.linear_velocity_mm_s,
                            angular_velocity_deg_s=self.settings.angular_velocity_deg_s,
@@ -93,13 +100,14 @@ class BoardPickPlace2:
                            'home_attitude' if self.yaw is None else 'explicit_yaw',
                            joint6_locked_deg=self.settings.joint6_locked_deg,
                            command_board_z_mm=self.settings.command_board_z_mm,
+                           measured_board_height_source=(mover.board.height_map.source if mover.board.height_map is not None else None),
                            piece_grip_widths_mm=list(self.settings.piece_grip_widths_mm),
                            piece_grip_heights_mm=list(self.settings.piece_grip_heights_mm),
                            piece_min_widths_mm=list(self.settings.piece_min_widths_mm),
                            piece_thicknesses_mm=list(self.settings.piece_thicknesses_mm),
                            gripper_transport='stroke' if virtual else 'position_request' if self.params.get('gripper_wait_for_result',False) else 'position_cmd',
                            gripper_wait_sec=self.params['virtual_gripper_delay_sec'] if virtual else self.params['gripper_command_wait_sec']))
-        self.log(f'집기: janggi_pick_place2 · J6 플랜지 고정 연장={self.settings.tcp_length_at_6mm_mm:g}mm · '
+        self.log(f'집기: janggi_pick_place2 · J6 플랜지 기준값(+H(c))={self.settings.tcp_length_at_6mm_mm:g}mm · '
                  f'개방 여유={self.settings.default_opening_allowance_mm:g}mm')
 
     def set_motion_settings(self, settings):
@@ -135,8 +143,11 @@ class BoardPickPlace2:
             self.runner.home_to(self._check,
                                 lambda stage,progress:self.log(f'집기/놓기: {stage}'),
                                 joints=joints, velocity=velocity, acceleration=acceleration)
+            self.operation_yaw = None
+            self.operation_orientation_abc = None
             self.runner.orientation_abc = None  # Read the new home attitude at next pick.
             self.home_orientation_abc = None
+            self.home_flange_z_mm = float(self.runner.robot.current_pose(self._check)[2])
         except BaseException:
             self.runner.robot.stop()
             raise
@@ -156,7 +167,7 @@ class BoardPickPlace2:
         if point.shape != (3,) or not np.isfinite(point).all():
             raise ValueError('Target must be three finite base coordinates in mm')
         # Keep calibrated camera XY and the original calibration plane untouched.
-        point[2] = self.mover.board.command_surface_z(point, self.settings) + self.grasp_height_for_kind(kind)
+        point[2] = self.mover.board.command_surface_z(point, self.settings, virtual=self.backend == 'virtual') + self.grasp_height_for_kind(kind)
         return point
 
     def _check(self):
@@ -179,8 +190,8 @@ class BoardPickPlace2:
             if not self.settings.joint6_lock_enabled:
                 if self.home_orientation_abc is None:
                     self.home_orientation_abc = self.runner.robot.current_pose(self._check)[3:]
-                self.runner.orientation_abc = ([self.operation_yaw,180.,0.] if self.operation_yaw is not None
-                                               else self.home_orientation_abc if self.yaw is None else None)
+                self.runner.orientation_abc = ((self.operation_orientation_abc or [self.operation_yaw,180.,0.]) if self.operation_yaw is not None
+                                               else self._home_grasp_orientation() if self.yaw is None else None)
             self.record_motion('tip_target', dict(action=operation, target=self._target(target),
                                orientation_abc=self.runner.orientation_abc,
                                object_width_mm=grasp.width_mm if grasp is not None else
@@ -192,22 +203,59 @@ class BoardPickPlace2:
             self.runner.robot.stop()
             raise
 
+    def _home_grasp_orientation(self):
+        """Default flat world attitude, with configured home offset, never cumulative."""
+        if self.home_orientation_abc is None:
+            self.home_orientation_abc = self.runner.robot.current_pose(self._check)[3:]
+        abc = list(self.home_orientation_abc)
+        abc[0] = (abc[0] + self.settings.grasp_yaw_offset_deg + 180.) % 360. - 180.
+        return abc
+
     def set_operation_yaw(self, yaw):
         if yaw is not None and (not math.isfinite(yaw) or self.settings.joint6_lock_enabled):
             raise ValueError('adaptive grasp yaw requires a finite angle and MoveL mode')
         self.operation_yaw = yaw
+        self.operation_orientation_abc = None
         if yaw is not None:
             self.runner.orientation_abc = [float(yaw),180.,0.]
         else:
             if self.home_orientation_abc is None:
                 self.home_orientation_abc = self.runner.robot.current_pose(self._check)[3:]
-            self.runner.orientation_abc = list(self.home_orientation_abc)
+            self.runner.orientation_abc = self._home_grasp_orientation()
+
+    def home_grasp_yaw(self):
+        abc = self._home_grasp_orientation()
+        return float(abc[0]-abc[2])
+
+    def set_orthogonal_grasp(self, offset_deg):
+        """Home-relative 0/90deg jaw direction, preserving the flange Z axis."""
+        if offset_deg not in (0.,90.):
+            raise ValueError('grasp direction offset must be 0 or 90 degrees')
+        if offset_deg==0.:
+            self.set_operation_yaw(None)
+            return
+        abc=self._home_grasp_orientation()
+        # ZYZ: rotating local C preserves the flange's world Z direction.
+        # For downward B=180, C -= 90 yields a +90deg opening direction.
+        abc[2]=(abc[2]-offset_deg+180.)%360.-180.
+        self.operation_yaw=float(abc[0]-abc[2])
+        self.operation_orientation_abc=list(abc)
+        self.runner.orientation_abc=list(abc)
 
     def current_yaw(self):
         abc = self.runner.robot.current_pose(self._check)[3:]
         return float(abc[0]-abc[2])
 
     def pick_abs(self, grasp_mm, *, refresh=None):
+        try:
+            self._check()
+        except OperationCancelled:
+            self.runner.robot.stop()
+            raise
+        # Open-loop UI command sequencing: inferred/unknown holding state must
+        # not latch out a new operator-requested pick. This is not grip feedback.
+        self.runner.holding_state = 'empty_unverified'
+        self.runner.held = None
         self._last_place = None
         grasp = self.runner.resolve(object_width_mm=self.object_width_mm)
         target = self.command_target_for_kind(grasp_mm, self.piece_kind)
@@ -226,9 +274,13 @@ class BoardPickPlace2:
 
     def place(self, x, y):
         point = self.mover.board.tip_target(x, y, self.cfg.place_height_mm)
+        self._check()
+        if self.runner.held is None:
+            self.runner.held = self.runner.resolve(object_width_mm=self.object_width_mm)
+        self.runner.holding_state = 'holding_unverified'
         if self.held_grasp_height_mm is None:
-            raise RuntimeError('place requires a held piece profile')
-        point[2] = self.mover.board.command_surface_z(point, self.settings) + self.held_grasp_height_mm
+            self.held_grasp_height_mm = self.grasp_height_for_kind(self.piece_kind)
+        point[2] = self.mover.board.command_surface_z(point, self.settings, virtual=self.backend == 'virtual') + self.held_grasp_height_mm
         released = (self.runner.held,self.held_grasp_height_mm,(x,y))
         result = self._run('place', point)
         self._last_place = released
@@ -237,10 +289,9 @@ class BoardPickPlace2:
 
     def retry_place(self, x, y):
         """One release retry after visual evidence, without claiming verified holding."""
-        if (self._last_place is None or self._last_place[2] != (x,y)
-                or self.runner.held is not None or self.runner.holding_state != 'empty_unverified'):
-            raise RuntimeError('놓기 재시도에 대응하는 완료된 플레이스 기록이 없습니다.')
-        self.runner.held,self.held_grasp_height_mm,_ = self._last_place
+        self._check()
+        if self._last_place is not None:
+            self.runner.held,self.held_grasp_height_mm,_ = self._last_place
         self.runner.holding_state = 'holding_unverified'
         self.record_motion('release_retry_assumed_holding',dict(destination=[x,y],grip_verified=False))
         return self.place(x,y)
@@ -250,17 +301,32 @@ class BoardPickPlace2:
         self.record_motion('holding_unknown_after_visual_check',dict(grip_verified=False))
 
     def discard_spot(self, index=None):
-        from .pick_place import PiecePicker
-        # Reuse board outside-cell geometry only; no legacy motion/gripper calls.
-        layout = SimpleNamespace(cfg=self.cfg, discarded=self.discarded, mover=self.mover)
-        return PiecePicker.discard_spot(layout, index)
+        # Same drop location every time: midpoint of (0,4)/(0,5), base +Y 70mm.
+        point = self.mover.board.board_to_base(0.,4.5).copy()
+        point[1] += 70.
+        height = self.home_flange_z_mm
+        if height is None:
+            robot = self.runner.robot
+            pose = (robot.home_flange_pose(self._check) if hasattr(robot,'home_flange_pose')
+                    else robot.current_pose(self._check))
+            height = self.home_flange_z_mm = float(pose[2])
+        point[2] = height  # Flange height, not a tip-height target.
+        return point
 
     def discard(self):
+        self._check()
         point = self.discard_spot()
-        if self.held_grasp_height_mm is None:
-            raise RuntimeError('discard requires a held piece profile')
-        point[2] = self.settings.command_board_z_mm + self.held_grasp_height_mm
-        result = self._run('place', point)
+        point[2] = max(point[2], float(self.runner.robot.current_pose(self._check)[2]))
+        grasp = self.runner.held or self.runner.resolve(object_width_mm=self.object_width_mm)
+        try:
+            self.record_motion('capture_drop',dict(flange_xyz=point.tolist(),height_mode='at_least_home_flange',
+                grip_verified=False,release_attempts=2))
+            self.runner.drop_at_height(point,grasp,self._check,
+                lambda stage,progress:self.log(f'잡은 말 떨어뜨리기: {stage}'))
+        except BaseException:
+            self.runner.robot.stop()
+            raise
         self.held_grasp_height_mm = None
+        self._last_place = None
         self.discarded += 1
-        return result
+        return point

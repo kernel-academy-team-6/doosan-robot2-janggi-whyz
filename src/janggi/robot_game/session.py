@@ -34,7 +34,7 @@ for p in (SRC, VISION, VISION / "realtime_ui"):
     if str(p) not in sys.path:
         sys.path.insert(0, str(p))
 
-from rules import Game, detect_top_side, infer_move, other  # noqa: E402
+from rules import Game, Position, detect_top_side, infer_move, other  # noqa: E402
 
 SIDE_KO = {"blue": "초", "red": "한"}
 KIND_KO = {"king": "궁", "cha": "차", "po": "포", "horse": "마", "sang": "상", "sa": "사", "soldier": "졸"}
@@ -92,6 +92,7 @@ class RobotGameConfig:
     observe_vel: float = 30.0         # 관찰 자세 이동 속도 [deg/s]
     command_settings: object = None  # PickPlace2 profiles also used by --no-motion preview.
     manipulation: object = None
+    virtual: bool = False           # Gazebo uses a flat board surface at base Z=-20 mm.
 
 
 @dataclass
@@ -132,9 +133,15 @@ class RobotGame:
         self.game: Game | None = None
         self.robot_side = other(self.cfg.human_side)
         self.last_plan: RobotPlan | None = None
+        self.winner = None
+        self.victory_pending = False
+        self.last_execution_completed = False
 
     # ------------------------------------------------------------------ 시작
     def start(self, board, *, observe=True) -> Game:
+        self.winner = None
+        self.victory_pending = False
+        self.last_execution_completed = False
         top = detect_top_side(board)
         self.game = Game(dict(board), top_side=top, turn=self.cfg.human_side)
         self.log(f"새 대국: 사람 {SIDE_KO[self.cfg.human_side]}, 로봇 {SIDE_KO[self.robot_side]}, "
@@ -177,7 +184,7 @@ class RobotGame:
 
     # ------------------------------------------------------------------ 3. 엔진
     def grasp_from_camera(self, cell, centers, kind=None) -> tuple[np.ndarray, str]:
-        """칸의 말을 집을 팁 위치. 검출 박스 중심 → base 좌표, 없거나 너무 멀면 교차점."""
+        """Detected piece centre only; never substitute a nominal grid intersection."""
         pc = self.picker.cfg if self.picker else None
         settings = getattr(self.cfg,'command_settings',None)
         group = None if kind is None else 2 if kind=='king' else 0 if kind in ('sa','soldier') else 1
@@ -185,37 +192,59 @@ class RobotGame:
                    and hasattr(self.picker,'grasp_height_for_kind') else
                    settings.piece_grip_heights_mm[group] if settings is not None and group is not None else
                    pc.grasp_height_mm if pc else 0.0)
-        grid = self.geom.tip_target(*cell, grasp_h)
         def command_point(point):
             if kind is not None and hasattr(self.picker,'command_target_for_kind'):
                 return self.picker.command_target_for_kind(point,kind)
             if settings is not None and group is not None:
                 point=np.asarray(point,float).copy()
-                point[2]=self.geom.command_surface_z(point, settings)+grasp_h
+                point[2]=self.geom.command_surface_z(point, settings, virtual=getattr(self.cfg, 'virtual', False))+grasp_h
             return point
         uv = centers.get(cell)
         if uv is None:
-            self.log(f"  {cell}: 검출 박스가 없어 교차점 위치로 집는다")
-            return command_point(grid), "grid"
+            raise RuntimeError(f"{cell}: 집을 말의 검출 중심이 없습니다. 격자점으로 대체하지 않습니다.")
         top_height = (self.picker.piece_height_for_kind(kind) if kind is not None
                       and hasattr(self.picker,'piece_height_for_kind') else
                       settings.piece_thicknesses_mm[group] if settings is not None and group is not None else
                       self.cfg.piece_height_mm)
-        top = self.cam.pixel_to_base(*uv, height_mm=top_height)
+        top = np.asarray(self.cam.pixel_to_base(*uv, height_mm=top_height),float)
+        if top.shape != (3,) or not np.isfinite(top).all():
+            raise RuntimeError(f"{cell}: 말 중심을 유효한 베이스 좌표로 변환하지 못했습니다.")
+        # Preserve the detected centre XY exactly. Only the Z target changes.
+        p = top.copy()
         n = self.geom.normal()
-        p = top + n * (grasp_h - self.geom.height_above(top))
-        off = p - grid
-        off_h = float(np.linalg.norm(off - n * (n @ off)))
-        if off_h > self.cfg.max_offset_mm:
-            self.log(f"  {cell}: 카메라 위치가 교차점에서 {off_h:.0f} mm 떨어져 교차점 위치로 집는다")
-            return command_point(grid), "grid"
+        p[2] += (grasp_h-self.geom.height_above(top))/n[2]
+
         return command_point(p), "camera"
+
+    def _winning_king_capture(self):
+        """Presentation ending: an immediately capturable king ends the game.
+
+        Use the existing local move/own-king-safety rules, not a straight-line
+        proximity heuristic. Other moves still come from Fairy-Stockfish.
+        """
+        g=self.game
+        if g.turn != self.robot_side:
+            return None
+        enemy=[c for c,p in g.board.items() if p==(self.cfg.human_side,'king')]
+        own=[c for c,p in g.board.items() if p==(self.robot_side,'king')]
+        if len(enemy)!=1 or len(own)!=1:
+            return None
+        dst=enemy[0];position=Position(g.board,g.top_side)
+        candidates=[src for src,p in g.board.items() if p[0]==self.robot_side and dst in position.legal_moves(src)]
+        if not candidates:
+            return None
+        src=min(candidates,key=lambda c:(abs(c[0]-dst[0])+abs(c[1]-dst[1]),c))
+        from engine import EngineResult, square_name
+        return EngineResult(square_name(src,g.top_side)+square_name(dst,g.top_side),src,dst,
+                            score='궁 포획 승리 수')
 
     def plan(self, centers) -> RobotPlan:
         g = self.game
         if not g.board:
             return RobotPlan(None, score="현재 분류된 말이 없음")
-        res = self.engine.best_move(g.board, g.top_side, g.turn, self.cfg.movetime_ms)
+        res = self._winning_king_capture()
+        if res is None:
+            res = self.engine.best_move(g.board, g.top_side, g.turn, self.cfg.movetime_ms)
         if res.no_move:
             return RobotPlan(None, score=res.score)
         plan = RobotPlan(res.uci, res.src, res.dst, g.board.get(res.src), g.board.get(res.dst), res.score)
@@ -241,8 +270,10 @@ class RobotGame:
         coordinated=(options is None or options.adaptive_grasp_enabled or options.refresh_before_pick or options.retry_move_enabled)
         if self.picker is not None and getattr(self,'vision',None) is not None and coordinated:
             from manipulation import ManipulationCoordinator, ManipulationOptions
-            ManipulationCoordinator(self,self.vision,self.cfg.manipulation or ManipulationOptions(),
-                                    lambda:self._check_stop(stop_check)).execute(plan)
+            completed=ManipulationCoordinator(self,self.vision,self.cfg.manipulation or ManipulationOptions(),
+                                             lambda:self._check_stop(stop_check)).execute(plan)
+            if completed is False:
+                return False
         elif self.picker is not None:
             if hasattr(self.picker,'set_operation_yaw'):
                 self.picker.set_operation_yaw(None)
@@ -265,6 +296,48 @@ class RobotGame:
             self.picker.place(*plan.dst)
         g.move(plan.src, plan.dst, check=False)
         self.log(f"로봇: {plan.describe()}")
+        return True
+
+    def _finish_checkmate(self, centers, stop_check):
+        """After confirmed mate, physically collect the losing king for spectators.
+
+        Check is never enough: local checkmate and no engine legal replies must
+        agree before this presentation-only cleanup is allowed.
+        """
+        g=self.game
+        if g.turn != self.cfg.human_side or g.status() != '외통':
+            return False
+        if self.has_moves(self.cfg.human_side):
+            return False
+        kings=[c for c,p in g.board.items() if p==(self.cfg.human_side,'king')]
+        if len(kings)!=1:
+            return False
+        cell=kings[0];self.victory_pending=True
+        self.log('[승리 마무리] 외통 확인 · 상대 궁을 묘지로 옮깁니다.')
+        if self.picker is not None:
+            vision=getattr(self,'vision',None)
+            if vision is not None and hasattr(vision,'fresh_state'):
+                _,centers=vision.fresh_state()
+            point,_=self.grasp_from_camera(cell,centers,'king')
+            if vision is not None:
+                from manipulation import ManipulationCoordinator, ManipulationOptions
+                options=getattr(self.cfg,'manipulation',None) or ManipulationOptions()
+                coordinator=ManipulationCoordinator(self,vision,options,lambda:self._check_stop(stop_check))
+                _,cleared=coordinator.capture_only((self.cfg.human_side,'king'),point)
+                self._execution_observed=True
+                if not cleared:
+                    self.last_execution_completed=False
+                    self.log('[궁 포획 미확인] 승리 선언을 보류합니다. 현재 판에서 다시 시도하세요.')
+                    return False
+            else:
+                self._check_stop(stop_check)
+                self.picker.set_piece_kind('king')
+                self.picker.pick_abs(point)
+                self._check_stop(stop_check)
+                self.picker.discard()
+                self.go_observe()
+        g.board.pop(cell,None)
+        return True
 
     @staticmethod
     def _check_stop(stop_check):
@@ -277,6 +350,8 @@ class RobotGame:
 
     # ------------------------------------------------------------------ 한 턴 전체
     def robot_turn(self, centers, stop_check=lambda: False) -> RobotPlan:
+        if getattr(self,'winner',None) is not None:
+            return RobotPlan(None,score='대국 종료')
         t0 = time.time()
         plan = self.plan(centers)
         self.last_plan = plan
@@ -289,13 +364,25 @@ class RobotGame:
             self.log(f"로봇({SIDE_KO[self.robot_side]})이 둘 수 없다 — 사람 승")
             return plan
         self._execution_observed=False
-        self.execute(plan, stop_check)
+        self.last_execution_completed=False
+        captured_king=bool(plan.captured and plan.captured[1]=='king')
+        if captured_king:self.victory_pending=True
+        if self.execute(plan, stop_check) is False:
+            return plan
+        self.last_execution_completed=True
         if not self._execution_observed:
             self.go_observe()
+        if captured_king or self._finish_checkmate(centers,stop_check):
+            self.winner=self.robot_side
+            self.victory_pending=False
+            ending='상대 궁 묘지 포획 완료' if self.picker is not None else '궁 포획 승리 수 계산 (로봇 동작 없음)'
+            self.log(f'[대국 종료] {ending} · {SIDE_KO[self.winner]} 승리')
         return plan
 
     def human_done(self, vision, stop_check=lambda: False) -> RobotPlan:
         """'착수 완료' 한 번에 하는 일: 판 읽기 → 사람 수 반영 → 엔진 → 로봇 → 관찰 자세."""
+        if self.winner is not None:
+            return RobotPlan(None,score='대국 종료')
         board, centers = vision.fresh_state()
         self.apply_human_move(board)
         return self.robot_turn(centers, stop_check)

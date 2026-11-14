@@ -12,6 +12,8 @@ from xml.sax.saxutils import escape
 import numpy as np
 import yaml
 
+from collision_masks import ENVIRONMENT_CATEGORY, ENVIRONMENT_COLLIDE, contact_xml
+
 HERE = Path(__file__).resolve().parent
 DEFAULT_SCENE_CONFIG = HERE/'config/scene.yaml'
 # Columns are Gazebo's forward/left/up axes expressed in ROS optical right/down/forward.
@@ -113,7 +115,7 @@ class CalibratedLayout:
                 f'<pose>{pose_text(self.center, self.rotation)}</pose><link name="board_surface">'
                 f'<collision name="board_contact"><pose>0 0 {-self.thickness_m/2} 0 0 0</pose>'
                 f'<geometry><box><size>{self.outer_size_m[0]} {self.outer_size_m[1]} {self.thickness_m}</size>'
-                f'</box></geometry></collision>{wood}{"".join(lines)}</link></model></sdf>')
+                f'</box></geometry><surface>{contact_xml(ENVIRONMENT_CATEGORY, ENVIRONMENT_COLLIDE)}</surface></collision>{wood}{"".join(lines)}</link></model></sdf>')
 
     def camera_sdf(self):
         c = self.config['camera'];i = self.intrinsics

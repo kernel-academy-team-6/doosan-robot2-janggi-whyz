@@ -10,6 +10,7 @@ FIELDS = (
     ('angular_velocity_deg_s', '회전·관절 속도 (°/s)'),
     ('angular_acceleration_deg_s2', '회전·관절 가속도 (°/s²)'),
 )
+DEFAULT_SPEED_PERCENT = 200.
 
 
 def motion_settings(settings, values, percent=100., linked=True):
@@ -36,22 +37,25 @@ class RobotMotionDialog:
         self.window.title('로봇 속도·가속도')
         self.window.protocol('WM_DELETE_WINDOW', self.close)
         self.values = {}
-        self.anchors = {name:float(getattr(settings, name)) for name,_ in FIELDS}
+        # settings already contains the effective motion limits. Opening this
+        # dialog must not multiply those limits a second time.
+        self.anchors = {name:float(getattr(settings, name))/(DEFAULT_SPEED_PERCENT/100.) for name,_ in FIELDS}
         self.pending_field = None
         self.updating = False
         tk.Label(self.window, text='기준값을 입력한 뒤 비율로 함께 조절하세요.').grid(
             row=0, column=0, columnspan=2, padx=12, pady=8)
         for row, (name, label) in enumerate(FIELDS, 1):
             tk.Label(self.window, text=label).grid(row=row, column=0, sticky='w', padx=12)
-            var = tk.StringVar(value=f'{getattr(settings, name):g}')
+            var = tk.StringVar(value=f'{self.anchors[name]:g}')
             self.values[name] = var
             entry = tk.Entry(self.window, textvariable=var, width=12)
             entry.grid(row=row, column=1, padx=12, pady=3)
             entry.bind('<FocusOut>', lambda event,key=name:self.commit_edit(key))
         self.linked = tk.BooleanVar(value=True)
+        self._was_linked = True
         tk.Checkbutton(self.window, text='통합 조절: 직접 입력·슬라이더 모두 속도·가속도 비례 연동',
-                       variable=self.linked, command=self.preview).grid(row=5, columnspan=2, pady=6)
-        self.percent = tk.DoubleVar(value=100.)
+                       variable=self.linked, command=self.toggle_linked).grid(row=5, columnspan=2, pady=6)
+        self.percent = tk.DoubleVar(value=DEFAULT_SPEED_PERCENT)
         tk.Scale(self.window, from_=10, to=200, resolution=5, orient='horizontal',
                  label='속도 조절 (%) · 해제 시 가속도는 기준값 유지',
                  variable=self.percent, command=lambda _:self.preview()).grid(
@@ -66,6 +70,26 @@ class RobotMotionDialog:
             var.trace_add('write', lambda *_:self.preview())
         for name,var in self.values.items():
             var.trace_add('write', lambda *_,key=name:self.mark_edit(key))
+        self.preview()
+
+    def toggle_linked(self):
+        # Preserve effective acceleration when switching between scaled and
+        # independent inputs at a percentage other than 100.
+        linked=self.linked.get()
+        if linked != self._was_linked:
+            try:
+                factor=self.percent.get()/100.
+                updates={key:float(var.get()) for key,var in self.values.items()}
+                for key in updates:
+                    if 'acceleration' in key:
+                        updates[key] *= 1./factor if linked else factor
+                self.updating=True
+                for key,value in updates.items():self.values[key].set(f'{value:.12g}')
+                self.anchors=updates
+                self.pending_field=None
+                self._was_linked=linked
+            except (ValueError,tk.TclError):pass
+            finally:self.updating=False
         self.preview()
 
     def mark_edit(self, name):

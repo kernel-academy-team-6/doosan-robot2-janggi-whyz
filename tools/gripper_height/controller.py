@@ -9,6 +9,7 @@ from .model import number
 
 WS = Path(__file__).resolve().parents[2]
 sys.path[:0] = [str(WS/'src/janggi'), str(WS/'src/janggi_pick_place2')]
+HOME_JOINT_DEG = (0., 0., 90., 0., 90., 0.)
 
 
 class MockController:
@@ -24,14 +25,16 @@ class MockController:
         self.check()
         if not isinstance(command,int) or not 0<=command<=700:raise ValueError('명령은 0~700 정수')
         self.command=command
-    def home(self):self.check();self.pose=[400.,0.,250.,0.,180.,0.];return self.read()
+    def home(self):
+        self.check();self.joints=list(HOME_JOINT_DEG)
+        self.pose=[400.,0.,250.,0.,180.,0.];return self.read()
     def stop(self):self.stopped.set()
     def close(self):pass
 
 
 class RosController:
-    def __init__(self, *, backend='real', namespace='dsr01', velocity=10., acceleration=20.,
-                 angular_velocity=10., angular_acceleration=20.):
+    def __init__(self, *, backend='real', namespace='dsr01', velocity=120., acceleration=240.,
+                 angular_velocity=60., angular_acceleration=120., z_velocity=10., z_acceleration=20.):
         import rclpy
         from rclpy.context import Context
         from rclpy.executors import SingleThreadedExecutor
@@ -49,6 +52,9 @@ class RosController:
             angular_acceleration_deg_s2=number(angular_acceleration,'회전 가속도'),
             joint_velocity_deg_s=number(angular_velocity,'홈 속도'),
             joint_acceleration_deg_s2=number(angular_acceleration,'홈 가속도')).validate()
+        self.z_settings=replace(self.settings,
+            linear_velocity_mm_s=number(z_velocity,'Z 속도'),
+            linear_acceleration_mm_s2=number(z_acceleration,'Z 가속도')).validate()
         self.context=Context();rclpy.init(context=self.context,signal_handler_options=SignalHandlerOptions.NO)
         self.node=rclpy.create_node('gripper_height_calibration',context=self.context)
         self.executor=SingleThreadedExecutor(context=self.context);self.executor.add_node(self.node)
@@ -108,11 +114,16 @@ class RosController:
         if orientation_error_deg(pose[3:],[0.,180.,0.])>.1:
             raise RuntimeError('먼저 XY 이동 버튼으로 XZ 개폐 자세를 맞추세요.')
         pose[2]+=number(delta,'Z 이동량');self._workspace(pose)
-        self.arm.move(pose,self.check)
+        previous=self.arm.settings
+        self.arm.settings=self.z_settings
+        try:self.arm.move(pose,self.check)
+        finally:self.arm.settings=previous
         return self.read()
 
     def set_gripper(self,command):self.hand.set_position(command,self.check)
-    def home(self):self.arm.home(self.check);return self.read()
+    def home(self):
+        self.arm.home(self.check,joints=HOME_JOINT_DEG)
+        return self.read()
     def stop(self):
         self.stopped.set()
         if self.arm is not None:self.arm.stop()

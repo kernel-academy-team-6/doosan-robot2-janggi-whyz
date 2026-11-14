@@ -34,9 +34,12 @@ def test_z_dialog_applies_current_fields_without_robot_or_display(monkeypatch):
     assert not dialog.enabled.get()
     dialog.enabled.value=True
     dialog.offset.value='1.5'; dialog.corners[0].value='2'
-    dialog.preview(); assert '좌상: -16.50' in dialog.summary.options['text']
+    dialog.preview(); assert '좌상: -13.31' in dialog.summary.options['text']
     dialog.submit()
     assert applied[0].board_z_offset_mm==1.5 and applied[0].board_z_corner_offsets_mm==(2.,0.,0.,0.)
+    virtual=board_z_ui.BoardZDialog(None,BoardGeometry.from_calibration(),applied[0],applied.append,lambda:None,virtual=True)
+    assert '좌상: -20.00' in virtual.summary.options['text']
+    assert '우하: -20.00' in virtual.summary.options['text']
 
 
 def test_z_and_motion_dialogs_merge_fields_and_busy_update_is_rejected():

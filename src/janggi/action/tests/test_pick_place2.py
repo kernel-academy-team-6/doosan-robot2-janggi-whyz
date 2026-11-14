@@ -33,7 +33,7 @@ class Hand:
 
 def picker(stop=lambda:False, *, compensate=False):
     events=[];arm=Arm(events);hand=Hand(events)
-    mover=SimpleNamespace(board=BoardGeometry.from_calibration(),vel=(30.,30.),acc=(60.,60.))
+    mover=SimpleNamespace(board=BoardGeometry.from_calibration(height_map_path=None),vel=(30.,30.),acc=(60.,60.))
     p=BoardPickPlace2(mover,robot=arm,gripper=hand,stop_check=stop)
     from dataclasses import replace
     p.set_motion_settings(replace(p.settings, board_z_compensation_enabled=compensate))
@@ -54,7 +54,7 @@ def test_motion_update_invalidates_cached_durations_and_preserves_held_piece():
     assert p.settings is p.runner.settings is arm.settings is updated
     assert arm._locked_paths == [] and p.runner.held is held
     assert arm._line_paths == []
-    assert p.held_grasp_height_mm == 3. and len(events) == count
+    assert p.held_grasp_height_mm == 2. and len(events) == count
     assert p.mover.vel == (40.,20.)
 
 
@@ -66,20 +66,20 @@ def test_refresh_after_horizontal_movement_retargets_descent_and_maintains_selec
         return [420.,15.,-20.]
     result=p.pick_abs([400.,0.,-20.],refresh=refresh)
     moves=[e[1] for e in events if e[0]=='move']
-    assert moves[-2][:3]==[420.,15.,142.]
+    assert moves[-2][:3]==pytest.approx([420.,15.,-18+tcp_length(26.)])
     assert moves[-2][3:]==[45.,180.,0.]
     assert list(result[:2])==[420.,15.] and p.runner.refresh_pick_target is None
 
 
-def test_release_only_retry_never_grasps_again_and_requires_matching_completed_place():
+def test_release_only_retry_never_grasps_again_and_does_not_require_verified_holding():
     p,events,_,_=picker();p.set_piece_kind('soldier')
-    with pytest.raises(RuntimeError):p.retry_place(4,4)
+    p.retry_place(4,4)
     p.pick_abs([400.,0.,-20.]);p.place(4,4)
     before=len([e for e in events if e[0]=='grasp'])
     p.retry_place(4,4)
     assert len([e for e in events if e[0]=='grasp'])==before
     assert p.runner.held is None and p.held_grasp_height_mm is None
-    with pytest.raises(RuntimeError):p.retry_place(3,4)
+    p.retry_place(3,4)
 
 
 def test_pick_sequence_gap_dependent_tcp_and_original_entry_height():
@@ -89,9 +89,9 @@ def test_pick_sequence_gap_dependent_tcp_and_original_entry_height():
     moves=[e[1] for e in events if e[0]=='move']
     assert len(moves)==3
     w=PIECE_WIDTHS_MM['soldier']
-    destination=[*target[:2],142.,0.,180.,0.]
-    np.testing.assert_allclose(moves[1],destination)
-    assert moves[0][2]==moves[2][2]==450.
+    destination=[*target[:2],-18+tcp_length(20.),0.,180.,0.]
+    np.testing.assert_allclose(moves[-2],destination)
+    assert moves[0][2]==moves[-1][2]==450.
     assert [e[0] for e in events]==['tcp','move','open','move','grasp','move']
     assert next(e[1] for e in events if e[0]=='open')==pytest.approx(w+10)
     assert next(e[1] for e in events if e[0]=='grasp')==pytest.approx(w)
@@ -105,13 +105,13 @@ def test_place_retains_picked_width_and_discard_only_counts_completed_release():
     p.set_piece_kind('soldier')  # already-held object's width must remain king width
     p.place(4,4)
     assert [e for e in events if e[0]=='open'][-1][1]==pytest.approx(PIECE_WIDTHS_MM['king']+10)
-    assert [e[1][2] for e in events if e[0]=='move'][-2]==143.
+    assert [e[1][2] for e in events if e[0]=='move'][-2]==pytest.approx(-18+tcp_length(32.))
     assert p.runner.holding_state=='empty_unverified'
     assert arm.pose[2]==450.
     p.pick_abs(p.mover.board.tip_target(2,2,0))
     p.discard()
     assert p.discarded==1 and p.runner.held is None
-    assert p.mover.board.base_to_board(p.discard_spot())[0]<0
+    assert p.discard_spot()[:2]==pytest.approx([465.6875,308.258])
 
 
 def test_cancel_and_grasp_failure_stop_without_release():
@@ -122,7 +122,9 @@ def test_cancel_and_grasp_failure_stop_without_release():
     with pytest.raises(RuntimeError,match='command failed'):p.pick_abs([400,0,-20])
     assert arm.stopped and p.runner.holding_state=='unknown'
     assert len([e for e in events if e[0]=='open'])==1
-    with pytest.raises(RuntimeError,match='unknown'):p.pick_abs([400,0,-20])
+    hand.fail=False
+    p.pick_abs([400,0,-20])
+    assert p.runner.holding_state=='holding_unverified'
 
 
 def test_target_above_entry_height_never_starts_moving():
@@ -151,13 +153,14 @@ def test_game_applies_capture_and_moving_piece_widths_in_order():
                    ('kind','soldier'),('pick',(340,100,-20)),('place',0,5),('game_move',)]
 
 
-def test_fixed_flange_extension_is_independent_of_piece_width():
+def test_baseline_plus_height_is_applied_once_and_ignores_calibration_222():
     for kind,z in [('soldier',142.),('cha',142.),('king',143.)]:
         p,events,_,_=picker();p.set_piece_kind(kind)
         np.testing.assert_array_equal(p.mover.board.tcp_offset_mm,[0.,0.,222.])
         p.pick_abs([400,0,-20])
-        descended=[event[1] for event in events if event[0]=='move'][1]
-        assert descended[2]==z  # commanded piece Z + 160mm ONCE; not calibration 222mm
+        descended=[event[1] for event in events if event[0]=='move'][-2]
+        assert descended[2]==pytest.approx(-20+p.grasp_height_for_kind(kind)+tcp_length(p.object_width_mm))
+        assert p.settings.tcp_length_at_6mm_mm==132.6717
 
 
 def test_ui_does_not_infer_yaw_from_calibration_and_preserves_explicit_yaw():
@@ -185,6 +188,7 @@ def test_ui_and_direct_executor_produce_same_moves_for_same_explicit_inputs(tmp_
     p.place(7,6)
     direct_events=[];arm=Arm(direct_events);hand=Hand(direct_events)
     direct=PickPlaceExecutor(arm,hand,p.settings)
+    direct.orientation_abc=list(p.runner.orientation_abc)
     target=p.mover.board.tip_target(7,6,0)
     source=p.command_target_for_kind(source,'cha')
     target=p.command_target_for_kind(target,'cha')
@@ -214,7 +218,7 @@ def test_observation_movement_uses_pick_place2_home_not_board_mover():
 @pytest.mark.parametrize('kind,z,closed,opened,thickness',[
     ('sa',-18.,20.,30.,6.),('soldier',-18.,20.,30.,6.),
     ('cha',-18.,26.,36.,7.),('horse',-18.,26.,36.,7.),
-    ('sang',-18.,26.,36.,7.),('po',-18.,26.,36.,7.),('king',-17.,32.,42.,8.),
+    ('sang',-18.,26.,36.,7.),('po',-18.,26.,36.,7.),('king',-18.,32.,42.,8.),
 ])
 def test_measured_piece_profile_pick_and_place(kind,z,closed,opened,thickness):
     p,events,_,_=picker();p.set_piece_kind(kind)
@@ -224,25 +228,26 @@ def test_measured_piece_profile_pick_and_place(kind,z,closed,opened,thickness):
     assert next(e[1] for e in events if e[0]=='grasp')==closed
     assert next(e[1] for e in events if e[0]=='open')==opened
     pick_moves=[e[1] for e in events if e[0]=='move']
-    assert pick_moves[1][2]==z+160
-    assert pick_moves[1][:2]==list(point[:2])
+    assert pick_moves[-2][2]==pytest.approx(z+tcp_length(closed))
+    assert pick_moves[-2][:2]==list(point[:2])
     assert p.piece_height_for_kind(kind)==thickness
     p.place(4,5)
-    assert [e[1][2] for e in events if e[0]=='move'][-2]==z+160
+    assert [e[1][2] for e in events if e[0]=='move'][-2]==pytest.approx(z+tcp_length(closed))
     assert [e[1] for e in events if e[0]=='open'][-1]==opened
 
 
-def test_default_keeps_home_gripper_attitude_without_zero_yaw_alignment():
+def test_default_keeps_flat_home_gripper_attitude():
     p,events,arm,_=picker()
     assert not p.settings.joint6_lock_enabled
     arm.pose[3:]=[90.,180.,0.]
     p.set_piece_kind('cha');p.pick_abs([400,0,-20]);p.place(4,5)
     moves=[e[1] for e in events if e[0]=='move']
     assert len(moves)==6
+    assert p.settings.grasp_yaw_offset_deg==0.
     assert all(pose[3:]==[90.,180.,0.] for pose in moves)
 
 
-@pytest.mark.parametrize('kind,height,z',[('soldier',6.,-18.),('cha',7.,-18.),('king',8.,-17.)])
+@pytest.mark.parametrize('kind,height,z',[('soldier',6.,-18.),('cha',7.,-18.),('king',8.,-18.)])
 def test_camera_plan_uses_piece_top_height_and_command_board_z(kind,height,z):
     from session import RobotGame
     p,_,_,_=picker();game=RobotGame.__new__(RobotGame)
@@ -257,11 +262,105 @@ def test_camera_plan_uses_piece_top_height_and_command_board_z(kind,height,z):
     assert source=='camera' and point[2]==z and called==[height]
 
 
-@pytest.mark.parametrize('kind,z',[('soldier',-18.),('cha',-18.),('king',-17.)])
+@pytest.mark.parametrize('kind,z',[('soldier',-18.),('cha',-18.),('king',-18.)])
 def test_no_motion_game_preview_uses_same_command_profile(kind,z):
     from session import RobotGame
     p,_,_,_=picker();game=RobotGame.__new__(RobotGame)
     game.picker=None;game.geom=p.mover.board;game.log=lambda *args:None
     game.cfg=SimpleNamespace(command_settings=p.settings,piece_height_mm=5.,max_offset_mm=18.)
-    target,source=game.grasp_from_camera((2,3),{},kind)
-    assert source=='grid' and target[2]==z
+    game.cam=SimpleNamespace(pixel_to_base=lambda *args,**kwargs:np.array([500.,100.,-10.]))
+    target,source=game.grasp_from_camera((2,3),{(2,3):(123,456)},kind)
+    assert source=='camera' and target[2]==z
+    assert target[:2]==pytest.approx([500.,100.])
+
+
+def test_captured_piece_drops_at_midpoint_plus_base_y_without_board_descent_or_home_motion():
+    p,events,arm,hand=picker()
+    p.set_piece_kind('king')
+    p.pick_abs([400,0,-20])
+    # Home FK is queried; querying must not move the robot to home.
+    arm.home_flange_pose=lambda check:[400.,0.,450.,0.,180.,0.]
+    arm.pose[2]=350.
+    before=len(events)
+    point=p.discard()
+    commands=[e[1] for e in events[before:] if e[0]=='move']
+    assert point==pytest.approx([465.6875,308.258,450.])
+    assert commands[0][:3]==[400.,0.,450.]  # vertical lift first
+    assert commands[-1][:3]==pytest.approx(point)
+    assert all(m[2]==450. for m in commands)
+    assert not any(e[0] in ('home','grasp') for e in events[before:])
+    assert [e for e in events[before:] if e[0]=='open']==[('open',42.,command_from_width(42.))]*2
+    assert p.runner.held is None and p.discarded==1
+    assert p.discard_spot(100)==pytest.approx(point)  # no per-piece drop-location stepping
+
+
+@pytest.mark.parametrize('cancel', [False, True])
+def test_grave_second_release_failure_does_not_mark_piece_discarded(cancel):
+    p,events,arm,hand=picker()
+    p.set_piece_kind('king');p.pick_abs([400.,0.,-18.])
+    arm.home_flange_pose=lambda check:arm.pose.copy()
+    held=p.runner.held;calls=[]
+    def open_to(width,current,check):
+        calls.append((width,arm.pose.copy()))
+        if len(calls)==2:
+            raise OperationCancelled() if cancel else RuntimeError('second release failed')
+    hand.open_to=open_to
+    with pytest.raises((OperationCancelled,RuntimeError)):
+        p.discard()
+    assert len(calls)==2 and calls[0]==calls[1]
+    assert p.runner.held is held and p.discarded==0
+    assert p.runner.holding_state=='unknown'
+
+
+def test_orthogonal_direction_is_not_accumulated_and_preserves_flange_axis():
+    from janggi_pick_place2.geometry import rotation_zyz
+    p,events,arm,_=picker();arm.pose[3:]=[90.,179.9,0.]
+    p.set_operation_yaw(None)
+    assert p.runner.orientation_abc==[90.,179.9,0.]
+    p.set_orthogonal_grasp(90.)
+    assert p.runner.orientation_abc==[90.,179.9,-90.]
+    before=np.asarray(rotation_zyz(p.home_orientation_abc))
+    after=np.asarray(rotation_zyz(p.runner.orientation_abc))
+    np.testing.assert_allclose(before[:,2],after[:,2],atol=1e-12)
+    arm.pose[3:]=[90.,179.9,-90.]
+    p.set_orthogonal_grasp(90.)
+    assert p.runner.orientation_abc==[90.,179.9,-90.]
+    p.set_orthogonal_grasp(0.)
+    assert p.runner.orientation_abc==[90.,179.9,0.]
+    arm.pose[3:]=[90.,179.9,0.]
+    p.go_observe(p.settings.home_joint_deg,30.,60.)
+    assert p.operation_yaw is None and p.operation_orientation_abc is None
+    p.set_operation_yaw(None)
+    assert p.runner.orientation_abc==[90.,179.9,0.]
+
+
+def test_home_scene_left_right_neighbors_select_90_and_work_motion_keeps_selected_attitude():
+    from manipulation import ManipulationCoordinator,ManipulationOptions,SeenPiece
+    p,events,arm,_=picker()
+    g=SimpleNamespace(picker=p,log=lambda *_:None)
+    c=ManipulationCoordinator(g,None,ManipulationOptions(),lambda:None)
+    point=np.array([400.,0.,-18.])
+    scene=[SeenPiece('own',(0,0),('blue','soldier'),point,12.),
+           SeenPiece('left',(0,1),('red','horse'),point+[-40.,0.,0.],12.),
+           SeenPiece('right',(0,2),('red','horse'),point+[40.,0.,0.],12.)]
+    p.set_piece_kind('soldier')
+    c.orient(scene,point,'soldier','own')
+    assert p.runner.orientation_abc==[0.,180.,-90.]
+    p.pick_abs(point)
+    assert all(e[1][3:]==[0.,180.,-90.] for e in events if e[0]=='move')
+    c.orient([],point,'soldier','own')
+    assert p.runner.orientation_abc==[0.,180.,0.]  # Empty scene restores flat, no accumulated turn.
+
+
+def test_stop_after_first_grave_open_prevents_second_command():
+    stopped=[False]
+    p,events,arm,hand=picker(stop=lambda:stopped[0])
+    p.set_piece_kind('king');p.pick_abs([400.,0.,-18.])
+    arm.home_flange_pose=lambda check:arm.pose.copy()
+    calls=[]
+    def open_to(width,current,check):
+        calls.append(arm.pose.copy());stopped[0]=True
+    hand.open_to=open_to
+    with pytest.raises(OperationCancelled):p.discard()
+    assert len(calls)==1 and p.discarded==0
+    assert p.runner.held is not None

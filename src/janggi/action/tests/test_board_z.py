@@ -10,10 +10,11 @@ sys.path[:0] = [str(Path(__file__).resolve().parents[2]), str(Path(__file__).res
 from action.board import BoardGeometry
 from action.pick_place2 import load_pick_place_settings
 from test_pick_place2 import picker
+from janggi_pick_place2.geometry import tcp_length
 
 
 def test_historical_calibration_z_is_never_applied_and_only_explicit_manual_offsets_change_height():
-    g = BoardGeometry.from_calibration()
+    g = BoardGeometry.from_calibration(height_map_path=None)
     settings, _ = load_pick_place_settings()
     original = g.corners_mm.copy()
     measured = original[:,2]-original[:,2].min()
@@ -39,13 +40,14 @@ def test_pick_and_place_use_destination_height_while_discard_keeps_separate_datu
     p.set_piece_kind('soldier')
     point = p.mover.board.board_to_base(0,0)
     p.pick_abs(point)
-    descended = [e[1] for e in events if e[0]=='move'][1]
-    assert descended[2] == pytest.approx(-20+1+2+160)
+    descended = [e[1] for e in events if e[0]=='move'][-2]
+    assert descended[2] == pytest.approx(-20+1+2+tcp_length(20.))
     assert descended[:2] == list(point[:2])
     p.place(0,9)
-    assert [e[1][2] for e in events if e[0]=='move'][-2] == pytest.approx(142.,abs=.01)
-    p.pick_abs(point); p.discard()
-    assert [e[1][2] for e in events if e[0]=='move'][-2] == 142.
+    assert [e[1][2] for e in events if e[0]=='move'][-2] == pytest.approx(-18+tcp_length(20.))
+    p.pick_abs(point)
+    before=len(events);p.discard()
+    assert all(e[1][2]==450. for e in events[before:] if e[0]=='move')
 
 
 def test_no_motion_camera_preview_and_real_command_use_same_height_map():
@@ -54,7 +56,8 @@ def test_no_motion_camera_preview_and_real_command_use_same_height_map():
     game = RobotGame.__new__(RobotGame)
     game.picker = None; game.geom = p.mover.board; game.log = lambda *_:None
     game.cfg = SimpleNamespace(command_settings=p.settings,piece_height_mm=5.,max_offset_mm=18.)
-    point, source = game.grasp_from_camera((0,0), {}, 'king')
-    assert point[2] == -17.
-    assert source == 'grid'
+    game.cam=SimpleNamespace(pixel_to_base=lambda *args,**kwargs:np.array([500.,100.,-10.]))
+    point, source = game.grasp_from_camera((0,0), {(0,0):(123,456)}, 'king')
+    assert point[2] == -18.
+    assert source == 'camera'
     np.testing.assert_allclose(point, p.command_target_for_kind(point, 'king'))

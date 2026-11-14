@@ -1,0 +1,17 @@
+# Separate board-contact measurement; NEVER overwrites camera calibration.yaml.
+schema_version: 1
+enabled: true
+frame: base_link
+units: mm
+measurement_date: '2026-11-13'
+measurement_reference: joint_6_flange
+probe_gripper_command: 700
+# Length AT MEASUREMENT TIME; do not recompute if future gripper parameters change.
+probe_tool_length_mm: 160.3681
+support_z_mm: -30.0
+# TL, TR, BR, BL; contact measured with flange local Z pointing down.
+corners:
+  - {name: top_left, grid: [0, 0], xy_mm: [642.958, 236.880], flange_z_mm: 143.5573}
+  - {name: top_right, grid: [8, 0], xy_mm: [642.952, -119.455], flange_z_mm: 143.4812}
+  - {name: bottom_right, grid: [8, 9], xy_mm: [288.417, -119.455], flange_z_mm: 137.4137}
+  - {name: bottom_left, grid: [0, 9], xy_mm: [288.417, 239.636], flange_z_mm: 137.6356}

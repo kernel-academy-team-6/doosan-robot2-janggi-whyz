@@ -101,3 +101,29 @@ def test_cancel_before_publish_sends_nothing(hand):
     with pytest.raises(OperationCancelled):
         hand.open_to(40., 100, cancelled)
     assert not hand.position_cmd.messages
+
+
+def test_workspace_defaults_progress_without_any_result_response():
+    from pathlib import Path
+    import yaml
+    params=yaml.safe_load((Path(__file__).resolve().parents[1]/'config/pick_place.yaml').read_text())['/janggi_pick_place2']['ros__parameters']
+    assert params['gripper_wait_for_result'] is False
+    assert params['gripper_command_wait_sec']==2.
+    # Node intentionally has no create_subscription/count_publishers result API.
+    h=GripperClient(Node(),'/dsr01',params)
+    h._wait_result=lambda *args:pytest.fail('must not wait for bridge response')
+    waits=[];h._sleep=lambda seconds,check:waits.append(seconds)
+    state=h.open_to(30.,100,lambda:None)
+    assert h.topic=='/dsr01/gripper/position_cmd'
+    assert waits==[2.] and state['wait_completed']
+    assert not state['feedback_received'] and not state['grip_verified']
+
+
+def test_identical_grave_release_commands_are_published_twice_with_wait():
+    # Use actual configuration path; no response subscription or serial probe.
+    hand=GripperClient(Node(),'/dsr01',{'gripper_command_wait_sec':2.,'service_timeout_sec':.01})
+    delays=[];hand._sleep=lambda seconds,check:delays.append(seconds)
+    hand.open_to(42.,100,lambda:None)
+    hand.open_to(42.,100,lambda:None)
+    assert [m.data for m in hand.position_cmd.messages]==[command_from_width(42.)]*2
+    assert delays==[2.,2.]
